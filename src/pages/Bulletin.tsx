@@ -32,12 +32,6 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
 }
 
-const textareaStyle: React.CSSProperties = {
-  border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
-  padding: '10px 12px', fontSize: 13, color: '#000',
-  outline: 'none', resize: 'vertical', transition: 'border-color 0.15s',
-  width: '100%', fontFamily: 'Inter, sans-serif', minHeight: 80, boxSizing: 'border-box',
-}
 
 export default function Bulletin() {
   const { user } = useAuth()

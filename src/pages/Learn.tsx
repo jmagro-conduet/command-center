@@ -65,7 +65,6 @@ export default function Learn() {
   const [formTitle, setFormTitle] = useState('')
   const [formCat,   setFormCat]   = useState('General')
   const [formBody,  setFormBody]  = useState('')
-  const [formDesc,  setFormDesc]  = useState('')
 
   useEffect(() => { loadArticles() }, [])
 

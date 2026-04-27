@@ -539,7 +539,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days = rangeDays(range)
   const cats = useMemo(() => categoryStats(rows), [rows])
-  const agents = useMemo(() => agentStats(rows, days), [rows, days])
+  void useMemo(() => agentStats(rows, days), [rows, days])
 
   const ready    = cats.filter(c => c.status === 'ready').length
   const almost   = cats.filter(c => c.status === 'almost').length
