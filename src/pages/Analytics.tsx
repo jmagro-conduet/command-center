@@ -1,23 +1,758 @@
+import { useState, useEffect, useMemo } from 'react'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ReferenceLine, ResponsiveContainer,
+} from 'recharts'
+import { PieChart, Pie, Cell } from 'recharts'
+import { supabase } from '../lib/supabase'
+
+type Tab       = 'team' | 'agent' | 'events' | 'category'
+type TimeRange = 'last7' | 'last30' | 'lastQuarter'
+
+interface DataRow {
+  issueType: string
+  loggedAt:  string | null
+  ticketNumber: string
+  agentName:    string
+  category:     string
+  createdAt:    string
+}
+
+interface HotEvent {
+  id: string; name: string; event_type: string
+  start_date: string; end_date: string
+  severity: string; notes: string | null
+}
+
+function rangeDays(range: TimeRange) {
+  return range === 'last7' ? 7 : range === 'last30' ? 30 : 90
+}
+
+function cutoff(days: number) {
+  const d = new Date(); d.setDate(d.getDate() - days); return d
+}
+
+function filterByRange(rows: DataRow[], range: TimeRange) {
+  const c = cutoff(rangeDays(range))
+  return rows.filter(r => new Date(r.loggedAt ?? r.createdAt) >= c)
+}
+
+function pct(n: number, total: number) {
+  if (!total) return 0
+  return parseFloat(((n / total) * 100).toFixed(1))
+}
+
+function buildChartData(rows: DataRow[], days: number) {
+  const byDate = new Map<string, Set<string>>()
+  for (const r of rows) {
+    const label = new Date(r.loggedAt ?? r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    if (!byDate.has(label)) byDate.set(label, new Set())
+    byDate.get(label)!.add(r.ticketNumber)
+  }
+  const result: { date: string; count: number; movingAvg: number; target: number }[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i)
+    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    result.push({ date: label, count: byDate.get(label)?.size ?? 0, movingAvg: 0, target: 25 })
+  }
+  return result.map((pt, i) => {
+    const win = result.slice(Math.max(0, i - 6), i + 1)
+    return { ...pt, movingAvg: Math.round(win.reduce((a, b) => a + b.count, 0) / win.length) }
+  })
+}
+
+function agentStats(rows: DataRow[], days: number) {
+  const map = new Map<string, { tickets: Set<string>; counts: Record<string, number> }>()
+  for (const r of rows) {
+    if (!map.has(r.agentName)) map.set(r.agentName, { tickets: new Set(), counts: {} })
+    const entry = map.get(r.agentName)!
+    entry.tickets.add(r.ticketNumber)
+    entry.counts[r.issueType] = (entry.counts[r.issueType] ?? 0) + 1
+  }
+  return [...map.entries()].map(([name, { tickets, counts }]) => {
+    const total    = Object.values(counts).reduce((a, b) => a + b, 0)
+    const perfect  = counts['Perfect'] ?? 0
+    const majority = counts['Majority edit'] ?? 0
+    const partial  = counts['Partial edit'] ?? 0
+    const noResp   = counts['No response'] ?? 0
+    return {
+      name, total: tickets.size, issueTotal: total,
+      avg: parseFloat((tickets.size / days).toFixed(1)),
+      perfect:  pct(perfect, total),
+      majority: pct(majority, total),
+      partial:  pct(partial, total),
+      noResp:   pct(noResp, total),
+    }
+  }).sort((a, b) => b.total - a.total)
+}
+
+function categoryStats(rows: DataRow[]) {
+  const map = new Map<string, { counts: Record<string, number>; tickets: Set<string> }>()
+  for (const r of rows) {
+    const cat = r.category || 'Uncategorized'
+    if (!map.has(cat)) map.set(cat, { counts: {}, tickets: new Set() })
+    const entry = map.get(cat)!
+    entry.counts[r.issueType] = (entry.counts[r.issueType] ?? 0) + 1
+    entry.tickets.add(r.ticketNumber)
+  }
+  return [...map.entries()].map(([name, { counts, tickets }]) => {
+    const total    = Object.values(counts).reduce((a, b) => a + b, 0)
+    const perfect  = counts['Perfect'] ?? 0
+    const majority = counts['Majority edit'] ?? 0
+    const partial  = counts['Partial edit'] ?? 0
+    const noResp   = counts['No response'] ?? 0
+    const perfectPct = pct(perfect, total)
+    const editPct    = pct(majority + partial, total)
+    const noRespPct  = pct(noResp, total)
+    const status = total < 10 ? 'low-data' : perfectPct >= 90 ? 'ready' : perfectPct >= 75 ? 'almost' : 'not-ready'
+    let blocker = 'Need more data'
+    if (total >= 10) {
+      if (noRespPct > 20 && editPct > 20) blocker = 'Product + Coverage'
+      else if (noRespPct > 20) blocker = 'Coverage gap'
+      else if (editPct > 25) blocker = 'Product quality'
+      else blocker = 'On track'
+    }
+    return { name, vol: total, tickets: tickets.size, perfect: perfectPct, edit: editPct, noResp: noRespPct, status, blocker }
+  }).sort((a, b) => b.vol - a.vol)
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
 export default function Analytics() {
+  const [tab, setTab]         = useState<Tab>('team')
+  const [allRows, setAllRows] = useState<DataRow[]>([])
+  const [events, setEvents]   = useState<HotEvent[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const [{ data: issues }, { data: evts }] = await Promise.all([
+        supabase
+          .from('ticket_issues')
+          .select('issue_type, logged_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
+          .order('logged_at', { ascending: false }),
+        supabase.from('hot_events').select('*').order('start_date', { ascending: false }),
+      ])
+
+      const rows: DataRow[] = (issues ?? []).map((ti: any) => ({
+        issueType:    ti.issue_type ?? '',
+        loggedAt:     ti.logged_at,
+        ticketNumber: ti.tickets?.ticket_number ?? '',
+        agentName:    ti.tickets?.agent_name ?? '',
+        category:     ti.tickets?.ticket_category ?? '',
+        createdAt:    ti.tickets?.created_at ?? '',
+      }))
+
+      setAllRows(rows)
+      setEvents(evts ?? [])
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'team',     label: 'Team View'           },
+    { id: 'agent',    label: 'Per Agent'            },
+    { id: 'events',   label: 'Event Analytics'      },
+    { id: 'category', label: 'Category Performance' },
+  ]
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Analytics</h1>
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading analytics…</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
-          Analytics
-        </h1>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
-          gameLM quality trends and agent performance metrics
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Analytics</h1>
+        <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13,
+              fontWeight: tab === t.id ? 500 : 400,
+              padding: '6px 14px', borderRadius: 8,
+              background: tab === t.id ? '#000' : 'transparent',
+              color: tab === t.id ? '#fff' : '#58595B',
+              border: 'none', transition: 'all 0.15s', cursor: 'pointer',
+            }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div style={{
-        background: '#fff', borderRadius: 16,
-        border: '1.5px solid rgba(0,0,0,0.09)', padding: 40,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
-          Analytics will populate as tickets are submitted
-        </p>
+      {tab === 'team'     && <TeamView     allRows={allRows} />}
+      {tab === 'agent'    && <PerAgent     allRows={allRows} />}
+      {tab === 'events'   && <EventAnalyticsTab allRows={allRows} events={events} />}
+      {tab === 'category' && <CategoryPerformance allRows={allRows} />}
+    </div>
+  )
+}
+
+// ── Team View ─────────────────────────────────────────────────────────────────
+
+function TeamView({ allRows }: { allRows: DataRow[] }) {
+  const [range, setRange]             = useState<TimeRange>('last30')
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
+
+  const days = rangeDays(range)
+  const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
+
+  const agents = useMemo(() => agentStats(rows, days), [rows, days])
+
+  const kpis = useMemo(() => {
+    const tickets = new Set(rows.map(r => r.ticketNumber))
+    const total   = rows.length
+    const perfect = rows.filter(r => r.issueType === 'Perfect').length
+    const majority = rows.filter(r => r.issueType === 'Majority edit').length
+    const partial  = rows.filter(r => r.issueType === 'Partial edit').length
+    const noResp   = rows.filter(r => r.issueType === 'No response').length
+    return {
+      tickets: tickets.size,
+      issues:  total,
+      avgPerTicket: tickets.size ? (total / tickets.size).toFixed(1) : '0',
+      avgPerDay:    (tickets.size / days).toFixed(1),
+      perfectPct:  pct(perfect, total).toFixed(1),
+      majorityPct: pct(majority, total).toFixed(1),
+      partialPct:  pct(partial, total).toFixed(1),
+      noRespPct:   pct(noResp, total).toFixed(1),
+    }
+  }, [rows, days])
+
+  const agentRows = useMemo(() => {
+    if (!selectedAgent) return rows
+    return rows.filter(r => r.agentName === selectedAgent)
+  }, [rows, selectedAgent])
+
+  const chartData = useMemo(() => buildChartData(agentRows, days), [agentRows, days])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        {[
+          { label: `Tickets (${range === 'last7' ? 'last 7' : range === 'last30' ? 'last 30' : 'last 90'})`, value: kpis.tickets.toString() },
+          { label: 'Responses',               value: kpis.issues.toString() },
+          { label: 'Avg responses / ticket',  value: kpis.avgPerTicket },
+          { label: 'Avg tickets / day',        value: kpis.avgPerDay },
+          { label: 'Target range / agent',     value: '20–30' },
+        ].map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0' }}>{k.value}</p>
+          </div>
+        ))}
       </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {[
+          { label: 'Perfect rate',  value: `${kpis.perfectPct}%`,  color: '#166534' },
+          { label: 'Majority edit', value: `${kpis.majorityPct}%`, color: '#854d0e' },
+          { label: 'Partial edit',  value: `${kpis.partialPct}%`,  color: '#6b21a8' },
+          { label: 'No response',   value: `${kpis.noRespPct}%`,   color: '#e53e3e' },
+        ].map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+              {selectedAgent ? `${selectedAgent} – Tickets Logged` : 'Team Performance'}
+            </p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+              {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : 'Last Quarter'}
+            </p>
+          </div>
+          <TimeRangeFilter value={range} onChange={setRange} />
+        </div>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+            <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
+            <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+            <ReferenceLine y={25} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} label={{ value: 'Target', position: 'right', fontSize: 11, fill: '#9B59D0', fontFamily: 'Inter' }} />
+            <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily Count" />
+            <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Agent Performance Summary</p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Click an agent row to view their chart above</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 120px 100px 110px 110px 110px 90px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+          {['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'Status'].map(h => (
+            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+          ))}
+        </div>
+        {agents.map((a, i) => {
+          const onTrack = a.avg >= 20
+          const almost  = !onTrack && a.avg >= 10
+          const statusLabel = onTrack ? 'ON TRACK' : almost ? 'ALMOST' : 'OFF TRACK'
+          const statusColor = onTrack ? '#166534' : almost ? '#854d0e' : '#854d0e'
+          const statusBg    = onTrack ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)'
+          return (
+            <div key={a.name} onClick={() => setSelectedAgent(s => s === a.name ? null : a.name)}
+              style={{
+                display: 'grid', gridTemplateColumns: '1.5fr 120px 100px 110px 110px 110px 90px',
+                padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
+                borderBottom: i < agents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                background: selectedAgent === a.name ? 'rgba(206,164,255,0.07)' : 'transparent',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => { if (selectedAgent !== a.name) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = selectedAgent === a.name ? 'rgba(206,164,255,0.07)' : 'transparent' }}
+            >
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.total}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.avg}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{a.perfect}%</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#854d0e' }}>{a.majority}%</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#6b21a8' }}>{a.partial}%</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusBg, color: statusColor }}>{statusLabel}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ height: 8 }} />
+    </div>
+  )
+}
+
+// ── Per Agent ─────────────────────────────────────────────────────────────────
+
+function PerAgent({ allRows }: { allRows: DataRow[] }) {
+  const [range, setRange] = useState<TimeRange>('last30')
+  const rows  = useMemo(() => filterByRange(allRows, range), [allRows, range])
+  const days  = rangeDays(range)
+  const agents = useMemo(() => agentStats(rows, days), [rows, days])
+
+  const [selected, setSelected] = useState('')
+  const activeAgent = useMemo(() => agents[0]?.name ?? '', [agents])
+  const agentName   = selected || activeAgent
+
+  const agent = useMemo(() => agents.find(a => a.name === agentName) ?? agents[0], [agents, agentName])
+
+  const agentRows  = useMemo(() => rows.filter(r => r.agentName === agentName), [rows, agentName])
+  const chartData  = useMemo(() => buildChartData(agentRows, days), [agentRows, days])
+
+  if (!agent) return null
+
+  const onTrack = agent.avg >= 20
+  const statusLabel = onTrack ? 'On Track' : agent.avg >= 10 ? 'Almost' : 'Off Track'
+  const statusColor = onTrack ? '#166534' : '#854d0e'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        {agents.map(a => (
+          <button key={a.name} onClick={() => setSelected(a.name)} style={{
+            background: '#fff', borderRadius: 14, textAlign: 'left',
+            border: agentName === a.name ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.09)',
+            padding: '14px 16px', transition: 'all 0.15s', cursor: 'pointer',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: a.avg >= 20 ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)', color: a.avg >= 20 ? '#166534' : '#854d0e' }}>
+                {a.avg >= 20 ? 'ON TRACK' : 'OFF TRACK'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg/day</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>{a.avg}</p>
+              </div>
+              <div>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tickets</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>{a.total}</p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 16 }}>
+          {agent.name} – Performance Details
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
+          {[
+            { label: 'Tickets',           value: agent.total.toString(),  color: '#9B59D0' },
+            { label: 'Avg Tickets/Day',   value: agent.avg.toString(),    color: '#9B59D0' },
+            { label: 'Perfect Rate',      value: `${agent.perfect}%`,     color: '#166534' },
+            { label: 'Status vs Target',  value: statusLabel,              color: statusColor },
+          ].map(k => (
+            <div key={k.label} style={{ padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <TimeRangeFilter value={range} onChange={setRange} />
+        </div>
+
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+            <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
+            <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)' }} />
+            <ReferenceLine y={25} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} />
+            <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily" />
+            <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
+          </LineChart>
+        </ResponsiveContainer>
+
+        <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(206,164,255,0.06)', border: '1px solid rgba(206,164,255,0.2)' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>Insights</p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6 }}>
+            {agent.name} is logging {agent.avg} tickets/day vs target of 20–30.
+            {agent.perfect < 60 ? ' Perfect rate is below 60% — consider a review session on gameLM response quality.' : ' Perfect rate is solid. Focus on increasing daily volume to hit target range.'}
+            {agent.noResp > 20 ? ` No-response rate of ${agent.noResp}% is elevated — coverage gaps may need product attention.` : ''}
+          </p>
+        </div>
+      </div>
+      <div style={{ height: 8 }} />
+    </div>
+  )
+}
+
+// ── Event Analytics ───────────────────────────────────────────────────────────
+
+function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: HotEvent[] }) {
+  const now = new Date()
+
+  const eventsWithStats = useMemo(() => events.map(evt => {
+    const start = new Date(evt.start_date)
+    const end   = new Date(evt.end_date); end.setHours(23, 59, 59)
+    const evtRows = allRows.filter(r => {
+      const d = new Date(r.loggedAt ?? r.createdAt)
+      return d >= start && d <= end
+    })
+    const tickets = new Set(evtRows.map(r => r.ticketNumber)).size
+    const total   = evtRows.length
+    const perfect = evtRows.filter(r => r.issueType === 'Perfect').length
+    return {
+      ...evt,
+      tickets,
+      issues:      total,
+      perfectPct:  pct(perfect, total),
+      noRespPct:   pct(evtRows.filter(r => r.issueType === 'No response').length, total),
+      isPast:      new Date(evt.end_date) < now,
+    }
+  }), [allRows, events])
+
+  const past     = eventsWithStats.filter(e => e.isPast)
+  const upcoming = eventsWithStats.filter(e => !e.isPast)
+
+  const severityColor = (s: string) =>
+    s === 'high' ? '#e53e3e' : s === 'medium' ? '#854d0e' : '#58595B'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {past.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Past Events — Actual Performance</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Ticket volume and quality metrics logged during each event window</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 120px 100px 90px 110px 110px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+            {['Event', 'Dates', 'Severity', 'Tickets', 'Perfect %', 'No Resp %'].map(h => (
+              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            ))}
+          </div>
+          {past.map((e, i) => (
+            <div key={e.id} style={{
+              display: 'grid', gridTemplateColumns: '1.8fr 120px 100px 90px 110px 110px',
+              padding: '14px 20px', alignItems: 'center',
+              borderBottom: i < past.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+              transition: 'background 0.15s',
+            }}
+              onMouseEnter={ev => (ev.currentTarget.style.background = 'rgba(0,0,0,0.02)')}
+              onMouseLeave={ev => (ev.currentTarget.style.background = 'transparent')}
+            >
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{e.name}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                {new Date(e.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(e.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, width: 'fit-content', background: `${severityColor(e.severity)}15`, color: severityColor(e.severity), textTransform: 'capitalize' }}>
+                {e.severity}
+              </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{e.tickets || '—'}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{e.issues ? `${e.perfectPct}%` : '—'}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: e.noRespPct > 20 ? '#e53e3e' : '#58595B' }}>{e.issues ? `${e.noRespPct}%` : '—'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {upcoming.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Upcoming Events</p>
+          </div>
+          {upcoming.map((e, i) => (
+            <div key={e.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 20px',
+              borderBottom: i < upcoming.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+            }}>
+              <div>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500, color: '#000' }}>{e.name}</p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 2 }}>
+                  {new Date(e.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(e.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: `${severityColor(e.severity)}15`, color: severityColor(e.severity), textTransform: 'capitalize' }}>
+                {e.severity}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ height: 8 }} />
+    </div>
+  )
+}
+
+// ── Category Performance ──────────────────────────────────────────────────────
+
+function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
+  const [range, setRange]       = useState<TimeRange>('last30')
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
+  const days = rangeDays(range)
+  const cats = useMemo(() => categoryStats(rows), [rows])
+  const agents = useMemo(() => agentStats(rows, days), [rows, days])
+
+  const ready    = cats.filter(c => c.status === 'ready').length
+  const almost   = cats.filter(c => c.status === 'almost').length
+  const notReady = cats.filter(c => c.status === 'not-ready').length
+  const lowData  = cats.filter(c => c.status === 'low-data').length
+  const total    = cats.length
+
+  const overallPerfect = cats.length
+    ? Math.round(cats.reduce((s, c) => s + c.perfect * c.vol, 0) / cats.reduce((s, c) => s + c.vol, 0))
+    : 0
+
+  const pieData = [
+    { name: 'Autopilot Ready', value: ready,    color: '#166534' },
+    { name: 'Almost (75%+)',   value: almost,   color: '#854d0e' },
+    { name: 'Not Ready',       value: notReady, color: '#e53e3e' },
+    { name: 'Low Data',        value: lowData,  color: '#d1d5db' },
+  ].filter(d => d.value > 0)
+
+  const coverageGaps = cats.filter(c => c.blocker.includes('Coverage')).length
+  const productIssues = cats.filter(c => c.blocker.includes('Product')).length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>Autopilot Readiness</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+              Track each category toward the 90% perfect rate needed for full gameLM automation
+            </p>
+          </div>
+          <TimeRangeFilter value={range} onChange={setRange} />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <PieChart width={110} height={110}>
+              <Pie data={pieData.length ? pieData : [{ name: 'empty', value: 1, color: '#e5e5e5' }]}
+                cx={50} cy={50} innerRadius={32} outerRadius={50} dataKey="value" paddingAngle={2}>
+                {(pieData.length ? pieData : [{ color: '#e5e5e5' }]).map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+            </PieChart>
+            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', textAlign: 'center' }}>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 700, color: '#000', lineHeight: 1 }}>{ready}/{total}</p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa' }}>Ready</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {[
+              { label: 'Autopilot Ready', color: '#166534', count: ready    },
+              { label: 'Almost (75%+)',   color: '#854d0e', count: almost   },
+              { label: 'Not Ready',       color: '#e53e3e', count: notReady },
+              { label: 'Low Data',        color: '#d1d5db', count: lowData  },
+            ].map(l => (
+              <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, flexShrink: 0 }} />
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{l.count} {l.label}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 1, flex: 1, borderLeft: '1px solid rgba(0,0,0,0.07)', paddingLeft: 32 }}>
+            {[
+              { label: 'Overall perfect rate', value: `${overallPerfect}%`, color: overallPerfect >= 90 ? '#166534' : overallPerfect >= 75 ? '#854d0e' : '#e53e3e' },
+              { label: 'Categories cleared',   value: `${ready}/${total}`,  color: '#aaa' },
+              { label: 'Product blockers',      value: productIssues.toString(), color: '#854d0e' },
+              { label: 'Coverage gaps',         value: coverageGaps.toString(),  color: '#9B59D0' },
+            ].map(k => (
+              <div key={k.label} style={{ flex: 1, padding: '0 16px', borderRight: '1px solid rgba(0,0,0,0.07)' }}>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 100px 60px 100px 1fr 90px 80px 140px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+          {['Category', 'Status', 'Vol', 'Perfect', 'Progress to 90%', 'Edit Rate', 'No Resp', 'Blocker'].map(h => (
+            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+          ))}
+        </div>
+
+        {cats.map(cat => {
+          const isExpanded = expanded === cat.name
+          const gap = Math.round(90 - cat.perfect)
+          const barColor = cat.perfect >= 90 ? '#166534' : cat.perfect >= 75 ? '#854d0e' : cat.perfect >= 50 ? '#f97316' : '#e53e3e'
+          const statusMap: Record<string, { label: string; bg: string; color: string }> = {
+            'ready':     { label: 'Ready',     bg: 'rgba(22,101,52,0.09)',   color: '#166534' },
+            'almost':    { label: 'Almost',    bg: 'rgba(234,179,8,0.12)',   color: '#854d0e' },
+            'not-ready': { label: 'Not Ready', bg: 'rgba(229,62,62,0.09)',   color: '#e53e3e' },
+            'low-data':  { label: 'Low Data',  bg: 'rgba(0,0,0,0.06)',       color: '#58595B' },
+          }
+          const statusStyle = statusMap[cat.status] ?? statusMap['not-ready']
+
+          // Per-agent breakdown for this category
+          const catAgentRows = rows.filter(r => (r.category || 'Uncategorized') === cat.name)
+          const catAgents = agentStats(catAgentRows, days)
+
+          return (
+            <div key={cat.name}>
+              <div onClick={() => setExpanded(isExpanded ? null : cat.name)}
+                style={{
+                  display: 'grid', gridTemplateColumns: '1.6fr 100px 60px 100px 1fr 90px 80px 140px',
+                  padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
+                  borderBottom: '1px solid rgba(0,0,0,0.05)',
+                  background: isExpanded ? 'rgba(206,164,255,0.06)' : 'transparent',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isExpanded ? 'rgba(206,164,255,0.06)' : 'transparent' }}
+              >
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#9B59D0', fontSize: 10 }}>{isExpanded ? '▼' : '▶'}</span>{cat.name}
+                </span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusStyle.bg, color: statusStyle.color, width: 'fit-content' }}>
+                  {statusStyle.label}
+                </span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.vol}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: barColor }}>{cat.perfect}%</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.min(100, (cat.perfect / 90) * 100)}%`, height: '100%', background: barColor, borderRadius: 100, transition: 'width 0.4s' }} />
+                  </div>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e', fontWeight: 500, flexShrink: 0 }}>−{gap}pp</span>
+                </div>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.edit}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.noResp > 20 ? '#e53e3e' : '#58595B' }}>{cat.noResp}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontWeight: 500 }}>⚠ {cat.blocker}</span>
+              </div>
+
+              {isExpanded && catAgents.length > 0 && (
+                <div style={{ padding: '0 20px 16px', background: 'rgba(206,164,255,0.03)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', padding: '14px 0 10px' }}>
+                    Agent breakdown — {cat.name}
+                  </p>
+                  <div style={{ borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 100px 100px 90px 1fr', padding: '8px 14px', background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                      {['Agent', 'Issues', 'Perfect', 'No Resp', 'Progress'].map(h => (
+                        <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+                      ))}
+                    </div>
+                    {catAgents.map((a, ai) => {
+                      const agentGap = Math.round(90 - a.perfect)
+                      return (
+                        <div key={a.name} style={{
+                          display: 'grid', gridTemplateColumns: '1.5fr 100px 100px 90px 1fr',
+                          padding: '10px 14px', alignItems: 'center',
+                          borderBottom: ai < catAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                        }}>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{a.name}</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.issueTotal}</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{a.perfect}%</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{a.noResp}%</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                              <div style={{ width: `${Math.min(100, (a.perfect / 90) * 100)}%`, height: '100%', background: barColor, borderRadius: 100 }} />
+                            </div>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e', flexShrink: 0 }}>−{agentGap}pp</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+            <strong>Status: </strong>
+            <span style={{ color: '#166534' }}>● Ready</span> 90%+ &nbsp;
+            <span style={{ color: '#854d0e' }}>● Almost</span> 75–90% &nbsp;
+            <span style={{ color: '#e53e3e' }}>● Not Ready</span> &lt;75%
+          </span>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+            <strong>Blockers: </strong>
+            <span style={{ color: '#f97316' }}>● Product</span> High edit rate &nbsp;
+            <span style={{ color: '#9B59D0' }}>▲ Coverage</span> High no-response
+          </span>
+        </div>
+      </div>
+      <div style={{ height: 8 }} />
+    </div>
+  )
+}
+
+// ── Shared ────────────────────────────────────────────────────────────────────
+
+function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: TimeRange) => void }) {
+  const opts: { id: TimeRange; label: string }[] = [
+    { id: 'last7',       label: 'Last 7'       },
+    { id: 'last30',      label: 'Last 30'      },
+    { id: 'lastQuarter', label: 'Last Quarter' },
+  ]
+  return (
+    <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+      {opts.map(o => (
+        <button key={o.id} onClick={() => onChange(o.id)} style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: value === o.id ? 500 : 400,
+          padding: '5px 12px', borderRadius: 6,
+          background: value === o.id ? '#fff' : 'transparent',
+          color: value === o.id ? '#000' : '#58595B',
+          border: 'none', transition: 'all 0.15s', cursor: 'pointer',
+          boxShadow: value === o.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+        }}>
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import './index.css'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import Sidebar from './components/layout/Sidebar'
 import type { Page } from './components/layout/Sidebar'
+import Login from './pages/Login'
 import LogTicket from './pages/LogTicket'
 import Bulletin from './pages/Bulletin'
 import Events from './pages/Events'
@@ -12,8 +14,24 @@ import Users from './pages/Users'
 import Learn from './pages/Learn'
 import Settings from './pages/Settings'
 
-export default function App() {
+function AppShell() {
+  const { user, loading } = useAuth()
   const [activePage, setActivePage] = useState<Page>('log-ticket')
+
+  if (loading) {
+    return (
+      <div style={{
+        height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#F1F1F2',
+      }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+          Loading…
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) return <Login />
 
   function renderPage() {
     switch (activePage) {
@@ -31,24 +49,21 @@ export default function App() {
 
   return (
     <div style={{
-      height: '100vh',
-      display: 'flex',
-      gap: 16,
-      padding: 16,
-      background: '#F1F1F2',
-      overflow: 'hidden',
-      boxSizing: 'border-box',
+      height: '100vh', display: 'flex', gap: 16, padding: 16,
+      background: '#F1F1F2', overflow: 'hidden', boxSizing: 'border-box',
     }}>
       <Sidebar activePage={activePage} onNavigate={setActivePage} />
-
-      <main style={{
-        flex: 1,
-        overflowY: 'auto',
-        minWidth: 0,
-        paddingRight: 4,
-      }}>
+      <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
         {renderPage()}
       </main>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   )
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
 
 export type Page =
   | 'log-ticket'
@@ -121,7 +122,14 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   )
 }
 
-const NAV_ITEMS: NavItem[] = [
+const AGENT_NAV: NavItem[] = [
+  { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
+  { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
+  { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
+  { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
+]
+
+const ADMIN_NAV: NavItem[] = [
   { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
   { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
   { id: 'events',      label: 'Events',      icon: <EventsIcon /> },
@@ -139,6 +147,9 @@ interface Props {
 
 export default function Sidebar({ activePage, onNavigate }: Props) {
   const [collapsed, setCollapsed] = useState(false)
+  const { user, signOut } = useAuth()
+  const navItems = user?.role === 'admin' ? ADMIN_NAV : AGENT_NAV
+  const initial  = user?.name ? user.name[0].toUpperCase() : '?'
 
   return (
     <div style={{
@@ -219,15 +230,15 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
           fontWeight: 600,
           color: '#fff',
         }}>
-          A
+          {initial}
         </div>
         {!collapsed && (
-          <div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', lineHeight: 1.2 }}>
-              Admin
+          <div style={{ overflow: 'hidden' }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {user?.name ?? '—'}
             </div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
-              Admin
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', textTransform: 'capitalize' }}>
+              {user?.role ?? ''}
             </div>
           </div>
         )}
@@ -235,7 +246,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
 
       {/* Nav items */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {NAV_ITEMS.map(item => {
+        {navItems.map(item => {
           const active = activePage === item.id
           return (
             <button
@@ -321,6 +332,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
         </button>
 
         <button
+          onClick={() => signOut()}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -332,6 +344,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             fontFamily: 'Inter, sans-serif',
             fontSize: 14,
             transition: 'all 0.15s',
+            cursor: 'pointer',
           }}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
