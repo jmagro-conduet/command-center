@@ -82,15 +82,13 @@ export default function Learn() {
 
   function openCreate() {
     setEditTarget(null)
-    setFormTitle(''); setFormCat('General'); setFormBody(''); setFormDesc('')
+    setFormTitle(''); setFormCat('General'); setFormBody('')
     setView('create')
   }
 
   function openEdit(a: KBArticle) {
     setEditTarget(a)
     setFormTitle(a.title); setFormCat(a.category); setFormBody(a.content)
-    const firstLine = a.content.replace(/#{1,6}\s/g, '').split('\n').find(l => l.trim())
-    setFormDesc(firstLine?.slice(0, 120) ?? '')
     setView('edit')
   }
 
