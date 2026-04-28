@@ -12,15 +12,18 @@ export interface AppUser {
 interface AuthContextValue {
   user: AppUser | null
   loading: boolean
+  recoveryMode: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
+  updatePassword: (newPassword: string) => Promise<{ error: string | null }>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]       = useState<AppUser | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser]             = useState<AppUser | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [recoveryMode, setRecoveryMode] = useState(false)
 
   async function loadUser(email: string) {
     const { data } = await supabase
@@ -43,7 +46,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     const { data: { subscription } } = authClient.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT' || !session) { setUser(null); return }
+      if (event === 'SIGNED_OUT' || !session) { setUser(null); setRecoveryMode(false); return }
+      if (event === 'PASSWORD_RECOVERY') { setRecoveryMode(true); return }
       if (session.user.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
@@ -66,8 +70,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
+  async function updatePassword(newPassword: string) {
+    const { error } = await authClient.auth.updateUser({ password: newPassword })
+    if (error) return { error: error.message }
+    setRecoveryMode(false)
+    // Re-load user profile after password update
+    const { data: { session } } = await authClient.auth.getSession()
+    if (session?.user?.email) {
+      const profile = await loadUser(session.user.email)
+      if (profile) {
+        setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team })
+      }
+    }
+    return { error: null }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, recoveryMode, signIn, signOut, updatePassword }}>
       {children}
     </AuthContext.Provider>
   )

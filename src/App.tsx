@@ -3,7 +3,7 @@ import './index.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Sidebar from './components/layout/Sidebar'
 import type { Page } from './components/layout/Sidebar'
-import Login from './pages/Login'
+import Login, { ResetPasswordPage } from './pages/Login'
 import LogTicket from './pages/LogTicket'
 import Bulletin from './pages/Bulletin'
 import Events from './pages/Events'
@@ -15,7 +15,7 @@ import Learn from './pages/Learn'
 import Settings from './pages/Settings'
 
 function AppShell() {
-  const { user, loading } = useAuth()
+  const { user, loading, recoveryMode, updatePassword } = useAuth()
   const [activePage, setActivePage] = useState<Page>('log-ticket')
 
   if (loading) {
@@ -31,6 +31,7 @@ function AppShell() {
     )
   }
 
+  if (recoveryMode) return <ResetPasswordPage updatePassword={updatePassword} />
   if (!user) return <Login />
 
   function renderPage() {
