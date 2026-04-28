@@ -17,12 +17,23 @@ interface DBBulletin {
 
 type View = 'list' | 'create' | 'edit'
 
+interface QuickStats {
+  perfect: number
+  noResponse: number
+  partialEdit: number
+  majorityEdit: number
+  ticketsLogged: number
+  avgPerAgent: number
+  vsPrev: number
+}
+
 const EMPTY_FORM = {
   bulletin_date: new Date().toISOString().split('T')[0],
   highlights: '',
   current_issues: '',
   hot_events: '',
   tips_and_tricks: '',
+  last_7_days_metrics: null as QuickStats | null,
 }
 
 const inputStyle: React.CSSProperties = {
@@ -43,8 +54,10 @@ export default function Bulletin() {
   const [view, setView]           = useState<View>('list')
   const [form, setForm]           = useState(EMPTY_FORM)
   const [editTarget, setEditTarget] = useState<DBBulletin | null>(null)
-  const [saving, setSaving]       = useState(false)
-  const [viewedIds, setViewedIds] = useState<Set<string>>(new Set())
+  const [saving, setSaving]         = useState(false)
+  const [viewedIds, setViewedIds]   = useState<Set<string>>(new Set())
+  const [quickStats, setQuickStats] = useState<QuickStats | null>(null)
+  const [quickLoading, setQuickLoading] = useState(false)
 
   useEffect(() => {
     loadBulletins()
@@ -80,6 +93,48 @@ export default function Bulletin() {
   function handleSelectBulletin(b: DBBulletin) {
     setSelected(b)
     if (!isAdmin && b.is_published) markViewed(b.id)
+  }
+
+  async function loadQuickStats() {
+    setQuickLoading(true)
+    const now   = new Date()
+    const since = new Date(now); since.setDate(since.getDate() - 7)
+    const prevStart = new Date(since); prevStart.setDate(prevStart.getDate() - 7)
+
+    const [{ data: curr }, { data: prev }, { count: agentCount }] = await Promise.all([
+      supabase
+        .from('ticket_issues')
+        .select('issue_type, tickets!inner(ticket_number)')
+        .gte('logged_at', since.toISOString()),
+      supabase
+        .from('ticket_issues')
+        .select('tickets!inner(ticket_number)')
+        .gte('logged_at', prevStart.toISOString())
+        .lt('logged_at', since.toISOString()),
+      supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'agent'),
+    ])
+
+    const currRows = curr ?? []
+    const tickets  = new Set(currRows.map((r: any) => r.tickets?.ticket_number).filter(Boolean))
+    const counts: Record<string, number> = {}
+    for (const r of currRows) counts[r.issue_type] = (counts[r.issue_type] ?? 0) + 1
+
+    const prevTickets = new Set((prev ?? []).map((r: any) => r.tickets?.ticket_number).filter(Boolean))
+    const vsPrev = prevTickets.size > 0
+      ? parseFloat(((tickets.size - prevTickets.size) / prevTickets.size * 100).toFixed(1))
+      : 0
+
+    const agents = agentCount ?? 1
+    setQuickStats({
+      perfect:     counts['Perfect']       ?? 0,
+      noResponse:  counts['No response']   ?? 0,
+      partialEdit: counts['Partial edit']  ?? 0,
+      majorityEdit:counts['Majority edit'] ?? 0,
+      ticketsLogged: tickets.size,
+      avgPerAgent: parseFloat((tickets.size / agents).toFixed(1)),
+      vsPrev,
+    })
+    setQuickLoading(false)
   }
 
   async function handleSave(publish: boolean) {
@@ -122,7 +177,9 @@ export default function Bulletin() {
   function openCreate() {
     setEditTarget(null)
     setForm(EMPTY_FORM)
+    setQuickStats(null)
     setView('create')
+    loadQuickStats()
   }
 
   function openEdit(b: DBBulletin) {
@@ -133,8 +190,11 @@ export default function Bulletin() {
       current_issues: b.current_issues ?? '',
       hot_events: b.hot_events ?? '',
       tips_and_tricks: b.tips_and_tricks ?? '',
+      last_7_days_metrics: b.last_7_days_metrics as any ?? null,
     })
+    setQuickStats(null)
     setView('edit')
+    loadQuickStats()
   }
 
   function formatBulletinDate(dateStr: string): string {
@@ -169,6 +229,116 @@ export default function Bulletin() {
           >
             Back to Bulletins
           </button>
+        </div>
+
+        {/* Quick Insert panel */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(206,164,255,0.4)', padding: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>
+                Quick Insert — Automated Data
+              </p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+                Based on the last 7 days of logged tickets
+              </p>
+            </div>
+            {quickStats && (
+              <button
+                onClick={() => setForm(f => ({
+                  ...f,
+                  last_7_days_metrics: {
+                    ticketsLogged: quickStats.ticketsLogged,
+                    teamAvg:       quickStats.avgPerAgent,
+                    vsPrevious:    quickStats.vsPrev,
+                  } as any,
+                }))}
+                style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(155,89,208,0.3)',
+                  background: 'rgba(155,89,208,0.06)', color: '#9B59D0',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.06)')}
+              >
+                Use metrics in viewer
+              </button>
+            )}
+          </div>
+
+          {quickLoading ? (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading data…</p>
+          ) : !quickStats ? null : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Team Metrics strip */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10,
+                padding: '12px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.02)',
+                border: '1px solid rgba(0,0,0,0.07)',
+              }}>
+                {[
+                  { label: 'Tickets logged', value: quickStats.ticketsLogged.toString() },
+                  { label: 'Avg / agent',    value: `${quickStats.avgPerAgent}` },
+                  { label: 'vs prev week',   value: `${quickStats.vsPrev >= 0 ? '+' : ''}${quickStats.vsPrev}%`, color: quickStats.vsPrev >= 0 ? '#166534' : '#e53e3e' },
+                ].map(s => (
+                  <div key={s.label}>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>{s.label}</p>
+                    <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: s.color ?? '#000' }}>{s.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Trending issues */}
+              <div>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                  Trending Issues
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
+                    { emoji: '🔥', label: 'Perfect',      count: quickStats.perfect },
+                    { emoji: '🚫', label: 'No response',  count: quickStats.noResponse },
+                    { emoji: '◑',  label: 'Partial edit', count: quickStats.partialEdit },
+                    { emoji: '⚫', label: 'Majority edit',count: quickStats.majorityEdit },
+                  ].filter(r => r.count > 0).map(r => (
+                    <div key={r.label} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 12px', borderRadius: 8,
+                      border: '1px solid rgba(0,0,0,0.07)', background: '#fafafa',
+                    }}>
+                      <span style={{ fontSize: 14 }}>{r.emoji}</span>
+                      <span style={{ flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                        {r.label}
+                      </span>
+                      <span style={{
+                        fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600,
+                        color: '#58595B', minWidth: 36, textAlign: 'right',
+                      }}>
+                        {r.count}
+                      </span>
+                      <button
+                        onClick={() => setForm(f => ({
+                          ...f,
+                          current_issues: f.current_issues
+                            ? `${f.current_issues}\n${r.label}: ${r.count} occurrences`
+                            : `${r.label}: ${r.count} occurrences`,
+                        }))}
+                        style={{
+                          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                          padding: '4px 10px', borderRadius: 6,
+                          border: '1.5px solid rgba(0,0,0,0.1)', background: '#fff', color: '#58595B',
+                          cursor: 'pointer', transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                      >
+                        Insert
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>

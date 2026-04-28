@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { authClient, supabase } from '../lib/supabase'
 
@@ -122,10 +122,18 @@ function CreateAccountForm({ onBack, signIn }: {
 }) {
   const [name,      setName]      = useState('')
   const [email,     setEmail]     = useState('')
+  const [team,      setTeam]      = useState('')
   const [password,  setPassword]  = useState('')
   const [password2, setPassword2] = useState('')
   const [error,     setError]     = useState('')
   const [loading,   setLoading]   = useState(false)
+  const [teams,     setTeams]     = useState<string[]>([])
+
+  useEffect(() => {
+    supabase.from('operator_teams').select('name').order('name').then(({ data }) => {
+      setTeams((data ?? []).map((r: any) => r.name))
+    })
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -155,6 +163,7 @@ function CreateAccountForm({ onBack, signIn }: {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       role: 'agent',
+      operator_team: team || null,
     }])
 
     // Sign in immediately
@@ -185,6 +194,16 @@ function CreateAccountForm({ onBack, signIn }: {
             required placeholder="you@conduet.com" style={inputStyle}
             onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
+        </Field>
+
+        <Field label="Team">
+          <select value={team} onChange={e => setTeam(e.target.value)}
+            style={{ ...inputStyle, color: team ? '#000' : '#aaa' }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
+            <option value="">Select your team (optional)</option>
+            {teams.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
         </Field>
 
         <Field label="Password">

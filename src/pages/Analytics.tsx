@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import { PieChart, Pie, Cell } from 'recharts'
 import { supabase } from '../lib/supabase'
+import { getDailyTarget } from '../lib/settings'
 
 type Tab       = 'team' | 'agent' | 'events' | 'category'
 type TimeRange = 'last7' | 'last30' | 'lastQuarter'
@@ -42,7 +43,7 @@ function pct(n: number, total: number) {
   return parseFloat(((n / total) * 100).toFixed(1))
 }
 
-function buildChartData(rows: DataRow[], days: number) {
+function buildChartData(rows: DataRow[], days: number, target: number) {
   const byDate = new Map<string, Set<string>>()
   for (const r of rows) {
     const label = new Date(r.loggedAt ?? r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -53,7 +54,7 @@ function buildChartData(rows: DataRow[], days: number) {
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i)
     const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    result.push({ date: label, count: byDate.get(label)?.size ?? 0, movingAvg: 0, target: 25 })
+    result.push({ date: label, count: byDate.get(label)?.size ?? 0, movingAvg: 0, target })
   }
   return result.map((pt, i) => {
     const win = result.slice(Math.max(0, i - 6), i + 1)
@@ -200,6 +201,7 @@ export default function Analytics() {
 function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange]             = useState<TimeRange>('last30')
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
+  const dailyTarget = getDailyTarget()
 
   const days = rangeDays(range)
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
@@ -230,7 +232,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
     return rows.filter(r => r.agentName === selectedAgent)
   }, [rows, selectedAgent])
 
-  const chartData = useMemo(() => buildChartData(agentRows, days), [agentRows, days])
+  const chartData = useMemo(() => buildChartData(agentRows, days, dailyTarget.max), [agentRows, days, dailyTarget.max])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -240,7 +242,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           { label: 'Responses',               value: kpis.issues.toString() },
           { label: 'Avg responses / ticket',  value: kpis.avgPerTicket },
           { label: 'Avg tickets / day',        value: kpis.avgPerDay },
-          { label: 'Target range / agent',     value: '20–30' },
+          { label: 'Target range / agent',     value: `${dailyTarget.min}–${dailyTarget.max}` },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
@@ -281,7 +283,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
             <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
             <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-            <ReferenceLine y={25} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} label={{ value: 'Target', position: 'right', fontSize: 11, fill: '#9B59D0', fontFamily: 'Inter' }} />
+            <ReferenceLine y={dailyTarget.max} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} label={{ value: 'Target', position: 'right', fontSize: 11, fill: '#9B59D0', fontFamily: 'Inter' }} />
             <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily Count" />
             <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
           </LineChart>
@@ -299,8 +301,8 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           ))}
         </div>
         {agents.map((a, i) => {
-          const onTrack = a.avg >= 20
-          const almost  = !onTrack && a.avg >= 10
+          const onTrack = a.avg >= dailyTarget.min
+          const almost  = !onTrack && a.avg >= dailyTarget.min * 0.5
           const statusLabel = onTrack ? 'ON TRACK' : almost ? 'ALMOST' : 'OFF TRACK'
           const statusColor = onTrack ? '#166534' : almost ? '#854d0e' : '#854d0e'
           const statusBg    = onTrack ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)'
@@ -336,6 +338,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
 
 function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange] = useState<TimeRange>('last30')
+  const dailyTarget = getDailyTarget()
   const rows  = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days  = rangeDays(range)
   const agents = useMemo(() => agentStats(rows, days), [rows, days])
@@ -347,13 +350,13 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const agent = useMemo(() => agents.find(a => a.name === agentName) ?? agents[0], [agents, agentName])
 
   const agentRows  = useMemo(() => rows.filter(r => r.agentName === agentName), [rows, agentName])
-  const chartData  = useMemo(() => buildChartData(agentRows, days), [agentRows, days])
+  const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max), [agentRows, days, dailyTarget.max])
 
   if (!agent) return null
 
-  const onTrack = agent.avg >= 20
-  const statusLabel = onTrack ? 'On Track' : agent.avg >= 10 ? 'Almost' : 'Off Track'
-  const statusColor = onTrack ? '#166534' : '#854d0e'
+  const onTrack = agent.avg >= dailyTarget.min
+  const statusLabel = onTrack ? 'On Track' : agent.avg >= dailyTarget.min * 0.5 ? 'Almost' : 'Off Track'
+  const statusColor = onTrack ? '#166634' : '#854d0e'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -366,8 +369,8 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: a.avg >= 20 ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)', color: a.avg >= 20 ? '#166534' : '#854d0e' }}>
-                {a.avg >= 20 ? 'ON TRACK' : 'OFF TRACK'}
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: a.avg >= dailyTarget.min ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)', color: a.avg >= dailyTarget.min ? '#166534' : '#854d0e' }}>
+                {a.avg >= dailyTarget.min ? 'ON TRACK' : 'OFF TRACK'}
               </span>
             </div>
             <div style={{ display: 'flex', gap: 16 }}>
@@ -393,7 +396,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
             { label: 'Tickets',           value: agent.total.toString(),  color: '#9B59D0' },
             { label: 'Avg Tickets/Day',   value: agent.avg.toString(),    color: '#9B59D0' },
             { label: 'Perfect Rate',      value: `${agent.perfect}%`,     color: '#166534' },
-            { label: 'Status vs Target',  value: statusLabel,              color: statusColor },
+            { label: `Status vs Target (${dailyTarget.min}–${dailyTarget.max})`, value: statusLabel, color: statusColor },
           ].map(k => (
             <div key={k.label} style={{ padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
@@ -412,7 +415,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
             <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
             <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
             <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)' }} />
-            <ReferenceLine y={25} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} />
+            <ReferenceLine y={dailyTarget.max} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} />
             <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily" />
             <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
           </LineChart>
@@ -421,8 +424,13 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
         <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(206,164,255,0.06)', border: '1px solid rgba(206,164,255,0.2)' }}>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>Insights</p>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6 }}>
-            {agent.name} is logging {agent.avg} tickets/day vs target of 20–30.
-            {agent.perfect < 60 ? ' Perfect rate is below 60% — consider a review session on gameLM response quality.' : ' Perfect rate is solid. Focus on increasing daily volume to hit target range.'}
+            {agent.name} is logging {agent.avg} tickets/day vs target of {dailyTarget.min}–{dailyTarget.max}.{' '}
+            {onTrack
+              ? 'Volume is on track. '
+              : `Volume is below target — averaging ${agent.avg}/day against a ${dailyTarget.min}–${dailyTarget.max} range. `}
+            {agent.perfect < 60
+              ? 'Perfect rate is below 60% — consider a review session on gameLM response quality.'
+              : 'Perfect rate is solid.'}
             {agent.noResp > 20 ? ` No-response rate of ${agent.noResp}% is elevated — coverage gaps may need product attention.` : ''}
           </p>
         </div>
