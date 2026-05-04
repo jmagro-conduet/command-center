@@ -84,13 +84,18 @@ export default function Submissions() {
     let cancelled = false
     setLoading(true)
 
-    // Ticket count query (distinct tickets matching filters)
-    let tq = supabase.from('tickets').select('id', { count: 'exact', head: true })
-    if (agent    !== 'All agents')     tq = tq.eq('agent_name',      agent)
-    if (category !== 'All categories') tq = tq.eq('ticket_category', category)
-    if (search.trim())                 tq = tq.ilike('ticket_number', `%${search.trim()}%`)
+    // Distinct ticket count — same source as Analytics (ticket_issues join),
+    // same filters applied, then count unique ticket_numbers client-side
+    let tcQ = supabase
+      .from('ticket_issues')
+      .select('tickets!inner(ticket_number, agent_name, ticket_category)')
 
-    Promise.all([buildQuery(true), tq]).then(([{ data, count, error }, { count: tc }]) => {
+    if (issueType !== 'All issue types') tcQ = tcQ.eq('issue_type', issueType)
+    if (agent     !== 'All agents')      tcQ = (tcQ as any).eq('tickets.agent_name', agent)
+    if (category  !== 'All categories')  tcQ = (tcQ as any).eq('tickets.ticket_category', category)
+    if (search.trim())                   tcQ = (tcQ as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
+
+    Promise.all([buildQuery(true), tcQ]).then(([{ data, count, error }, { data: tcData }]) => {
       if (cancelled) return
       if (error) { console.error(error); setLoading(false); return }
 
@@ -103,9 +108,11 @@ export default function Submissions() {
         date:      ti.logged_at ? formatDate(ti.logged_at) : '',
       }))
 
+      const uniqueTickets = new Set((tcData ?? []).map((ti: any) => ti.tickets?.ticket_number))
+
       setRows(mapped)
       setTotal(count ?? 0)
-      setTicketCount(tc ?? 0)
+      setTicketCount(uniqueTickets.size)
       setLoading(false)
     })
 
