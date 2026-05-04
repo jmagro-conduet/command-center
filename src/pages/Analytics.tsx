@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase'
 import { getDailyTarget } from '../lib/settings'
 
 type Tab       = 'team' | 'agent' | 'events' | 'category'
-type TimeRange = 'last7' | 'last30' | 'lastQuarter'
+type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime'
 
 interface DataRow {
   issueType: string
@@ -26,7 +26,7 @@ interface HotEvent {
 }
 
 function rangeDays(range: TimeRange) {
-  return range === 'last7' ? 7 : range === 'last30' ? 30 : 90
+  return range === 'last7' ? 7 : range === 'last30' ? 30 : range === 'lastQuarter' ? 90 : 0
 }
 
 function cutoff(days: number) {
@@ -34,8 +34,19 @@ function cutoff(days: number) {
 }
 
 function filterByRange(rows: DataRow[], range: TimeRange) {
+  if (range === 'allTime') return rows
   const c = cutoff(rangeDays(range))
   return rows.filter(r => new Date(r.loggedAt ?? r.createdAt) >= c)
+}
+
+function effectiveDays(rows: DataRow[], range: TimeRange): number {
+  if (range !== 'allTime') return rangeDays(range)
+  if (rows.length === 0) return 30
+  const oldest = rows.reduce((min, r) => {
+    const d = new Date(r.loggedAt ?? r.createdAt)
+    return d < min ? d : min
+  }, new Date())
+  return Math.max(Math.ceil((Date.now() - oldest.getTime()) / 86_400_000), 1)
 }
 
 function pct(n: number, total: number) {
@@ -234,8 +245,8 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
   const dailyTarget = getDailyTarget()
 
-  const days = rangeDays(range)
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
+  const days = useMemo(() => effectiveDays(rows, range), [rows, range])
 
   const agents = useMemo(() => agentStats(rows, days), [rows, days])
 
@@ -273,7 +284,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {[
-          { label: `Tickets (${range === 'last7' ? 'last 7' : range === 'last30' ? 'last 30' : 'last 90'})`, value: kpis.tickets.toString() },
+          { label: `Tickets (${range === 'last7' ? 'last 7 days' : range === 'last30' ? 'last 30 days' : range === 'lastQuarter' ? 'last 90 days' : 'all time'})`, value: kpis.tickets.toString() },
           { label: 'Responses',               value: kpis.issues.toString() },
           { label: 'Avg responses / ticket',  value: kpis.avgPerTicket },
           { label: 'Avg tickets / day',        value: kpis.avgPerDay },
@@ -337,7 +348,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                   </span>
                 </div>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : 'Last Quarter'} — click a metric card again to dismiss
+                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : range === 'lastQuarter' ? 'Last 90 Days' : 'All Time'} — click a metric card again to dismiss
                 </p>
               </>
             ) : (
@@ -346,7 +357,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                   {selectedAgent ? `${selectedAgent} – Tickets Logged` : 'Team Performance'}
                 </p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
-                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : 'Last Quarter'}
+                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : range === 'lastQuarter' ? 'Last 90 Days' : 'All Time'}
                   {!selectedAgent && <span style={{ color: '#aaa' }}> — click a metric card above to see its trend</span>}
                 </p>
               </>
@@ -445,7 +456,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange] = useState<TimeRange>('last30')
   const dailyTarget = getDailyTarget()
   const rows  = useMemo(() => filterByRange(allRows, range), [allRows, range])
-  const days  = rangeDays(range)
+  const days  = useMemo(() => effectiveDays(rows, range), [rows, range])
   const agents = useMemo(() => agentStats(rows, days), [rows, days])
 
   const [selected, setSelected] = useState('')
@@ -650,7 +661,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
-  const days = rangeDays(range)
+  const days = useMemo(() => effectiveDays(rows, range), [rows, range])
   const cats = useMemo(() => categoryStats(rows), [rows])
   void useMemo(() => agentStats(rows, days), [rows, days])
 
@@ -851,6 +862,7 @@ function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: 
     { id: 'last7',       label: 'Last 7'       },
     { id: 'last30',      label: 'Last 30'      },
     { id: 'lastQuarter', label: 'Last Quarter' },
+    { id: 'allTime',     label: 'All Time'     },
   ]
   return (
     <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
