@@ -165,7 +165,8 @@ export default function Analytics() {
         supabase
           .from('ticket_issues')
           .select('issue_type, logged_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
-          .order('logged_at', { ascending: false }),
+          .order('logged_at', { ascending: false })
+          .limit(10000),
         supabase.from('hot_events').select('*').order('start_date', { ascending: false }),
       ])
 
