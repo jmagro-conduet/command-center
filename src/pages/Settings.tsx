@@ -1,9 +1,52 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
 
 interface Team { id: string; name: string }
+
+// ── CSV helpers ───────────────────────────────────────────────────────────────
+function parseCSVLine(line: string): string[] {
+  const result: string[] = []
+  let cur = '', inQuote = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuote && line[i + 1] === '"') { cur += '"'; i++ }
+      else inQuote = !inQuote
+    } else if (ch === ',' && !inQuote) {
+      result.push(cur.trim()); cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  result.push(cur.trim())
+  return result
+}
+
+function parseCSV(text: string): string[][] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim())
+  return lines.map(parseCSVLine)
+}
+
+function parseTimestamp(ts: string): string {
+  const d = new Date(ts)
+  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+}
+
+interface CSVRow {
+  timestamp: string; agentName: string; agentEmail: string; agentTeam: string
+  ticketNumber: string; category: string; issueType: string
+  customerInput: string; reasoning: string; finalEdits: string; notes: string
+}
+
+interface ImportPreview {
+  rows: CSVRow[]
+  uniqueTickets: number
+  newTickets: number
+  existingTickets: number
+  totalIssues: number
+}
 
 export default function Settings() {
   const { user } = useAuth()
@@ -27,6 +70,13 @@ export default function Settings() {
   const [targetMin,   setTargetMin]   = useState(tgt.min.toString())
   const [targetMax,   setTargetMax]   = useState(tgt.max.toString())
   const [targetSaved, setTargetSaved] = useState(false)
+
+  // ── CSV Import (admin) ───────────────────────────────────────────────────────
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  const [importStatus,  setImportStatus]  = useState<'idle' | 'parsing' | 'ready' | 'importing' | 'done' | 'error'>('idle')
+  const [importLog,     setImportLog]     = useState<string[]>([])
+  const [importError,   setImportError]   = useState('')
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -75,6 +125,114 @@ export default function Settings() {
     localStorage.setItem(TARGET_MAX_KEY, max.toString())
     setTargetSaved(true)
     setTimeout(() => setTargetSaved(false), 2500)
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportStatus('parsing')
+    setImportPreview(null)
+    setImportLog([])
+    setImportError('')
+    try {
+      const text = await file.text()
+      const rows = parseCSV(text)
+      if (rows.length < 2) throw new Error('CSV appears empty or has no data rows')
+      // Skip header row
+      const dataRows: CSVRow[] = rows.slice(1).filter(r => r.length >= 6 && r[4]?.trim()).map(r => ({
+        timestamp:    r[0] ?? '',
+        agentName:    r[1] ?? '',
+        agentEmail:   r[2] ?? '',
+        agentTeam:    r[3] ?? '',
+        ticketNumber: r[4] ?? '',
+        category:     r[5] ?? '',
+        issueType:    r[6] ?? '',
+        customerInput: r[7] ?? '',
+        reasoning:    r[9] ?? '',
+        finalEdits:   r[10] ?? '',
+        notes:        r[11] ?? '',
+      }))
+      const uniqueNums = [...new Set(dataRows.map(r => r.ticketNumber))]
+      // Check which already exist
+      const { data: existing } = await supabase
+        .from('tickets').select('ticket_number').in('ticket_number', uniqueNums)
+      const existingSet = new Set((existing ?? []).map((t: any) => t.ticket_number))
+      setImportPreview({
+        rows: dataRows,
+        uniqueTickets: uniqueNums.length,
+        newTickets: uniqueNums.filter(n => !existingSet.has(n)).length,
+        existingTickets: uniqueNums.filter(n => existingSet.has(n)).length,
+        totalIssues: dataRows.length,
+      })
+      setImportStatus('ready')
+    } catch (err: any) {
+      setImportError(err.message ?? 'Failed to parse CSV')
+      setImportStatus('error')
+    }
+  }
+
+  async function runImport() {
+    if (!importPreview) return
+    setImportStatus('importing')
+    const log: string[] = []
+    try {
+      // Get existing ticket_numbers to skip them
+      const uniqueNums = [...new Set(importPreview.rows.map(r => r.ticketNumber))]
+      const { data: existing } = await supabase
+        .from('tickets').select('ticket_number, id').in('ticket_number', uniqueNums)
+      const existingMap = new Map((existing ?? []).map((t: any) => [t.ticket_number, t.id]))
+
+      // Group rows by ticket number
+      const groups = new Map<string, CSVRow[]>()
+      for (const row of importPreview.rows) {
+        if (!groups.has(row.ticketNumber)) groups.set(row.ticketNumber, [])
+        groups.get(row.ticketNumber)!.push(row)
+      }
+
+      let ticketsInserted = 0, issuesInserted = 0, skipped = 0
+
+      for (const [ticketNum, rows] of groups) {
+        if (existingMap.has(ticketNum)) { skipped++; continue }
+        const first = rows[0]
+        // Insert ticket
+        const { data: tktData, error: tktErr } = await supabase
+          .from('tickets')
+          .insert([{
+            ticket_number:   ticketNum,
+            ticket_category: first.category,
+            agent_name:      first.agentName,
+            agent_email:     first.agentEmail,
+            agent_team:      first.agentTeam,
+            notes:           '',
+            created_at:      parseTimestamp(first.timestamp),
+          }])
+          .select('id')
+          .single()
+        if (tktErr) { log.push(`❌ Ticket ${ticketNum}: ${tktErr.message}`); continue }
+        ticketsInserted++
+        // Insert ticket_issues
+        const issues = rows.map(r => ({
+          ticket_id:      tktData.id,
+          issue_type:     r.issueType,
+          issue_comment:  r.notes,
+          customer_input: r.customerInput,
+          reasoning:      r.reasoning,
+          final_edits:    r.finalEdits,
+          logged_at:      parseTimestamp(r.timestamp),
+          created_at:     parseTimestamp(r.timestamp),
+        }))
+        const { error: issErr } = await supabase.from('ticket_issues').insert(issues)
+        if (issErr) { log.push(`⚠️ Issues for ${ticketNum}: ${issErr.message}`) }
+        else issuesInserted += issues.length
+      }
+
+      log.push(`✅ Done — ${ticketsInserted} tickets + ${issuesInserted} issues imported, ${skipped} skipped (already existed)`)
+      setImportLog(log)
+      setImportStatus('done')
+    } catch (err: any) {
+      setImportError(err.message ?? 'Import failed')
+      setImportStatus('error')
+    }
   }
 
   async function saveName() {
@@ -243,6 +401,127 @@ export default function Settings() {
               {targetSaved && <span style={{ color: '#166534', marginLeft: 10 }}>✓ Updated — reload Analytics to see changes</span>}
             </p>
           </SectionCard>
+
+          {/* Import Data */}
+          <SectionCard
+            title="Import Submission Data"
+            subtitle="Import historical gameLM feedback CSV. Existing tickets (by ticket number) are skipped automatically."
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv"
+              style={{ display: 'none' }}
+              onChange={handleFileSelect}
+            />
+
+            {importStatus === 'idle' && (
+              <button
+                onClick={() => { fileRef.current?.click() }}
+                style={{
+                  border: '1.5px dashed rgba(0,0,0,0.2)', borderRadius: 10,
+                  background: '#fafafa', padding: '20px 32px',
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+                  cursor: 'pointer', transition: 'all 0.15s', display: 'flex',
+                  alignItems: 'center', gap: 10,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#CEA4FF'; e.currentTarget.style.color = '#000' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.2)'; e.currentTarget.style.color = '#58595B' }}
+              >
+                📂 Choose CSV file to import
+              </button>
+            )}
+
+            {importStatus === 'parsing' && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Parsing CSV…</p>
+            )}
+
+            {importStatus === 'error' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>
+                  ❌ {importError}
+                </p>
+                <button onClick={() => { setImportStatus('idle'); if (fileRef.current) fileRef.current.value = '' }} style={resetBtnStyle}>
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {(importStatus === 'ready' || importStatus === 'importing') && importPreview && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
+                }}>
+                  {[
+                    { label: 'Total rows', value: importPreview.totalIssues },
+                    { label: 'Unique tickets', value: importPreview.uniqueTickets },
+                    { label: 'New (will import)', value: importPreview.newTickets, accent: true },
+                    { label: 'Existing (skip)', value: importPreview.existingTickets },
+                  ].map(s => (
+                    <div key={s.label} style={{
+                      background: s.accent ? 'rgba(206,164,255,0.1)' : 'rgba(0,0,0,0.03)',
+                      border: `1.5px solid ${s.accent ? 'rgba(206,164,255,0.4)' : 'rgba(0,0,0,0.08)'}`,
+                      borderRadius: 10, padding: '12px 16px',
+                    }}>
+                      <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: s.accent ? '#9B59D0' : '#000' }}>
+                        {s.value}
+                      </div>
+                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 2 }}>
+                        {s.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {importPreview.newTickets === 0 ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
+                    All tickets in this file already exist in the database. Nothing to import.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={runImport}
+                      disabled={importStatus === 'importing'}
+                      style={{
+                        background: '#000', color: '#fff',
+                        fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                        padding: '9px 20px', borderRadius: 10, border: 'none',
+                        cursor: importStatus === 'importing' ? 'not-allowed' : 'pointer',
+                        opacity: importStatus === 'importing' ? 0.6 : 1, transition: 'opacity 0.15s',
+                      }}
+                    >
+                      {importStatus === 'importing' ? 'Importing…' : `Import ${importPreview.newTickets} tickets`}
+                    </button>
+                    <button
+                      onClick={() => { setImportStatus('idle'); setImportPreview(null); if (fileRef.current) fileRef.current.value = '' }}
+                      style={resetBtnStyle}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {importStatus === 'done' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{
+                  background: 'rgba(22,101,52,0.06)', border: '1.5px solid rgba(22,101,52,0.2)',
+                  borderRadius: 10, padding: 14,
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
+                  display: 'flex', flexDirection: 'column', gap: 4,
+                }}>
+                  {importLog.map((l, i) => <span key={i}>{l}</span>)}
+                </div>
+                <button
+                  onClick={() => { setImportStatus('idle'); setImportPreview(null); setImportLog([]); if (fileRef.current) fileRef.current.value = '' }}
+                  style={resetBtnStyle}
+                >
+                  Import another file
+                </button>
+              </div>
+            )}
+          </SectionCard>
         </>
       )}
     </div>
@@ -324,4 +603,10 @@ const inputStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
   color: '#58595B', display: 'block', marginBottom: 6,
+}
+
+const resetBtnStyle: React.CSSProperties = {
+  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+  padding: '9px 18px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
 }
