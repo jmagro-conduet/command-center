@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase, authClient } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { getDailyTarget } from '../lib/settings'
 
 const PERIODS = ['Last 7 days', 'Last 30 days', 'Last quarter', 'All time']
 const AUDIENCES = [
@@ -73,7 +74,9 @@ export default function Report() {
     const days = getPeriodDays()
     const since = new Date()
     since.setDate(since.getDate() - days)
+    const dailyTarget = getDailyTarget()
 
+    // ── Fetch raw data ────────────────────────────────────────────────────
     const { data: issues } = await supabase
       .from('ticket_issues')
       .select('issue_type, logged_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
@@ -81,76 +84,165 @@ export default function Report() {
       .order('logged_at', { ascending: false })
 
     const rows = issues ?? []
-    const total = rows.length
-    const perfect = rows.filter(r => r.issue_type === 'Perfect').length
-    const noResp  = rows.filter(r => r.issue_type === 'No response').length
-    const majEdit = rows.filter(r => r.issue_type === 'Majority edit').length
-    const partEdit = rows.filter(r => r.issue_type === 'Partial edit').length
+    const total    = rows.length
+    const perfect  = rows.filter((r: any) => r.issue_type === 'Perfect').length
+    const noResp   = rows.filter((r: any) => r.issue_type === 'No response').length
+    const majEdit  = rows.filter((r: any) => r.issue_type === 'Majority edit').length
+    const partEdit = rows.filter((r: any) => r.issue_type === 'Partial edit').length
     const pct = (n: number) => total ? ((n / total) * 100).toFixed(1) + '%' : '–'
 
-    const ticketNums = new Set(rows.map((r: any) => r.tickets?.ticket_number).filter(Boolean))
+    const ticketNums  = new Set(rows.map((r: any) => r.tickets?.ticket_number).filter(Boolean))
     const ticketCount = ticketNums.size
 
+    // ── Agent summary ─────────────────────────────────────────────────────
     const agentMap = new Map<string, { total: number; perfect: number }>()
     for (const r of rows) {
       const agent: string = (r as any).tickets?.agent_name ?? 'Unknown'
       const prev = agentMap.get(agent) ?? { total: 0, perfect: 0 }
-      agentMap.set(agent, { total: prev.total + 1, perfect: prev.perfect + (r.issue_type === 'Perfect' ? 1 : 0) })
+      agentMap.set(agent, {
+        total:   prev.total + 1,
+        perfect: prev.perfect + (r.issue_type === 'Perfect' ? 1 : 0),
+      })
     }
-    const agentRows = [...agentMap.entries()]
+    const topAgents = [...agentMap.entries()]
       .sort((a, b) => b[1].total - a[1].total)
       .slice(0, 5)
-      .map(([name, s]) => `| ${name} | ${s.total} | ${s.total ? ((s.perfect / s.total) * 100).toFixed(0) : 0}% |`)
-      .join('\n')
+      .map(([name, s]) => ({
+        name,
+        tickets: s.total,
+        perfectRate: s.total ? ((s.perfect / s.total) * 100).toFixed(0) + '%' : '0%',
+      }))
 
-    const reportText = `## gameLM Performance Report
-**Period:** ${period}  |  **Audience:** ${audience}  |  **Focus:** ${focusArea}
+    // ── Category summary ──────────────────────────────────────────────────
+    const catMap = new Map<string, { total: number; perfect: number; noResp: number }>()
+    for (const r of rows) {
+      const cat: string = (r as any).tickets?.ticket_category ?? 'Other'
+      const prev = catMap.get(cat) ?? { total: 0, perfect: 0, noResp: 0 }
+      catMap.set(cat, {
+        total:   prev.total + 1,
+        perfect: prev.perfect + (r.issue_type === 'Perfect' ? 1 : 0),
+        noResp:  prev.noResp  + (r.issue_type === 'No response' ? 1 : 0),
+      })
+    }
+    const categoryBreakdown = [...catMap.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 8)
+      .map(([name, s]) => {
+        const perfectPct = s.total ? ((s.perfect / s.total) * 100).toFixed(0) + '%' : '0%'
+        const noRespPct  = s.total ? ((s.noResp  / s.total) * 100).toFixed(0) + '%' : '0%'
+        const pctNum     = s.total ? (s.perfect / s.total) * 100 : 0
+        const status     = s.total < 10 ? 'Low data' : pctNum >= 90 ? 'Autopilot ready' : pctNum >= 75 ? 'Almost ready' : 'Not ready'
+        return { name, vol: s.total, perfectPct, noRespPct, status }
+      })
 
----
+    // ── Call Edge Function for AI narrative ───────────────────────────────
+    let reportText = ''
+    try {
+      const { data: fnData, error: fnError } = await authClient.functions.invoke('generate-report', {
+        body: {
+          period,
+          audience,
+          focusArea,
+          metrics: {
+            ticketCount,
+            totalResponses: total,
+            avgPerTicket:   ticketCount ? (total / ticketCount).toFixed(1) : '0',
+            avgPerDay:      ticketCount ? (ticketCount / days).toFixed(1)  : '0',
+            perfectPct:     pct(perfect),
+            majorityPct:    pct(majEdit),
+            partialPct:     pct(partEdit),
+            noRespPct:      pct(noResp),
+            targetRange:    `${dailyTarget.min}–${dailyTarget.max}`,
+          },
+          topAgents,
+          categoryBreakdown,
+        },
+      })
 
-### Summary
-The team logged **${ticketCount} tickets** across **${total} gameLM responses** during this period. The perfect rate is **${pct(perfect)}** — responses accepted without edits.
-
-### Key Metrics
-| Metric | Value |
-|--------|-------|
-| Tickets logged | ${ticketCount} |
-| Total responses | ${total} |
-| Perfect rate | ${pct(perfect)} |
-| Majority edit | ${pct(majEdit)} |
-| Partial edit | ${pct(partEdit)} |
-| No response | ${pct(noResp)} |
-
-### Agent Volume (Top 5)
-| Agent | Submissions | Perfect Rate |
-|-------|-------------|--------------|
-${agentRows || '| No data | – | – |'}
-
-### Recommendations
-1. ${parseFloat(pct(noResp)) > 15 ? `No-response rate is high at ${pct(noResp)} — investigate gameLM coverage gaps` : `No-response rate is acceptable at ${pct(noResp)}`}
-2. ${parseFloat(pct(perfect)) < 60 ? `Perfect rate of ${pct(perfect)} is below the 60% target — review agent training` : `Perfect rate of ${pct(perfect)} meets the 60% target`}
-3. Continue monitoring submission volume to reach the 20–30 tickets/day target`
+      if (fnError) throw new Error(fnError.message)
+      reportText = fnData?.report ?? ''
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      setOutput(`**Error generating report:** ${msg}\n\nCheck that the \`generate-report\` Edge Function is deployed and \`ANTHROPIC_API_KEY\` is set in Supabase secrets.`)
+      setLoading(false)
+      return
+    }
 
     setOutput(reportText)
 
+    // ── Save to history ───────────────────────────────────────────────────
     if (user) {
       try {
         const { data: { session } } = await authClient.auth.getSession()
         if (session?.user?.id) {
           await supabase.from('report_history').insert([{
-            user_id: session.user.id,
+            user_id:             session.user.id,
             period,
             audience,
-            focus_area: focusArea,
-            issue_count: total,
-            report_content: reportText,
-            generated_by_email: user.email,
+            focus_area:          focusArea,
+            issue_count:         total,
+            report_content:      reportText,
+            generated_by_email:  user.email,
           }])
         }
       } catch (_) { /* non-critical */ }
     }
 
     setLoading(false)
+  }
+
+  function exportReport(content: string, format: string) {
+    const date = new Date().toISOString().split('T')[0]
+    if (format.startsWith('PDF')) {
+      // Open a minimal print window with the rendered content
+      const html = `<!DOCTYPE html><html><head><title>gameLM Report ${date}</title>
+        <style>body{font-family:Inter,sans-serif;max-width:800px;margin:40px auto;color:#000;line-height:1.7}
+        h2{font-family:Manrope,sans-serif;font-size:1.4em;margin-top:1.8em}
+        h3{font-family:Manrope,sans-serif;font-size:1.1em;margin-top:1.4em}
+        table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px 12px;font-size:0.9em}
+        th{background:#f5f5f5;font-weight:600}hr{border:none;border-top:1px solid #eee}
+        </style></head><body>${markdownToHtml(content)}<script>window.print();window.onafterprint=()=>window.close()</script></body></html>`
+      const w = window.open('', '_blank')
+      if (w) { w.document.write(html); w.document.close() }
+    } else if (format.startsWith('CSV')) {
+      // Extract tables from markdown and export as CSV
+      const lines = content.split('\n')
+      const csvRows: string[] = []
+      for (const line of lines) {
+        if (line.startsWith('|') && !line.match(/^\|[-|\s]+$/)) {
+          const cells = line.split('|').filter(Boolean).map(c => `"${c.trim().replace(/"/g, '""')}"`)
+          csvRows.push(cells.join(','))
+        } else if (line.trim() && !line.startsWith('#') && !line.startsWith('**')) {
+          csvRows.push(`"${line.trim().replace(/\*\*/g, '').replace(/"/g, '""')}"`)
+        }
+      }
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = `gamelm-report-${date}.csv`; a.click()
+    } else {
+      // Markdown
+      const blob = new Blob([content], { type: 'text/markdown' })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = `gamelm-report-${date}.md`; a.click()
+    }
+  }
+
+  function markdownToHtml(md: string): string {
+    return md
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^---$/gm, '<hr>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^\|(.+)\|$/gm, (line) => {
+        if (line.match(/^\|[-|\s]+\|$/)) return ''
+        const cells = line.split('|').filter(Boolean).map(c => `<td>${c.trim()}</td>`).join('')
+        return `<tr>${cells}</tr>`
+      })
+      .replace(/(<tr>.*<\/tr>\n?)+/g, m => `<table>${m}</table>`)
+      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, m => `<ol>${m}</ol>`)
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/^(?!<[hto]|<\/|<li|<ol|<ul)(.+)$/gm, '$1')
   }
 
   return (
@@ -204,13 +296,7 @@ ${agentRows || '| No data | – | – |'}
           </button>
           {output && (
             <button
-              onClick={() => {
-                const blob = new Blob([output], { type: 'text/plain' })
-                const a = document.createElement('a')
-                a.href = URL.createObjectURL(blob)
-                a.download = `gamelm-report-${new Date().toISOString().split('T')[0]}.md`
-                a.click()
-              }}
+              onClick={() => exportReport(output, exportFormat)}
               style={{
                 fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
                 padding: '10px 22px', borderRadius: 10, cursor: 'pointer',
@@ -304,16 +390,21 @@ ${agentRows || '| No data | – | – |'}
 
         <div style={{ padding: 24, minHeight: 220 }}>
           {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[80, 60, 90, 50, 70].map((w, i) => (
-                <div key={i} style={{
-                  height: 12, borderRadius: 6, width: `${w}%`,
-                  background: 'rgba(0,0,0,0.06)',
-                  animation: 'pulse 1.4s ease-in-out infinite',
-                  animationDelay: `${i * 0.1}s`,
-                }} />
-              ))}
-              <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '40px 0' }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: '#9B59D0', opacity: 0.3,
+                    animation: 'bounce 1.2s ease-in-out infinite',
+                    animationDelay: `${i * 0.2}s`,
+                  }} />
+                ))}
+              </div>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>
+                Claude is analysing your data…
+              </p>
+              <style>{`@keyframes bounce { 0%,80%,100%{opacity:0.3;transform:scale(1)} 40%{opacity:1;transform:scale(1.3)} }`}</style>
             </div>
           ) : output ? (
             <ReportMarkdown content={output} />
