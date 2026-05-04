@@ -367,7 +367,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                 <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
                 <Tooltip
                   contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                  formatter={(val: number, name: string) => [`${val}%`, name === 'pct' ? 'Daily %' : '7-Day Avg']}
+                  formatter={(val, name) => [`${val ?? 0}%`, name === 'pct' ? 'Daily %' : '7-Day Avg'] as [string, string]}
                 />
                 {mc?.refValue && (
                   <ReferenceLine y={mc.refValue} stroke={mc.color} strokeDasharray="5 5" strokeWidth={1.5}
