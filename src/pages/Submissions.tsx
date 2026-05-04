@@ -28,10 +28,11 @@ function formatDate(iso: string) {
 }
 
 export default function Submissions() {
-  const [rows,    setRows]    = useState<Row[]>([])
-  const [total,   setTotal]   = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [page,    setPage]    = useState(1)
+  const [rows,        setRows]        = useState<Row[]>([])
+  const [total,       setTotal]       = useState(0)
+  const [ticketCount, setTicketCount] = useState(0)
+  const [loading,     setLoading]     = useState(true)
+  const [page,        setPage]        = useState(1)
 
   const [search,    setSearch]    = useState('')
   const [agent,     setAgent]     = useState('All agents')
@@ -83,7 +84,13 @@ export default function Submissions() {
     let cancelled = false
     setLoading(true)
 
-    buildQuery(true).then(({ data, count, error }) => {
+    // Ticket count query (distinct tickets matching filters)
+    let tq = supabase.from('tickets').select('id', { count: 'exact', head: true })
+    if (agent    !== 'All agents')     tq = tq.eq('agent_name',      agent)
+    if (category !== 'All categories') tq = tq.eq('ticket_category', category)
+    if (search.trim())                 tq = tq.ilike('ticket_number', `%${search.trim()}%`)
+
+    Promise.all([buildQuery(true), tq]).then(([{ data, count, error }, { count: tc }]) => {
       if (cancelled) return
       if (error) { console.error(error); setLoading(false); return }
 
@@ -98,6 +105,7 @@ export default function Submissions() {
 
       setRows(mapped)
       setTotal(count ?? 0)
+      setTicketCount(tc ?? 0)
       setLoading(false)
     })
 
@@ -222,11 +230,23 @@ export default function Submissions() {
       </div>
 
       {/* Count */}
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-        {loading ? 'Loading…' : hasFilters
-          ? `Showing ${total.toLocaleString()} matching submissions`
-          : `Total submissions: ${total.toLocaleString()}`}
-      </p>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+        {loading ? (
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+        ) : (
+          <>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+              <span style={{ fontWeight: 600, color: '#000' }}>{ticketCount.toLocaleString()}</span>
+              {' '}{hasFilters ? 'matching tickets' : 'total tickets'}
+            </p>
+            <span style={{ color: 'rgba(0,0,0,0.15)', fontSize: 16 }}>·</span>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+              <span style={{ fontWeight: 600, color: '#000' }}>{total.toLocaleString()}</span>
+              {' '}{hasFilters ? 'matching submissions' : 'total submissions'}
+            </p>
+          </>
+        )}
+      </div>
 
       {/* Table */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
