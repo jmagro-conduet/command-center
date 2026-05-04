@@ -1,8 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
+import { readFileSync, existsSync } from 'fs'
+import { resolve } from 'path'
 
-const SUPABASE_URL      = 'https://uepigbagbaskbslpjeqq.supabase.co'
-const SERVICE_ROLE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlcGlnYmFnYmFza2JzbHBqZXFxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDkxNTgyOSwiZXhwIjoyMDkwNDkxODI5fQ.lJkGYw4GEEpsHVFJNWB4et53bZVFjOyKNX839E1D_YU'
-const TEMP_PASSWORD     = 'Conduet2026!'
+function loadEnv() {
+  const envPath = resolve(process.cwd(), '.env.local')
+  if (existsSync(envPath)) {
+    const raw = readFileSync(envPath, 'utf8')
+    for (const line of raw.split('\n')) {
+      const [key, ...rest] = line.split('=')
+      if (key && rest.length) process.env[key.trim()] = rest.join('=').trim()
+    }
+  }
+}
+loadEnv()
+
+const SUPABASE_URL     = process.env.VITE_SUPABASE_URL
+const SERVICE_ROLE_KEY = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+const TEMP_PASSWORD    = 'Conduet2026!'
+
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  console.error('❌  Missing VITE_SUPABASE_URL or VITE_SUPABASE_SERVICE_ROLE_KEY in .env.local')
+  process.exit(1)
+}
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
