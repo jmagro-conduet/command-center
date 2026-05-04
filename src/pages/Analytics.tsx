@@ -43,6 +43,29 @@ function pct(n: number, total: number) {
   return parseFloat(((n / total) * 100).toFixed(1))
 }
 
+function buildMetricTrendData(rows: DataRow[], days: number, issueType: string) {
+  const byDate = new Map<string, { total: number; count: number }>()
+  for (const r of rows) {
+    const label = new Date(r.loggedAt ?? r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    if (!byDate.has(label)) byDate.set(label, { total: 0, count: 0 })
+    const entry = byDate.get(label)!
+    entry.total++
+    if (r.issueType === issueType) entry.count++
+  }
+  const result: { date: string; pct: number; movingAvg: number }[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i)
+    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const entry = byDate.get(label) ?? { total: 0, count: 0 }
+    result.push({ date: label, pct: entry.total > 0 ? parseFloat(((entry.count / entry.total) * 100).toFixed(1)) : 0, movingAvg: 0 })
+  }
+  return result.map((pt, i) => {
+    const win = result.slice(Math.max(0, i - 6), i + 1).filter(p => p.pct > 0)
+    const avg = win.length ? parseFloat((win.reduce((a, b) => a + b.pct, 0) / win.length).toFixed(1)) : 0
+    return { ...pt, movingAvg: avg }
+  })
+}
+
 function buildChartData(rows: DataRow[], days: number, target: number) {
   const byDate = new Map<string, Set<string>>()
   for (const r of rows) {
@@ -198,9 +221,17 @@ export default function Analytics() {
 
 // ── Team View ─────────────────────────────────────────────────────────────────
 
+const METRIC_CONFIG: Record<string, { color: string; goalDir: 'up' | 'down'; refValue?: number }> = {
+  'Perfect':       { color: '#166534', goalDir: 'up',   refValue: 90 },
+  'Majority edit': { color: '#854d0e', goalDir: 'down'               },
+  'Partial edit':  { color: '#6b21a8', goalDir: 'down'               },
+  'No response':   { color: '#e53e3e', goalDir: 'down'               },
+}
+
 function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange]             = useState<TimeRange>('last30')
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
   const dailyTarget = getDailyTarget()
 
   const days = rangeDays(range)
@@ -233,6 +264,10 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   }, [rows, selectedAgent])
 
   const chartData = useMemo(() => buildChartData(agentRows, days, dailyTarget.max), [agentRows, days, dailyTarget.max])
+  const metricChartData = useMemo(
+    () => selectedMetric ? buildMetricTrendData(agentRows, days, selectedMetric) : [],
+    [agentRows, days, selectedMetric]
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -253,41 +288,111 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {[
-          { label: 'Perfect rate',  value: `${kpis.perfectPct}%`,  color: '#166534' },
-          { label: 'Majority edit', value: `${kpis.majorityPct}%`, color: '#854d0e' },
-          { label: 'Partial edit',  value: `${kpis.partialPct}%`,  color: '#6b21a8' },
-          { label: 'No response',   value: `${kpis.noRespPct}%`,   color: '#e53e3e' },
-        ].map(k => (
-          <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
-          </div>
-        ))}
+          { label: 'Perfect rate',  issueKey: 'Perfect',       value: `${kpis.perfectPct}%`,  color: '#166534' },
+          { label: 'Majority edit', issueKey: 'Majority edit', value: `${kpis.majorityPct}%`, color: '#854d0e' },
+          { label: 'Partial edit',  issueKey: 'Partial edit',  value: `${kpis.partialPct}%`,  color: '#6b21a8' },
+          { label: 'No response',   issueKey: 'No response',   value: `${kpis.noRespPct}%`,   color: '#e53e3e' },
+        ].map(k => {
+          const isActive = selectedMetric === k.issueKey
+          return (
+            <div key={k.label}
+              onClick={() => setSelectedMetric(s => s === k.issueKey ? null : k.issueKey)}
+              style={{
+                background: isActive ? `${k.color}08` : '#fff',
+                borderRadius: 14,
+                border: isActive ? `1.5px solid ${k.color}` : '1.5px solid rgba(0,0,0,0.09)',
+                padding: '16px 18px',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                position: 'relative',
+              }}
+            >
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
+              {isActive && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: k.color, marginTop: 4, opacity: 0.8 }}>↓ Trend below</p>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
+      <div style={{ background: '#fff', borderRadius: 16, border: selectedMetric ? `1.5px solid ${METRIC_CONFIG[selectedMetric]?.color ?? 'rgba(0,0,0,0.09)'}40` : '1.5px solid rgba(0,0,0,0.09)', padding: 24, transition: 'border-color 0.2s' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
-              {selectedAgent ? `${selectedAgent} – Tickets Logged` : 'Team Performance'}
-            </p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
-              {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : 'Last Quarter'}
-            </p>
+            {selectedMetric ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+                    {selectedMetric} — Daily Trend
+                  </p>
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
+                    padding: '2px 8px', borderRadius: 100,
+                    background: `${METRIC_CONFIG[selectedMetric]?.color}15`,
+                    color: METRIC_CONFIG[selectedMetric]?.color,
+                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                  }}>
+                    {METRIC_CONFIG[selectedMetric]?.goalDir === 'up' ? '↑ Higher is better' : '↓ Lower is better'}
+                  </span>
+                </div>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : 'Last Quarter'} — click a metric card again to dismiss
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+                  {selectedAgent ? `${selectedAgent} – Tickets Logged` : 'Team Performance'}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : 'Last Quarter'}
+                  {!selectedAgent && <span style={{ color: '#aaa' }}> — click a metric card above to see its trend</span>}
+                </p>
+              </>
+            )}
           </div>
           <TimeRangeFilter value={range} onChange={setRange} />
         </div>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-            <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
-            <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
-            <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-            <ReferenceLine y={dailyTarget.max} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} label={{ value: 'Target', position: 'right', fontSize: 11, fill: '#9B59D0', fontFamily: 'Inter' }} />
-            <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily Count" />
-            <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
-          </LineChart>
-        </ResponsiveContainer>
+
+        {selectedMetric ? (() => {
+          const mc = METRIC_CONFIG[selectedMetric]
+          const data = metricChartData
+          const avgPct = data.filter(d => d.pct > 0).reduce((s, d) => s + d.pct, 0) / (data.filter(d => d.pct > 0).length || 1)
+          return (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={data} margin={{ top: 4, right: 28, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+                <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(data.length / 6)} />
+                <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  formatter={(val: number, name: string) => [`${val}%`, name === 'pct' ? 'Daily %' : '7-Day Avg']}
+                />
+                {mc?.refValue && (
+                  <ReferenceLine y={mc.refValue} stroke={mc.color} strokeDasharray="5 5" strokeWidth={1.5}
+                    label={{ value: `${mc.refValue}% goal`, position: 'right', fontSize: 11, fill: mc.color, fontFamily: 'Inter' }} />
+                )}
+                <ReferenceLine y={parseFloat(avgPct.toFixed(1))} stroke="rgba(0,0,0,0.2)" strokeDasharray="3 3" strokeWidth={1}
+                  label={{ value: `avg ${avgPct.toFixed(1)}%`, position: 'right', fontSize: 10, fill: '#aaa', fontFamily: 'Inter' }} />
+                <Line type="monotone" dataKey="pct" stroke={mc?.color ?? '#9B59D0'} strokeWidth={2} dot={{ r: 3, fill: mc?.color ?? '#9B59D0' }} activeDot={{ r: 5 }} name="pct" />
+                <Line type="monotone" dataKey="movingAvg" stroke={mc?.color ?? '#CEA4FF'} strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="movingAvg" opacity={0.6} />
+              </LineChart>
+            </ResponsiveContainer>
+          )
+        })() : (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+              <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
+              <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+              <ReferenceLine y={dailyTarget.max} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} label={{ value: 'Target', position: 'right', fontSize: 11, fill: '#9B59D0', fontFamily: 'Inter' }} />
+              <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily Count" />
+              <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
