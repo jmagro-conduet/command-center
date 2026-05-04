@@ -11,12 +11,18 @@ type Tab       = 'team' | 'agent' | 'events' | 'category'
 type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime'
 
 interface DataRow {
-  issueType: string
-  loggedAt:  string | null
+  issueType:    string
+  loggedAt:     string | null   // ticket_issues.logged_at  (set for live tickets)
+  issuedAt:     string | null   // ticket_issues.created_at (set for imported tickets)
   ticketNumber: string
   agentName:    string
   category:     string
-  createdAt:    string
+  createdAt:    string          // tickets.created_at (last-resort fallback)
+}
+
+// Best available date for a row: prefer logged_at, then issue created_at, then ticket created_at
+function rowDate(r: DataRow): Date {
+  return new Date(r.loggedAt ?? r.issuedAt ?? r.createdAt)
 }
 
 interface HotEvent {
@@ -36,14 +42,14 @@ function cutoff(days: number) {
 function filterByRange(rows: DataRow[], range: TimeRange) {
   if (range === 'allTime') return rows
   const c = cutoff(rangeDays(range))
-  return rows.filter(r => new Date(r.loggedAt ?? r.createdAt) >= c)
+  return rows.filter(r => rowDate(r) >= c)
 }
 
 function effectiveDays(rows: DataRow[], range: TimeRange): number {
   if (range !== 'allTime') return rangeDays(range)
   if (rows.length === 0) return 30
   const oldest = rows.reduce((min, r) => {
-    const d = new Date(r.loggedAt ?? r.createdAt)
+    const d = rowDate(r)
     return d < min ? d : min
   }, new Date())
   return Math.max(Math.ceil((Date.now() - oldest.getTime()) / 86_400_000), 1)
@@ -57,7 +63,7 @@ function pct(n: number, total: number) {
 function buildMetricTrendData(rows: DataRow[], days: number, issueType: string) {
   const byDate = new Map<string, { total: number; count: number }>()
   for (const r of rows) {
-    const label = new Date(r.loggedAt ?? r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const label = rowDate(r).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     if (!byDate.has(label)) byDate.set(label, { total: 0, count: 0 })
     const entry = byDate.get(label)!
     entry.total++
@@ -80,7 +86,7 @@ function buildMetricTrendData(rows: DataRow[], days: number, issueType: string) 
 function buildChartData(rows: DataRow[], days: number, target: number) {
   const byDate = new Map<string, Set<string>>()
   for (const r of rows) {
-    const label = new Date(r.loggedAt ?? r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const label = rowDate(r).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     if (!byDate.has(label)) byDate.set(label, new Set())
     byDate.get(label)!.add(r.ticketNumber)
   }
@@ -164,15 +170,16 @@ export default function Analytics() {
       const [{ data: issues }, { data: evts }] = await Promise.all([
         supabase
           .from('ticket_issues')
-          .select('issue_type, logged_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
-          .order('logged_at', { ascending: false })
+          .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
+          .order('logged_at', { ascending: false, nullsFirst: false })
           .limit(10000),
         supabase.from('hot_events').select('*').order('start_date', { ascending: false }),
       ])
 
       const rows: DataRow[] = (issues ?? []).map((ti: any) => ({
         issueType:    ti.issue_type ?? '',
-        loggedAt:     ti.logged_at,
+        loggedAt:     ti.logged_at   ?? null,
+        issuedAt:     ti.created_at  ?? null,   // ticket_issues.created_at (historical imports)
         ticketNumber: ti.tickets?.ticket_number ?? '',
         agentName:    ti.tickets?.agent_name ?? '',
         category:     ti.tickets?.ticket_category ?? '',
@@ -566,7 +573,7 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
     const start = new Date(evt.start_date)
     const end   = new Date(evt.end_date); end.setHours(23, 59, 59)
     const evtRows = allRows.filter(r => {
-      const d = new Date(r.loggedAt ?? r.createdAt)
+      const d = rowDate(r)
       return d >= start && d <= end
     })
     const tickets = new Set(evtRows.map(r => r.ticketNumber)).size
