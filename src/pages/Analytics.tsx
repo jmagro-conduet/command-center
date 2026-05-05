@@ -20,9 +20,10 @@ interface DataRow {
   createdAt:    string          // tickets.created_at (last-resort fallback)
 }
 
-// Best available date for a row: prefer logged_at, then issue created_at, then ticket created_at
+// ticket_issues.created_at (issuedAt) is always set — it's the historical date for imports
+// and matches logged_at for live tickets. Use it as the primary date source.
 function rowDate(r: DataRow): Date {
-  return new Date(r.loggedAt ?? r.issuedAt ?? r.createdAt)
+  return new Date(r.issuedAt ?? r.loggedAt ?? r.createdAt)
 }
 
 interface HotEvent {
@@ -159,6 +160,26 @@ function categoryStats(rows: DataRow[]) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+// Supabase PostgREST has a server-side max-rows cap (default 1000).
+// Paginate in chunks so we always retrieve all records regardless of that cap.
+async function fetchAllIssues() {
+  const PAGE = 1000
+  const all: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('ticket_issues')
+      .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
+      .order('created_at', { ascending: false })   // created_at is never NULL — safe for pagination
+      .range(from, from + PAGE - 1)
+    if (error || !data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all
+}
+
 export default function Analytics() {
   const [tab, setTab]         = useState<Tab>('team')
   const [allRows, setAllRows] = useState<DataRow[]>([])
@@ -167,19 +188,15 @@ export default function Analytics() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: issues }, { data: evts }] = await Promise.all([
-        supabase
-          .from('ticket_issues')
-          .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
-          .order('logged_at', { ascending: false, nullsFirst: false })
-          .limit(10000),
+      const [issues, { data: evts }] = await Promise.all([
+        fetchAllIssues(),
         supabase.from('hot_events').select('*').order('start_date', { ascending: false }),
       ])
 
-      const rows: DataRow[] = (issues ?? []).map((ti: any) => ({
+      const rows: DataRow[] = issues.map((ti: any) => ({
         issueType:    ti.issue_type ?? '',
-        loggedAt:     ti.logged_at   ?? null,
-        issuedAt:     ti.created_at  ?? null,   // ticket_issues.created_at (historical imports)
+        loggedAt:     ti.logged_at  ?? null,
+        issuedAt:     ti.created_at ?? null,   // ticket_issues.created_at — set for all rows
         ticketNumber: ti.tickets?.ticket_number ?? '',
         agentName:    ti.tickets?.agent_name ?? '',
         category:     ti.tickets?.ticket_category ?? '',
