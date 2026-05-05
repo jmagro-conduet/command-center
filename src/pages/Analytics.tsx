@@ -53,7 +53,8 @@ function effectiveDays(rows: DataRow[], range: TimeRange): number {
     const d = rowDate(r)
     return d < min ? d : min
   }, new Date())
-  return Math.max(Math.ceil((Date.now() - oldest.getTime()) / 86_400_000), 1)
+  // +1 so the chart loop (which goes from days-1 down to 0) includes the oldest day
+  return Math.max(Math.ceil((Date.now() - oldest.getTime()) / 86_400_000) + 1, 1)
 }
 
 function pct(n: number, total: number) {
@@ -312,7 +313,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           { label: `Tickets (${range === 'last7' ? 'last 7 days' : range === 'last30' ? 'last 30 days' : range === 'lastQuarter' ? 'last 90 days' : 'all time'})`, value: kpis.tickets.toString() },
           { label: 'Responses',               value: kpis.issues.toString() },
           { label: 'Avg responses / ticket',  value: kpis.avgPerTicket },
-          { label: 'Avg tickets / day',        value: kpis.avgPerDay },
+          { label: 'Team avg tickets / day',    value: kpis.avgPerDay },
           { label: 'Target range / agent',     value: `${dailyTarget.min}–${dailyTarget.max}` },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
@@ -497,7 +498,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
 
   const onTrack = agent.avg >= dailyTarget.min
   const statusLabel = onTrack ? 'On Track' : agent.avg >= dailyTarget.min * 0.5 ? 'Almost' : 'Off Track'
-  const statusColor = onTrack ? '#166634' : '#854d0e'
+  const statusColor = onTrack ? '#166534' : '#854d0e'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -688,7 +689,6 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days = useMemo(() => effectiveDays(rows, range), [rows, range])
   const cats = useMemo(() => categoryStats(rows), [rows])
-  void useMemo(() => agentStats(rows, days), [rows, days])
 
   const ready    = cats.filter(c => c.status === 'ready').length
   const almost   = cats.filter(c => c.status === 'almost').length
@@ -776,7 +776,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
         {cats.map(cat => {
           const isExpanded = expanded === cat.name
-          const gap = Math.round(90 - cat.perfect)
+          const gap = Math.max(0, Math.round(90 - cat.perfect))
           const barColor = cat.perfect >= 90 ? '#166534' : cat.perfect >= 75 ? '#854d0e' : cat.perfect >= 50 ? '#f97316' : '#e53e3e'
           const statusMap: Record<string, { label: string; bg: string; color: string }> = {
             'ready':     { label: 'Ready',     bg: 'rgba(22,101,52,0.09)',   color: '#166534' },
@@ -815,7 +815,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                   <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
                     <div style={{ width: `${Math.min(100, (cat.perfect / 90) * 100)}%`, height: '100%', background: barColor, borderRadius: 100, transition: 'width 0.4s' }} />
                   </div>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e', fontWeight: 500, flexShrink: 0 }}>−{gap}pp</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: gap === 0 ? '#166534' : '#e53e3e', fontWeight: 500, flexShrink: 0 }}>{gap === 0 ? '✓ Ready' : `−${gap}pp`}</span>
                 </div>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.edit}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.noResp > 20 ? '#e53e3e' : '#58595B' }}>{cat.noResp}%</span>
@@ -834,7 +834,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                       ))}
                     </div>
                     {catAgents.map((a, ai) => {
-                      const agentGap = Math.round(90 - a.perfect)
+                      const agentGap = Math.max(0, Math.round(90 - a.perfect))
+                      const agentBarColor = a.perfect >= 90 ? '#166534' : a.perfect >= 75 ? '#854d0e' : a.perfect >= 50 ? '#f97316' : '#e53e3e'
                       return (
                         <div key={a.name} style={{
                           display: 'grid', gridTemplateColumns: '1.5fr 100px 100px 90px 1fr',
@@ -843,13 +844,13 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                         }}>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{a.name}</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.issueTotal}</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{a.perfect}%</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: agentBarColor, fontWeight: 500 }}>{a.perfect}%</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{a.noResp}%</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
-                              <div style={{ width: `${Math.min(100, (a.perfect / 90) * 100)}%`, height: '100%', background: barColor, borderRadius: 100 }} />
+                              <div style={{ width: `${Math.min(100, (a.perfect / 90) * 100)}%`, height: '100%', background: agentBarColor, borderRadius: 100 }} />
                             </div>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e', flexShrink: 0 }}>−{agentGap}pp</span>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: agentGap === 0 ? '#166534' : '#e53e3e', flexShrink: 0 }}>{agentGap === 0 ? '✓' : `−${agentGap}pp`}</span>
                           </div>
                         </div>
                       )
