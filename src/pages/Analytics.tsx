@@ -696,9 +696,13 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const lowData  = cats.filter(c => c.status === 'low-data').length
   const total    = cats.length
 
-  const overallPerfect = cats.length
-    ? Math.round(cats.reduce((s, c) => s + c.perfect * c.vol, 0) / cats.reduce((s, c) => s + c.vol, 0))
-    : 0
+  const totalIssues = rows.length
+  const overallPerfect  = totalIssues ? Math.round(rows.filter(r => r.issueType === 'Perfect').length / totalIssues * 100) : 0
+  const overallMajority = totalIssues ? Math.round(rows.filter(r => r.issueType === 'Majority edit').length / totalIssues * 100) : 0
+  const overallPartial  = totalIssues ? Math.round(rows.filter(r => r.issueType === 'Partial edit').length / totalIssues * 100) : 0
+  const overallNoResp   = totalIssues ? Math.round(rows.filter(r => r.issueType === 'No response').length / totalIssues * 100) : 0
+
+  const totalVol = cats.reduce((s, c) => s + c.vol, 0)
 
   const pieData = [
     { name: 'Autopilot Ready', value: ready,    color: '#166534' },
@@ -706,9 +710,6 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
     { name: 'Not Ready',       value: notReady, color: '#e53e3e' },
     { name: 'Low Data',        value: lowData,  color: '#d1d5db' },
   ].filter(d => d.value > 0)
-
-  const coverageGaps = cats.filter(c => c.blocker.includes('Coverage')).length
-  const productIssues = cats.filter(c => c.blocker.includes('Product')).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -753,10 +754,10 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
           <div style={{ display: 'flex', gap: 1, flex: 1, borderLeft: '1px solid rgba(0,0,0,0.07)', paddingLeft: 32 }}>
             {[
-              { label: 'Overall perfect rate', value: `${overallPerfect}%`, color: overallPerfect >= 90 ? '#166534' : overallPerfect >= 75 ? '#854d0e' : '#e53e3e' },
-              { label: 'Categories cleared',   value: `${ready}/${total}`,  color: '#aaa' },
-              { label: 'Product blockers',      value: productIssues.toString(), color: '#854d0e' },
-              { label: 'Coverage gaps',         value: coverageGaps.toString(),  color: '#9B59D0' },
+              { label: 'Perfect rate',   value: `${overallPerfect}%`,  color: overallPerfect >= 90 ? '#166534' : overallPerfect >= 75 ? '#854d0e' : '#e53e3e' },
+              { label: 'Majority edit',  value: `${overallMajority}%`, color: '#854d0e' },
+              { label: 'Partial edit',   value: `${overallPartial}%`,  color: '#f97316' },
+              { label: 'No response',    value: `${overallNoResp}%`,   color: overallNoResp > 20 ? '#e53e3e' : '#58595B' },
             ].map(k => (
               <div key={k.label} style={{ flex: 1, padding: '0 16px', borderRight: '1px solid rgba(0,0,0,0.07)' }}>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
@@ -768,8 +769,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 100px 60px 100px 1fr 90px 80px 140px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-          {['Category', 'Status', 'Vol', 'Perfect', 'Progress to 90%', 'Edit Rate', 'No Resp', 'Blocker'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 100px 1fr 90px 80px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+          {['Category', 'Vol', '% of Total', 'Perfect', 'Progress to 90%', 'Edit Rate', 'No Resp'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -778,13 +779,6 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
           const isExpanded = expanded === cat.name
           const gap = Math.max(0, Math.round(90 - cat.perfect))
           const barColor = cat.perfect >= 90 ? '#166534' : cat.perfect >= 75 ? '#854d0e' : cat.perfect >= 50 ? '#f97316' : '#e53e3e'
-          const statusMap: Record<string, { label: string; bg: string; color: string }> = {
-            'ready':     { label: 'Ready',     bg: 'rgba(22,101,52,0.09)',   color: '#166534' },
-            'almost':    { label: 'Almost',    bg: 'rgba(234,179,8,0.12)',   color: '#854d0e' },
-            'not-ready': { label: 'Not Ready', bg: 'rgba(229,62,62,0.09)',   color: '#e53e3e' },
-            'low-data':  { label: 'Low Data',  bg: 'rgba(0,0,0,0.06)',       color: '#58595B' },
-          }
-          const statusStyle = statusMap[cat.status] ?? statusMap['not-ready']
 
           // Per-agent breakdown for this category
           const catAgentRows = rows.filter(r => (r.category || 'Uncategorized') === cat.name)
@@ -794,7 +788,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
             <div key={cat.name}>
               <div onClick={() => setExpanded(isExpanded ? null : cat.name)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '1.6fr 100px 60px 100px 1fr 90px 80px 140px',
+                  display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 100px 1fr 90px 80px',
                   padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
                   borderBottom: '1px solid rgba(0,0,0,0.05)',
                   background: isExpanded ? 'rgba(206,164,255,0.06)' : 'transparent',
@@ -806,10 +800,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ color: '#9B59D0', fontSize: 10 }}>{isExpanded ? '▼' : '▶'}</span>{cat.name}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusStyle.bg, color: statusStyle.color, width: 'fit-content' }}>
-                  {statusStyle.label}
-                </span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.vol}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{totalVol ? (cat.vol / totalVol * 100).toFixed(1) : '0.0'}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: barColor }}>{cat.perfect}%</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
@@ -819,7 +811,6 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                 </div>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.edit}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.noResp > 20 ? '#e53e3e' : '#58595B' }}>{cat.noResp}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontWeight: 500 }}>⚠ {cat.blocker}</span>
               </div>
 
               {isExpanded && catAgents.length > 0 && (
@@ -862,18 +853,19 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
           )
         })}
 
-        <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
-            <strong>Status: </strong>
-            <span style={{ color: '#166534' }}>● Ready</span> 90%+ &nbsp;
-            <span style={{ color: '#854d0e' }}>● Almost</span> 75–90% &nbsp;
-            <span style={{ color: '#e53e3e' }}>● Not Ready</span> &lt;75%
-          </span>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
-            <strong>Blockers: </strong>
-            <span style={{ color: '#f97316' }}>● Product</span> High edit rate &nbsp;
-            <span style={{ color: '#9B59D0' }}>▲ Coverage</span> High no-response
-          </span>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Perfect rate:</span>
+          {[
+            { color: '#166534', label: 'Ready', range: '90%+' },
+            { color: '#854d0e', label: 'Almost', range: '75–90%' },
+            { color: '#f97316', label: 'Getting there', range: '50–75%' },
+            { color: '#e53e3e', label: 'Not ready', range: '<50%' },
+          ].map(l => (
+            <span key={l.label} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, display: 'inline-block', flexShrink: 0 }} />
+              <strong style={{ color: l.color }}>{l.label}</strong> {l.range}
+            </span>
+          ))}
         </div>
       </div>
       <div style={{ height: 8 }} />

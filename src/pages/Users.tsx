@@ -48,6 +48,9 @@ export default function Users() {
   const [editEmail, setEditEmail]   = useState('')
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [pwSaving, setPwSaving]     = useState(false)
+  const [pwMessage, setPwMessage]   = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     Promise.all([loadUsers(), loadTeams()])
@@ -87,6 +90,20 @@ export default function Users() {
     setEditName(u.name)
     setEditEmail(u.email)
     setSaveError(null)
+    setNewPassword('')
+    setPwMessage(null)
+  }
+
+  async function handleSetPassword() {
+    if (!editTarget) return
+    const pw = newPassword.trim()
+    if (pw.length < 6) { setPwMessage({ ok: false, text: 'Password must be at least 6 characters' }); return }
+    setPwSaving(true); setPwMessage(null)
+    const { error } = await supabase.auth.admin.updateUserById(editTarget.id, { password: pw })
+    setPwSaving(false)
+    if (error) { setPwMessage({ ok: false, text: error.message }); return }
+    setPwMessage({ ok: true, text: `Password updated — share it with ${editTarget.name} securely` })
+    setNewPassword('')
   }
 
   async function handleEditSave() {
@@ -286,6 +303,49 @@ export default function Users() {
               </div>
 
               {saveError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{saveError}</p>}
+
+              {/* Reset password */}
+              <div style={{ paddingTop: 8, marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
+                  Reset password
+                </label>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                  Sets a new password directly without sending an email. Share with the user securely.
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="text"
+                    value={newPassword}
+                    onChange={e => { setNewPassword(e.target.value); setPwMessage(null) }}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSetPassword() }}
+                    placeholder="Min. 6 characters"
+                    style={{ ...inputStyle, flex: 1 }}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                  />
+                  <button
+                    onClick={handleSetPassword}
+                    disabled={pwSaving || newPassword.trim().length < 1}
+                    style={{
+                      background: pwSaving || newPassword.trim().length < 1 ? 'rgba(0,0,0,0.1)' : '#000',
+                      color: pwSaving || newPassword.trim().length < 1 ? 'rgba(0,0,0,0.35)' : '#fff',
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '9px 16px', borderRadius: 10, border: 'none',
+                      cursor: pwSaving || newPassword.trim().length < 1 ? 'default' : 'pointer',
+                      transition: 'opacity 0.15s', whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { if (!pwSaving && newPassword.trim().length >= 1) e.currentTarget.style.opacity = '0.8' }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                  >
+                    {pwSaving ? 'Setting…' : 'Set password'}
+                  </button>
+                </div>
+                {pwMessage && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: pwMessage.ok ? '#166534' : '#e53e3e', marginTop: 6 }}>
+                    {pwMessage.ok ? '✓ ' : '✗ '}{pwMessage.text}
+                  </p>
+                )}
+              </div>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
                 <button onClick={() => setEditTarget(null)} style={{
