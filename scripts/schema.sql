@@ -244,9 +244,11 @@ CREATE TABLE IF NOT EXISTS ticket_issues (
   reasoning text,
   final_edits text,
   customer_input text,
+  suggested_response text,
   logged_at timestamptz,
   created_at timestamptz DEFAULT now()
 );
+ALTER TABLE ticket_issues ADD COLUMN IF NOT EXISTS suggested_response text;
 ALTER TABLE ticket_issues ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Agents can insert ticket issues for own tickets" ON ticket_issues FOR INSERT TO authenticated WITH CHECK (EXISTS (SELECT 1 FROM tickets JOIN users ON users.auth_id = auth.uid() WHERE tickets.id = ticket_id AND tickets.agent_email = users.email));

@@ -159,7 +159,7 @@ export default function Submissions() {
       let q = supabase
         .from('ticket_issues')
         .select(`
-          issue_type, logged_at, customer_input, reasoning, final_edits, issue_comment,
+          issue_type, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
           tickets!inner ( ticket_number, agent_name, agent_email, agent_team, ticket_category )
         `)
       if (issueType !== 'All issue types') q = q.eq('issue_type', issueType)
@@ -173,8 +173,7 @@ export default function Submissions() {
       from += PAGE
     }
 
-    // Match the source CSV column order exactly (12 cols).
-    // Note: "Suggested Response" is not stored in our DB — exported as empty.
+    // Match the source CSV column order exactly (12 cols)
     const header = [
       'Timestamp', 'Agent', 'Email', 'Team', 'Ticket', 'Category', 'Issue type',
       'Customer Input', 'Suggested Response', 'Reasoning', 'Final Edits', 'Notes',
@@ -191,7 +190,7 @@ export default function Submissions() {
         t.ticket_category,
         ti.issue_type,
         ti.customer_input,
-        '', // Suggested Response — not in DB
+        ti.suggested_response,
         ti.reasoning,
         ti.final_edits,
         ti.issue_comment,

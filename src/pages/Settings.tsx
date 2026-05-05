@@ -50,7 +50,7 @@ function parseTimestamp(ts: string): string | null {
 interface CSVRow {
   timestamp: string; agentName: string; agentEmail: string; agentTeam: string
   ticketNumber: string; category: string; issueType: string
-  customerInput: string; reasoning: string; finalEdits: string; notes: string
+  customerInput: string; suggestedResponse: string; reasoning: string; finalEdits: string; notes: string
 }
 
 interface ImportPreview {
@@ -154,17 +154,18 @@ export default function Settings() {
       if (rows.length < 2) throw new Error('CSV appears empty or has no data rows')
       // Skip header row
       const dataRows: CSVRow[] = rows.slice(1).filter(r => r.length >= 6 && r[4]?.trim()).map(r => ({
-        timestamp:    r[0] ?? '',
-        agentName:    r[1] ?? '',
-        agentEmail:   r[2] ?? '',
-        agentTeam:    r[3] ?? '',
-        ticketNumber: r[4] ?? '',
-        category:     r[5] ?? '',
-        issueType:    r[6] ?? '',
-        customerInput: r[7] ?? '',
-        reasoning:    r[9] ?? '',
-        finalEdits:   r[10] ?? '',
-        notes:        r[11] ?? '',
+        timestamp:         r[0] ?? '',
+        agentName:         r[1] ?? '',
+        agentEmail:        r[2] ?? '',
+        agentTeam:         r[3] ?? '',
+        ticketNumber:      r[4] ?? '',
+        category:          r[5] ?? '',
+        issueType:         r[6] ?? '',
+        customerInput:     r[7] ?? '',
+        suggestedResponse: r[8] ?? '',
+        reasoning:         r[9] ?? '',
+        finalEdits:        r[10] ?? '',
+        notes:             r[11] ?? '',
       }))
       const uniqueNums = [...new Set(dataRows.map(r => r.ticketNumber))]
       // Check which already exist
@@ -230,14 +231,15 @@ export default function Settings() {
           const ts = parseTimestamp(r.timestamp)
           if (!ts) badTs++
           return {
-            ticket_id:      tktData.id,
-            issue_type:     r.issueType,
-            issue_comment:  r.notes,
-            customer_input: r.customerInput,
-            reasoning:      r.reasoning,
-            final_edits:    r.finalEdits,
-            logged_at:      ts,
-            created_at:     ts,
+            ticket_id:           tktData.id,
+            issue_type:          r.issueType,
+            issue_comment:       r.notes,
+            customer_input:      r.customerInput,
+            suggested_response:  r.suggestedResponse,
+            reasoning:           r.reasoning,
+            final_edits:         r.finalEdits,
+            logged_at:           ts,
+            created_at:          ts,
           }
         })
         if (badTs > 0) log.push(`⚠️ ${ticketNum}: ${badTs} row(s) had unparseable timestamps — stored as NULL`)
@@ -255,9 +257,10 @@ export default function Settings() {
     }
   }
 
-  // Repair mode: re-read the CSV and update logged_at/created_at on existing records.
-  // Matches each ticket by ticket_number, then pairs CSV rows to DB ticket_issues in
-  // insertion order (by id ASC) so timestamps get corrected without duplication.
+  // Repair mode: re-read the CSV and overwrite timestamps + text fields on existing
+  // records. Matches each ticket by ticket_number, then pairs CSV rows to DB
+  // ticket_issues in insertion order (by id ASC) so values get corrected without
+  // duplication. Use this to backfill new columns or fix bad timestamps.
   async function repairTimestamps() {
     if (!importPreview) return
     setImportStatus('importing')
@@ -278,18 +281,36 @@ export default function Settings() {
         const { data: existingIssues } = await supabase
           .from('ticket_issues').select('id').eq('ticket_id', tkt.id).order('id', { ascending: true })
         if (!existingIssues?.length) { skipped++; continue }
-        // Pair CSV rows (in order) with DB rows (in insertion order) and update timestamps
+        // Pair CSV rows (in order) with DB rows (in insertion order) and update fields
         for (let i = 0; i < Math.min(rows.length, existingIssues.length); i++) {
-          const ts = parseTimestamp(rows[i].timestamp)
-          if (!ts) { badTs++; continue }
-          await supabase.from('ticket_issues').update({ logged_at: ts, created_at: ts }).eq('id', existingIssues[i].id)
+          const r = rows[i]
+          const ts = parseTimestamp(r.timestamp)
+          if (!ts) badTs++
+          const update: Record<string, any> = {
+            issue_type:         r.issueType,
+            issue_comment:      r.notes,
+            customer_input:     r.customerInput,
+            suggested_response: r.suggestedResponse,
+            reasoning:          r.reasoning,
+            final_edits:        r.finalEdits,
+          }
+          if (ts) { update.logged_at = ts; update.created_at = ts }
+          await supabase.from('ticket_issues').update(update).eq('id', existingIssues[i].id)
           fixed++
         }
-        // Also fix the ticket's created_at
-        const firstTs = parseTimestamp(rows[0].timestamp)
-        if (firstTs) await supabase.from('tickets').update({ created_at: firstTs }).eq('id', tkt.id)
+        // Also fix the ticket's created_at + agent/team/category in case they changed
+        const first = rows[0]
+        const firstTs = parseTimestamp(first.timestamp)
+        const tktUpdate: Record<string, any> = {
+          ticket_category: first.category,
+          agent_name:      first.agentName,
+          agent_email:     first.agentEmail,
+          agent_team:      first.agentTeam,
+        }
+        if (firstTs) tktUpdate.created_at = firstTs
+        await supabase.from('tickets').update(tktUpdate).eq('id', tkt.id)
       }
-      log.push(`✅ Repair complete — ${fixed} issue timestamps fixed, ${skipped} tickets not found, ${badTs} rows had unparseable timestamps`)
+      log.push(`✅ Repair complete — ${fixed} issues backfilled, ${skipped} tickets not found, ${badTs} rows had unparseable timestamps`)
       setImportLog(log)
       setImportStatus('done')
     } catch (err: any) {
@@ -540,7 +561,7 @@ export default function Settings() {
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 10, background: repairMode ? 'rgba(234,179,8,0.08)' : 'rgba(0,0,0,0.03)', border: `1.5px solid ${repairMode ? 'rgba(234,179,8,0.3)' : 'rgba(0,0,0,0.08)'}`, transition: 'all 0.15s' }}>
                   <input type="checkbox" id="repairMode" checked={repairMode} onChange={e => setRepairMode(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0' }} />
                   <label htmlFor="repairMode" style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', cursor: 'pointer', lineHeight: 1.5 }}>
-                    <strong style={{ color: '#000' }}>Repair timestamps</strong> — re-read this CSV and fix the <code>logged_at</code> / <code>created_at</code> dates on existing records without inserting duplicates. Use this if a previous import stored wrong dates.
+                    <strong style={{ color: '#000' }}>Repair / backfill from CSV</strong> — re-read this CSV and overwrite timestamps, customer input, suggested response, reasoning, final edits, and notes on existing records (no duplicates inserted). Use this to fix bad dates or backfill newly-added fields.
                   </label>
                 </div>
 
@@ -557,7 +578,7 @@ export default function Settings() {
                         opacity: importStatus === 'importing' ? 0.6 : 1, transition: 'opacity 0.15s',
                       }}
                     >
-                      {importStatus === 'importing' ? 'Repairing…' : `Repair timestamps for ${importPreview.uniqueTickets} tickets`}
+                      {importStatus === 'importing' ? 'Repairing…' : `Repair / backfill ${importPreview.uniqueTickets} tickets`}
                     </button>
                     <button onClick={() => { setImportStatus('idle'); setImportPreview(null); setRepairMode(false); if (fileRef.current) fileRef.current.value = '' }} style={resetBtnStyle}>Cancel</button>
                   </div>
