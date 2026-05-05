@@ -16,8 +16,16 @@ interface Row {
   issueType: string
   ticket: string
   agent: string
+  agentEmail: string
+  agentTeam: string
   category: string
   date: string
+  loggedAt: string | null
+  customerInput: string
+  suggestedResponse: string
+  reasoning: string
+  finalEdits: string
+  notes: string
 }
 
 function formatDate(iso: string) {
@@ -62,6 +70,8 @@ export default function Submissions() {
   const [agentOptions,    setAgentOptions]    = useState<string[]>(['All agents'])
   const [categoryOptions, setCategoryOptions] = useState<string[]>(['All categories'])
 
+  const [selected, setSelected] = useState<Row | null>(null)
+
   // Load distinct filter options once
   useEffect(() => {
     async function loadFilters() {
@@ -81,7 +91,8 @@ export default function Submissions() {
     let q = supabase
       .from('ticket_issues')
       .select(
-        'id, issue_type, logged_at, tickets!inner ( ticket_number, agent_name, ticket_category )',
+        `id, issue_type, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
+         tickets!inner ( ticket_number, agent_name, agent_email, agent_team, ticket_category )`,
         { count: 'exact' }
       )
 
@@ -120,12 +131,20 @@ export default function Submissions() {
       if (error) { console.error(error); setLoading(false); return }
 
       const mapped: Row[] = (data ?? []).map((ti: any) => ({
-        id:        ti.id,
-        issueType: ti.issue_type ?? '',
-        ticket:    ti.tickets?.ticket_number ?? '',
-        agent:     ti.tickets?.agent_name ?? '',
-        category:  ti.tickets?.ticket_category ?? '',
-        date:      ti.logged_at ? formatDate(ti.logged_at) : '',
+        id:                ti.id,
+        issueType:         ti.issue_type ?? '',
+        ticket:            ti.tickets?.ticket_number ?? '',
+        agent:             ti.tickets?.agent_name ?? '',
+        agentEmail:        ti.tickets?.agent_email ?? '',
+        agentTeam:         ti.tickets?.agent_team ?? '',
+        category:          ti.tickets?.ticket_category ?? '',
+        date:              ti.logged_at ? formatDate(ti.logged_at) : '',
+        loggedAt:          ti.logged_at ?? null,
+        customerInput:     ti.customer_input ?? '',
+        suggestedResponse: ti.suggested_response ?? '',
+        reasoning:         ti.reasoning ?? '',
+        finalEdits:        ti.final_edits ?? '',
+        notes:             ti.issue_comment ?? '',
       }))
 
       const uniqueTickets = new Set((tcData ?? []).map((ti: any) => ti.tickets?.ticket_number))
@@ -351,13 +370,14 @@ export default function Submissions() {
             return (
               <div
                 key={s.id}
+                onClick={() => setSelected(s)}
                 style={{
                   display: 'grid', gridTemplateColumns: '130px 1fr 160px 180px 1fr',
                   padding: '13px 20px', alignItems: 'center',
                   borderBottom: i < rows.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
-                  transition: 'background 0.1s',
+                  transition: 'background 0.1s', cursor: 'pointer',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.015)')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(206,164,255,0.06)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <span style={{
@@ -407,6 +427,128 @@ export default function Submissions() {
       )}
 
       <div style={{ height: 8 }} />
+
+      {selected && <SubmissionModal row={selected} onClose={() => setSelected(null)} />}
+    </div>
+  )
+}
+
+function SubmissionModal({ row, onClose }: { row: Row; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const cfg = ISSUE_CONFIG[row.issueType] ?? { bg: 'rgba(0,0,0,0.06)', color: '#58595B' }
+
+  const meta: { label: string; value: string }[] = [
+    { label: 'Ticket',    value: row.ticket },
+    { label: 'Agent',     value: row.agent },
+    { label: 'Email',     value: row.agentEmail },
+    { label: 'Team',      value: row.agentTeam },
+    { label: 'Category',  value: row.category },
+    { label: 'Timestamp', value: row.loggedAt ? formatDate(row.loggedAt) : '—' },
+  ]
+
+  const sections: { label: string; value: string }[] = [
+    { label: 'Customer Input',     value: row.customerInput },
+    { label: 'Suggested Response', value: row.suggestedResponse },
+    { label: 'Reasoning',          value: row.reasoning },
+    { label: 'Final Edits',        value: row.finalEdits },
+    { label: 'Notes',              value: row.notes },
+  ]
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: 16,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 20, width: '100%', maxWidth: 720,
+          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+        }}
+      >
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>
+                Ticket {row.ticket}
+              </h2>
+              <span style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                padding: '3px 10px', borderRadius: 100,
+                background: cfg.bg, color: cfg.color,
+              }}>
+                {row.issueType}
+              </span>
+            </div>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
+              {row.category} · {row.loggedAt ? formatDate(row.loggedAt) : 'No timestamp'}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 1 }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#000')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#aaa')}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Body — scrollable */}
+        <div style={{ overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* Metadata grid */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 24px',
+            padding: '14px 16px', background: 'rgba(0,0,0,0.02)',
+            borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)',
+          }}>
+            {meta.map(m => (
+              <div key={m.label}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
+                  {m.label}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', wordBreak: 'break-word' }}>
+                  {m.value || <span style={{ color: '#aaa' }}>—</span>}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Long-form text sections */}
+          {sections.map(s => (
+            <div key={s.label}>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                {s.label}
+              </p>
+              {s.value ? (
+                <p style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55,
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  background: '#fafafa', border: '1px solid rgba(0,0,0,0.06)',
+                  borderRadius: 10, padding: '12px 14px',
+                }}>
+                  {s.value}
+                </p>
+              ) : (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>
+                  Not provided
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
