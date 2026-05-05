@@ -27,6 +27,26 @@ function formatDate(iso: string) {
   })
 }
 
+// Matches the Google Forms export format used as our source CSV:
+// "5/5/2026, 2:52:55 PM"
+function formatSourceTimestamp(iso: string): string {
+  const d = new Date(iso)
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  const y = d.getFullYear()
+  let h = d.getHours()
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const sec = String(d.getSeconds()).padStart(2, '0')
+  const ap = h >= 12 ? 'PM' : 'AM'
+  h = h % 12 || 12
+  return `${m}/${day}/${y}, ${h}:${min}:${sec} ${ap}`
+}
+
+function csvField(val: unknown): string {
+  const s = val == null ? '' : String(val)
+  return `"${s.replace(/"/g, '""')}"`
+}
+
 export default function Submissions() {
   const [rows,        setRows]        = useState<Row[]>([])
   const [total,       setTotal]       = useState(0)
@@ -131,23 +151,59 @@ export default function Submissions() {
   }
 
   async function exportCSV() {
-    const { data, error } = await buildQuery(false)
-    if (error || !data) return
+    // Paginate through all matching rows (Supabase has a 1000-row server cap)
+    const PAGE = 1000
+    const all: any[] = []
+    let from = 0
+    while (true) {
+      let q = supabase
+        .from('ticket_issues')
+        .select(`
+          issue_type, logged_at, customer_input, reasoning, final_edits, issue_comment,
+          tickets!inner ( ticket_number, agent_name, agent_email, agent_team, ticket_category )
+        `)
+      if (issueType !== 'All issue types') q = q.eq('issue_type', issueType)
+      if (agent     !== 'All agents')      q = (q as any).eq('tickets.agent_name', agent)
+      if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)
+      if (search.trim())                   q = (q as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
+      const { data, error } = await q.order('logged_at', { ascending: false }).range(from, from + PAGE - 1)
+      if (error || !data || data.length === 0) break
+      all.push(...data)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
 
-    const header = 'Ticket,Agent,Issue Type,Category,Date'
-    const csvRows = (data as any[]).map(ti =>
-      [
-        ti.tickets?.ticket_number,
-        `"${ti.tickets?.agent_name}"`,
+    // Match the source CSV column order exactly (12 cols).
+    // Note: "Suggested Response" is not stored in our DB — exported as empty.
+    const header = [
+      'Timestamp', 'Agent', 'Email', 'Team', 'Ticket', 'Category', 'Issue type',
+      'Customer Input', 'Suggested Response', 'Reasoning', 'Final Edits', 'Notes',
+    ].map(csvField).join(',')
+
+    const csvRows = all.map((ti: any) => {
+      const t = ti.tickets ?? {}
+      return [
+        ti.logged_at ? formatSourceTimestamp(ti.logged_at) : '',
+        t.agent_name,
+        t.agent_email,
+        t.agent_team,
+        t.ticket_number,
+        t.ticket_category,
         ti.issue_type,
-        `"${ti.tickets?.ticket_category}"`,
-        ti.logged_at ? formatDate(ti.logged_at) : '',
-      ].join(',')
-    )
-    const blob = new Blob([[header, ...csvRows].join('\n')], { type: 'text/csv' })
+        ti.customer_input,
+        '', // Suggested Response — not in DB
+        ti.reasoning,
+        ti.final_edits,
+        ti.issue_comment,
+      ].map(csvField).join(',')
+    })
+
+    const blob = new Blob(['﻿' + [header, ...csvRows].join('\r\n')], { type: 'text/csv;charset=utf-8' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
-    a.href = url; a.download = 'submissions.csv'; a.click()
+    a.href = url
+    a.download = `gamelm_feedback_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
     URL.revokeObjectURL(url)
   }
 
