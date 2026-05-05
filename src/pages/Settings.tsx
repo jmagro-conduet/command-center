@@ -29,9 +29,22 @@ function parseCSV(text: string): string[][] {
   return lines.map(parseCSVLine)
 }
 
-function parseTimestamp(ts: string): string {
+function parseTimestamp(ts: string): string | null {
+  if (!ts?.trim()) return null
+  // Try native parse first (handles ISO 8601 and most standard formats)
   const d = new Date(ts)
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+  if (!isNaN(d.getTime())) return d.toISOString()
+  // M/D/YYYY H:mm:ss [AM/PM] — Google Forms / Sheets export format
+  const m = ts.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?/i)
+  if (m) {
+    let h = parseInt(m[4])
+    const ap = (m[7] ?? '').toUpperCase()
+    if (ap === 'PM' && h !== 12) h += 12
+    if (ap === 'AM' && h === 12) h = 0
+    const d2 = new Date(parseInt(m[3]), parseInt(m[1]) - 1, parseInt(m[2]), h, parseInt(m[5]), parseInt(m[6] ?? '0'))
+    if (!isNaN(d2.getTime())) return d2.toISOString()
+  }
+  return null
 }
 
 interface CSVRow {
@@ -73,10 +86,11 @@ export default function Settings() {
 
   // ── CSV Import (admin) ───────────────────────────────────────────────────────
   const fileRef = useRef<HTMLInputElement>(null)
-  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
-  const [importStatus,  setImportStatus]  = useState<'idle' | 'parsing' | 'ready' | 'importing' | 'done' | 'error'>('idle')
-  const [importLog,     setImportLog]     = useState<string[]>([])
-  const [importError,   setImportError]   = useState('')
+  const [importPreview,   setImportPreview]   = useState<ImportPreview | null>(null)
+  const [importStatus,    setImportStatus]    = useState<'idle' | 'parsing' | 'ready' | 'importing' | 'done' | 'error'>('idle')
+  const [importLog,       setImportLog]       = useState<string[]>([])
+  const [importError,     setImportError]     = useState('')
+  const [repairMode,      setRepairMode]      = useState(false)
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -211,18 +225,24 @@ export default function Settings() {
         if (tktErr) { log.push(`❌ Ticket ${ticketNum}: ${tktErr.message}`); continue }
         ticketsInserted++
         // Insert ticket_issues
-        const issues = rows.map(r => ({
-          ticket_id:      tktData.id,
-          issue_type:     r.issueType,
-          issue_comment:  r.notes,
-          customer_input: r.customerInput,
-          reasoning:      r.reasoning,
-          final_edits:    r.finalEdits,
-          logged_at:      parseTimestamp(r.timestamp),
-          created_at:     parseTimestamp(r.timestamp),
-        }))
+        let badTs = 0
+        const issues = rows.map(r => {
+          const ts = parseTimestamp(r.timestamp)
+          if (!ts) badTs++
+          return {
+            ticket_id:      tktData.id,
+            issue_type:     r.issueType,
+            issue_comment:  r.notes,
+            customer_input: r.customerInput,
+            reasoning:      r.reasoning,
+            final_edits:    r.finalEdits,
+            logged_at:      ts,
+            created_at:     ts,
+          }
+        })
+        if (badTs > 0) log.push(`⚠️ ${ticketNum}: ${badTs} row(s) had unparseable timestamps — stored as NULL`)
         const { error: issErr } = await supabase.from('ticket_issues').insert(issues)
-        if (issErr) { log.push(`⚠️ Issues for ${ticketNum}: ${issErr.message}`) }
+        if (issErr) { log.push(`❌ Issues for ${ticketNum}: ${issErr.message}`) }
         else issuesInserted += issues.length
       }
 
@@ -231,6 +251,49 @@ export default function Settings() {
       setImportStatus('done')
     } catch (err: any) {
       setImportError(err.message ?? 'Import failed')
+      setImportStatus('error')
+    }
+  }
+
+  // Repair mode: re-read the CSV and update logged_at/created_at on existing records.
+  // Matches each ticket by ticket_number, then pairs CSV rows to DB ticket_issues in
+  // insertion order (by id ASC) so timestamps get corrected without duplication.
+  async function repairTimestamps() {
+    if (!importPreview) return
+    setImportStatus('importing')
+    const log: string[] = []
+    let fixed = 0, skipped = 0, badTs = 0
+    try {
+      const groups = new Map<string, CSVRow[]>()
+      for (const row of importPreview.rows) {
+        if (!groups.has(row.ticketNumber)) groups.set(row.ticketNumber, [])
+        groups.get(row.ticketNumber)!.push(row)
+      }
+      for (const [ticketNum, rows] of groups) {
+        // Find the ticket
+        const { data: tkt } = await supabase
+          .from('tickets').select('id').eq('ticket_number', ticketNum).single()
+        if (!tkt) { skipped++; continue }
+        // Get existing ticket_issues in insertion order
+        const { data: existingIssues } = await supabase
+          .from('ticket_issues').select('id').eq('ticket_id', tkt.id).order('id', { ascending: true })
+        if (!existingIssues?.length) { skipped++; continue }
+        // Pair CSV rows (in order) with DB rows (in insertion order) and update timestamps
+        for (let i = 0; i < Math.min(rows.length, existingIssues.length); i++) {
+          const ts = parseTimestamp(rows[i].timestamp)
+          if (!ts) { badTs++; continue }
+          await supabase.from('ticket_issues').update({ logged_at: ts, created_at: ts }).eq('id', existingIssues[i].id)
+          fixed++
+        }
+        // Also fix the ticket's created_at
+        const firstTs = parseTimestamp(rows[0].timestamp)
+        if (firstTs) await supabase.from('tickets').update({ created_at: firstTs }).eq('id', tkt.id)
+      }
+      log.push(`✅ Repair complete — ${fixed} issue timestamps fixed, ${skipped} tickets not found, ${badTs} rows had unparseable timestamps`)
+      setImportLog(log)
+      setImportStatus('done')
+    } catch (err: any) {
+      setImportError(err.message ?? 'Repair failed')
       setImportStatus('error')
     }
   }
@@ -473,9 +536,34 @@ export default function Settings() {
                   ))}
                 </div>
 
-                {importPreview.newTickets === 0 ? (
+                {/* Repair mode toggle */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 10, background: repairMode ? 'rgba(234,179,8,0.08)' : 'rgba(0,0,0,0.03)', border: `1.5px solid ${repairMode ? 'rgba(234,179,8,0.3)' : 'rgba(0,0,0,0.08)'}`, transition: 'all 0.15s' }}>
+                  <input type="checkbox" id="repairMode" checked={repairMode} onChange={e => setRepairMode(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0' }} />
+                  <label htmlFor="repairMode" style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', cursor: 'pointer', lineHeight: 1.5 }}>
+                    <strong style={{ color: '#000' }}>Repair timestamps</strong> — re-read this CSV and fix the <code>logged_at</code> / <code>created_at</code> dates on existing records without inserting duplicates. Use this if a previous import stored wrong dates.
+                  </label>
+                </div>
+
+                {repairMode ? (
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={repairTimestamps}
+                      disabled={importStatus === 'importing'}
+                      style={{
+                        background: '#854d0e', color: '#fff',
+                        fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                        padding: '9px 20px', borderRadius: 10, border: 'none',
+                        cursor: importStatus === 'importing' ? 'not-allowed' : 'pointer',
+                        opacity: importStatus === 'importing' ? 0.6 : 1, transition: 'opacity 0.15s',
+                      }}
+                    >
+                      {importStatus === 'importing' ? 'Repairing…' : `Repair timestamps for ${importPreview.uniqueTickets} tickets`}
+                    </button>
+                    <button onClick={() => { setImportStatus('idle'); setImportPreview(null); setRepairMode(false); if (fileRef.current) fileRef.current.value = '' }} style={resetBtnStyle}>Cancel</button>
+                  </div>
+                ) : importPreview.newTickets === 0 ? (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
-                    All tickets in this file already exist in the database. Nothing to import.
+                    All tickets in this file already exist — nothing new to import. Use Repair mode to fix timestamps.
                   </p>
                 ) : (
                   <div style={{ display: 'flex', gap: 10 }}>
@@ -492,12 +580,7 @@ export default function Settings() {
                     >
                       {importStatus === 'importing' ? 'Importing…' : `Import ${importPreview.newTickets} tickets`}
                     </button>
-                    <button
-                      onClick={() => { setImportStatus('idle'); setImportPreview(null); if (fileRef.current) fileRef.current.value = '' }}
-                      style={resetBtnStyle}
-                    >
-                      Cancel
-                    </button>
+                    <button onClick={() => { setImportStatus('idle'); setImportPreview(null); if (fileRef.current) fileRef.current.value = '' }} style={resetBtnStyle}>Cancel</button>
                   </div>
                 )}
               </div>
