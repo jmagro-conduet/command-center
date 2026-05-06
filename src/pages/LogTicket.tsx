@@ -1,6 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+
+const TICKET_PATTERN = /^[A-Za-z0-9_-]+$/
+const TICKET_MIN = 3
+const TICKET_MAX = 20
+const DRAFT_KEY = 'logticket_draft_v1'
+
+function validateTicketNumber(t: string): string | null {
+  const v = t.trim()
+  if (!v) return 'Ticket number is required'
+  if (v.length < TICKET_MIN) return `Must be at least ${TICKET_MIN} characters`
+  if (v.length > TICKET_MAX) return `Must be at most ${TICKET_MAX} characters`
+  if (!TICKET_PATTERN.test(v)) return 'Only letters, numbers, dashes, and underscores allowed'
+  return null
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
 
 const CATEGORIES = [
   'Account access',
@@ -29,6 +47,7 @@ interface GamLMResponse {
   issueType: string
   reasoning: string
   finalEdits: string
+  loggedAt: string  // ISO — captured when response was added to the list
 }
 
 interface TicketTab {
@@ -45,6 +64,7 @@ export default function LogTicket() {
   const [activeTab, setActiveTab] = useState(1)
 
   const [ticketNumber, setTicketNumber] = useState('')
+  const [ticketError, setTicketError]   = useState<string | null>(null)
   const [category, setCategory]         = useState('')
   const [notes, setNotes]               = useState('')
 
@@ -60,6 +80,30 @@ export default function LogTicket() {
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
+  // Load draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (saved) {
+        const d = JSON.parse(saved)
+        if (d.ticketNumber !== undefined) setTicketNumber(d.ticketNumber)
+        if (d.category     !== undefined) setCategory(d.category)
+        if (d.notes        !== undefined) setNotes(d.notes)
+        if (Array.isArray(d.responses))   setResponses(d.responses)
+        if (d.ticketNumber) {
+          setTabs(t => t.map(tab => tab.id === 1 ? { ...tab, ticketNumber: d.ticketNumber } : tab))
+        }
+      }
+    } catch { /* ignore corrupt draft */ }
+  }, [])
+
+  // Save draft to localStorage whenever relevant state changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ticketNumber, category, notes, responses }))
+    } catch { /* ignore */ }
+  }, [ticketNumber, category, notes, responses])
+
   const needsReasoning  = ['majority', 'partial', 'none'].includes(draftIssueType)
   const needsFinalEdits = ['majority', 'partial'].includes(draftIssueType)
 
@@ -67,11 +111,12 @@ export default function LogTicket() {
     if (!draftCustomer || !draftSuggested || !draftIssueType) return
     setResponses(r => [...r, {
       id: Date.now(),
-      customerInput:   draftCustomer,
+      customerInput:     draftCustomer,
       suggestedResponse: draftSuggested,
-      issueType:       draftIssueType,
-      reasoning:       draftReasoning,
-      finalEdits:      draftFinalEdits,
+      issueType:         draftIssueType,
+      reasoning:         draftReasoning,
+      finalEdits:        draftFinalEdits,
+      loggedAt:          new Date().toISOString(),
     }])
     setDraftCustomer('')
     setDraftSuggested('')
@@ -82,6 +127,7 @@ export default function LogTicket() {
 
   function resetForm() {
     setTicketNumber('')
+    setTicketError(null)
     setCategory('')
     setNotes('')
     setResponses([])
@@ -90,10 +136,13 @@ export default function LogTicket() {
     setDraftIssueType('')
     setDraftReasoning('')
     setDraftFinalEdits('')
+    localStorage.removeItem(DRAFT_KEY)
   }
 
   async function handleSubmit() {
-    if (!ticketNumber.trim() || !category || responses.length === 0) return
+    const validationErr = validateTicketNumber(ticketNumber)
+    if (validationErr) { setTicketError(validationErr); return }
+    if (!category || responses.length === 0) return
     setSubmitting(true)
     setSubmitError('')
     setSubmitSuccess(false)
@@ -117,7 +166,6 @@ export default function LogTicket() {
       return
     }
 
-    const now = new Date().toISOString()
     const issues = responses.map(r => {
       const type = ISSUE_TYPES.find(t => t.value === r.issueType)
       return {
@@ -127,7 +175,7 @@ export default function LogTicket() {
         customer_input: r.customerInput,
         reasoning:      r.reasoning || null,
         final_edits:    r.finalEdits || null,
-        logged_at:      now,
+        logged_at:      r.loggedAt,
       }
     })
 
@@ -151,6 +199,7 @@ export default function LogTicket() {
     setTabs(t => [...t, { id, ticketNumber: '' }])
     setActiveTab(id)
     setTicketNumber('')
+    setTicketError(null)
     setCategory('')
     setNotes('')
     setResponses([])
@@ -169,12 +218,14 @@ export default function LogTicket() {
 
   function syncTabLabel(val: string) {
     setTicketNumber(val)
+    setTicketError(validateTicketNumber(val))
     setTabs(t => t.map(tab => tab.id === activeTab ? { ...tab, ticketNumber: val } : tab))
   }
 
+  const ticketValid  = validateTicketNumber(ticketNumber) === null
   const canAddResponse = draftCustomer.trim() && draftSuggested.trim() && draftIssueType &&
     (!needsReasoning || draftReasoning.trim())
-  const canSubmit = ticketNumber.trim() && category && responses.length > 0
+  const canSubmit = ticketValid && category && responses.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -245,10 +296,18 @@ export default function LogTicket() {
               value={ticketNumber}
               onChange={e => syncTabLabel(e.target.value)}
               placeholder="e.g. ZD-10482"
-              style={inputStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+              style={{
+                ...inputStyle,
+                borderColor: ticketError && ticketNumber ? 'rgba(229,62,62,0.6)' : 'rgba(0,0,0,0.12)',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = ticketError && ticketNumber ? 'rgba(229,62,62,0.6)' : '#CEA4FF')}
+              onBlur={e => (e.currentTarget.style.borderColor = ticketError && ticketNumber ? 'rgba(229,62,62,0.6)' : 'rgba(0,0,0,0.12)')}
             />
+            {ticketError && ticketNumber && (
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>
+                {ticketError}
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
@@ -422,6 +481,11 @@ export default function LogTicket() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#9B59D0', marginBottom: 2 }}>
                           Response {i + 1} · {type?.label}
+                          {r.loggedAt && (
+                            <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)', marginLeft: 6 }}>
+                              · Added {formatTime(r.loggedAt)}
+                            </span>
+                          )}
                         </div>
                         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {r.customerInput}
