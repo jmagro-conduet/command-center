@@ -265,11 +265,51 @@ const METRIC_CONFIG: Record<string, { color: string; goalDir: 'up' | 'down'; ref
   'No response':   { color: '#e53e3e', goalDir: 'down'               },
 }
 
+function toDateStr(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function rangeToDateParams(range: TimeRange) {
+  const end   = new Date()
+  const start = new Date()
+  if      (range === 'last7')        start.setDate(start.getDate() - 7)
+  else if (range === 'last30')       start.setDate(start.getDate() - 30)
+  else if (range === 'lastQuarter')  start.setDate(start.getDate() - 90)
+  else                               start.setFullYear(start.getFullYear() - 3)
+  return { start: toDateStr(start), end: toDateStr(end) }
+}
+
 function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange]             = useState<TimeRange>('last30')
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
+  const [zdCount, setZdCount]         = useState<number | null>(null)
+  const [zdLoading, setZdLoading]     = useState(false)
   const dailyTarget = getDailyTarget()
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchZd() {
+      setZdLoading(true)
+      try {
+        const { start, end } = rangeToDateParams(range)
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+        const serviceKey  = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string
+        const res = await fetch(
+          `${supabaseUrl}/functions/v1/zendesk-tickets?start_date=${start}&end_date=${end}`,
+          { headers: { Authorization: `Bearer ${serviceKey}` } }
+        )
+        const json = await res.json()
+        if (!cancelled) setZdCount(json.count ?? null)
+      } catch {
+        if (!cancelled) setZdCount(null)
+      } finally {
+        if (!cancelled) setZdLoading(false)
+      }
+    }
+    fetchZd()
+    return () => { cancelled = true }
+  }, [range])
 
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days = useMemo(() => effectiveDays(rows, range), [rows, range])
@@ -308,19 +348,28 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {[
           { label: `Tickets (${range === 'last7' ? 'last 7 days' : range === 'last30' ? 'last 30 days' : range === 'lastQuarter' ? 'last 90 days' : 'all time'})`, value: kpis.tickets.toString() },
-          { label: 'Responses',               value: kpis.issues.toString() },
-          { label: 'Avg responses / ticket',  value: kpis.avgPerTicket },
-          { label: 'Team avg tickets / day',    value: kpis.avgPerDay },
-          { label: 'Target range / agent',     value: `${dailyTarget.min}–${dailyTarget.max}` },
+          { label: 'Responses',              value: kpis.issues.toString() },
+          { label: 'Avg responses / ticket', value: kpis.avgPerTicket },
+          { label: 'Team avg tickets / day', value: kpis.avgPerDay },
+          { label: 'Target range / agent',   value: `${dailyTarget.min}–${dailyTarget.max}` },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0' }}>{k.value}</p>
           </div>
         ))}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px', position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ZD Live Chat Tickets</p>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: 'rgba(243,156,18,0.12)', color: '#b45309', letterSpacing: '0.05em' }}>ZENDESK</span>
+          </div>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
+            {zdLoading ? '…' : zdCount !== null ? zdCount.toLocaleString() : '—'}
+          </p>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
