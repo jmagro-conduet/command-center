@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface DBUser {
-  authId: string          // auth.users.id — always present, used for password reset
-  profileId: string | null // public.users.id — null if no profile row exists yet
+  authId: string
+  profileId: string | null
   name: string
   email: string
   role: 'admin' | 'agent'
@@ -44,6 +44,8 @@ export default function Users() {
   const [teams, setTeams]           = useState<OperatorTeam[]>([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
+
+  // Edit modal
   const [editTarget, setEditTarget] = useState<DBUser | null>(null)
   const [editName, setEditName]     = useState('')
   const [editEmail, setEditEmail]   = useState('')
@@ -52,13 +54,24 @@ export default function Users() {
   const [newPassword, setNewPassword] = useState('')
   const [pwSaving, setPwSaving]     = useState(false)
   const [pwMessage, setPwMessage]   = useState<{ ok: boolean; text: string } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleting, setDeleting]     = useState(false)
+
+  // Add user modal
+  const [addOpen, setAddOpen]       = useState(false)
+  const [addName, setAddName]       = useState('')
+  const [addEmail, setAddEmail]     = useState('')
+  const [addPassword, setAddPassword] = useState('')
+  const [addRole, setAddRole]       = useState<'admin' | 'agent'>('agent')
+  const [addTeam, setAddTeam]       = useState('')
+  const [addSaving, setAddSaving]   = useState(false)
+  const [addError, setAddError]     = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([loadUsers(), loadTeams()])
   }, [])
 
   async function loadUsers() {
-    // Pull from both sources and merge so auth users without a profile row are visible
     const [{ data: { users: authUsers } = { users: [] } }, { data: profiles }] = await Promise.all([
       supabase.auth.admin.listUsers({ perPage: 1000 }),
       supabase.from('users').select('id, name, email, role, operator_team, created_at, auth_id'),
@@ -70,13 +83,13 @@ export default function Users() {
       const profile = profileByEmail.get(au.email)
       const nameFromMeta = au.user_metadata?.name || au.user_metadata?.full_name || ''
       return {
-        authId:       au.id,
-        profileId:    profile?.id ?? null,
-        name:         profile?.name || nameFromMeta || au.email.split('@')[0],
-        email:        au.email,
-        role:         profile?.role ?? 'agent',
+        authId:        au.id,
+        profileId:     profile?.id ?? null,
+        name:          profile?.name || nameFromMeta || au.email.split('@')[0],
+        email:         au.email,
+        role:          profile?.role ?? 'agent',
         operator_team: profile?.operator_team ?? null,
-        created_at:   au.created_at,
+        created_at:    au.created_at,
       }
     })
 
@@ -118,6 +131,12 @@ export default function Users() {
     setSaveError(null)
     setNewPassword('')
     setPwMessage(null)
+    setDeleteConfirm(false)
+  }
+
+  function closeEdit() {
+    setEditTarget(null)
+    setDeleteConfirm(false)
   }
 
   async function handleSetPassword() {
@@ -143,7 +162,76 @@ export default function Users() {
     setSaving(false)
     if (error) { setSaveError(error.message); return }
     setUsers(us => us.map(u => u.authId === editTarget.authId ? { ...u, name: editName.trim(), email: editEmail.trim() } : u))
-    setEditTarget(null)
+    closeEdit()
+  }
+
+  async function handleDeleteUser() {
+    if (!editTarget) return
+    setDeleting(true)
+    const { error } = await supabase.auth.admin.deleteUser(editTarget.authId)
+    if (error) {
+      setSaveError(error.message)
+      setDeleting(false)
+      setDeleteConfirm(false)
+      return
+    }
+    // Also remove from public.users if a profile row exists
+    await supabase.from('users').delete().eq('email', editTarget.email)
+    setUsers(us => us.filter(u => u.authId !== editTarget.authId))
+    setDeleting(false)
+    closeEdit()
+  }
+
+  function openAdd() {
+    setAddName(''); setAddEmail(''); setAddPassword('')
+    setAddRole('agent'); setAddTeam('')
+    setAddError(null)
+    setAddOpen(true)
+  }
+
+  async function handleAddUser() {
+    if (!addName.trim() || !addEmail.trim()) { setAddError('Name and email are required'); return }
+    if (addPassword.trim().length < 6) { setAddError('Password must be at least 6 characters'); return }
+    setAddSaving(true); setAddError(null)
+
+    const { data, error } = await supabase.auth.admin.createUser({
+      email:    addEmail.trim(),
+      password: addPassword.trim(),
+      email_confirm: true,
+      user_metadata: { name: addName.trim() },
+    })
+
+    if (error || !data.user) {
+      setAddError(error?.message ?? 'Failed to create user')
+      setAddSaving(false)
+      return
+    }
+
+    // Create the profile row
+    await supabase.from('users').upsert(
+      {
+        email:         addEmail.trim(),
+        name:          addName.trim(),
+        role:          addRole,
+        operator_team: addTeam || null,
+        auth_id:       data.user.id,
+      },
+      { onConflict: 'email' }
+    )
+
+    const newUser: DBUser = {
+      authId:        data.user.id,
+      profileId:     null,
+      name:          addName.trim(),
+      email:         addEmail.trim(),
+      role:          addRole,
+      operator_team: addTeam || null,
+      created_at:    data.user.created_at,
+    }
+
+    setUsers(us => [...us, newUser].sort((a, b) => a.name.localeCompare(b.name)))
+    setAddSaving(false)
+    setAddOpen(false)
   }
 
   const filtered = useMemo(() =>
@@ -172,15 +260,30 @@ export default function Users() {
             {users.length} team member{users.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <input
-          type="text"
-          placeholder="Search users…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ ...inputStyle, width: 220 }}
-          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-          onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-        />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Search users…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ ...inputStyle, width: 220 }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+          />
+          <button
+            onClick={openAdd}
+            style={{
+              background: '#000', color: '#fff',
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              padding: '9px 16px', borderRadius: 10, border: 'none',
+              cursor: 'pointer', whiteSpace: 'nowrap', transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+          >
+            + Add user
+          </button>
+        </div>
       </div>
 
       {/* Table card */}
@@ -199,7 +302,6 @@ export default function Users() {
           <tbody>
             {filtered.map((u, i) => (
               <tr key={u.authId} style={{ borderBottom: i < filtered.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}>
-                {/* Avatar + name */}
                 <td style={{ padding: '14px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
@@ -217,7 +319,6 @@ export default function Users() {
                   </div>
                 </td>
 
-                {/* Role */}
                 <td style={{ padding: '14px 16px' }}>
                   <select
                     value={u.role}
@@ -235,7 +336,6 @@ export default function Users() {
                   </select>
                 </td>
 
-                {/* Team */}
                 <td style={{ padding: '14px 16px' }}>
                   <select
                     value={u.operator_team ?? ''}
@@ -251,14 +351,12 @@ export default function Users() {
                   </select>
                 </td>
 
-                {/* Joined */}
                 <td style={{ padding: '14px 16px' }}>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
                     {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </td>
 
-                {/* Edit action */}
                 <td style={{ padding: '14px 16px' }}>
                   <button
                     onClick={() => openEdit(u)}
@@ -283,65 +381,121 @@ export default function Users() {
         )}
       </div>
 
-      {/* Edit modal */}
-      {editTarget && (
+      {/* Add user modal */}
+      {addOpen && (
         <div
-          onClick={() => setEditTarget(null)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000, padding: 16,
-          }}
+          onClick={() => setAddOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{
-              background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420,
-              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
-            }}
+            style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Add user</h2>
+              <button onClick={() => setAddOpen(false)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Name <span style={{ color: '#e53e3e' }}>*</span></label>
+                <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="Full name" style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
+              </div>
+              <div>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Email <span style={{ color: '#e53e3e' }}>*</span></label>
+                <input type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="name@company.com" style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
+              </div>
+              <div>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Password <span style={{ color: '#e53e3e' }}>*</span></label>
+                <input type="text" value={addPassword} onChange={e => setAddPassword(e.target.value)} placeholder="Min. 6 characters — share with user securely" style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Role</label>
+                  <select value={addRole} onChange={e => setAddRole(e.target.value as 'admin' | 'agent')} style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
+                    <option value="agent">Agent</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Team</label>
+                  <select value={addTeam} onChange={e => setAddTeam(e.target.value)} style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
+                    <option value="">No team</option>
+                    {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {addError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{addError}</p>}
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+                <button onClick={() => setAddOpen(false)} style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
+                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                }}>Cancel</button>
+                <button onClick={handleAddUser} disabled={addSaving} style={{
+                  background: '#000', color: '#fff',
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '9px 16px', borderRadius: 10, border: 'none',
+                  cursor: addSaving ? 'not-allowed' : 'pointer', opacity: addSaving ? 0.6 : 1, transition: 'opacity 0.15s',
+                }}>{addSaving ? 'Creating…' : 'Create user'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editTarget && (
+        <div
+          onClick={closeEdit}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Edit user</h2>
-              <button onClick={() => setEditTarget(null)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <button onClick={closeEdit} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Name</label>
-                <input
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                  style={inputStyle}
+                <input value={editName} onChange={e => setEditName(e.target.value)} style={inputStyle}
                   onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </div>
               <div>
                 <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Email</label>
-                <input
-                  type="email"
-                  value={editEmail}
-                  onChange={e => setEditEmail(e.target.value)}
-                  style={inputStyle}
+                <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={inputStyle}
                   onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </div>
 
               {saveError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{saveError}</p>}
 
               {/* Reset password */}
               <div style={{ paddingTop: 8, marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
-                  Reset password
-                </label>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Reset password</label>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
                   Sets a new password directly without sending an email. Share with the user securely.
                 </p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
-                    type="text"
-                    value={newPassword}
+                    type="text" value={newPassword}
                     onChange={e => { setNewPassword(e.target.value); setPwMessage(null) }}
                     onKeyDown={e => { if (e.key === 'Enter') handleSetPassword() }}
                     placeholder="Min. 6 characters"
@@ -373,22 +527,67 @@ export default function Users() {
                 )}
               </div>
 
+              {/* Delete section */}
+              <div style={{ paddingTop: 8, marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                {!deleteConfirm ? (
+                  <button
+                    onClick={() => setDeleteConfirm(true)}
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      color: '#e53e3e', background: 'none', border: 'none',
+                      cursor: 'pointer', padding: 0, textDecoration: 'underline',
+                    }}
+                  >
+                    Delete user
+                  </button>
+                ) : (
+                  <div style={{ background: 'rgba(229,62,62,0.06)', border: '1px solid rgba(229,62,62,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#e53e3e', marginBottom: 4 }}>
+                      Delete {editTarget.name}?
+                    </p>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 12 }}>
+                      This removes their login access permanently. Their submitted tickets are retained.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => setDeleteConfirm(false)}
+                        style={{
+                          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                          padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+                          border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDeleteUser}
+                        disabled={deleting}
+                        style={{
+                          background: '#e53e3e', color: '#fff',
+                          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                          padding: '7px 14px', borderRadius: 8, border: 'none',
+                          cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1,
+                        }}
+                      >
+                        {deleting ? 'Deleting…' : 'Yes, delete'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
-                <button onClick={() => setEditTarget(null)} style={{
+                <button onClick={closeEdit} style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
                   border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
-                }}>
-                  Cancel
-                </button>
+                }}>Cancel</button>
                 <button onClick={handleEditSave} disabled={saving} style={{
                   background: '#000', color: '#fff',
                   fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, border: 'none',
                   cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, transition: 'opacity 0.15s',
-                }}>
-                  {saving ? 'Saving…' : 'Save changes'}
-                </button>
+                }}>{saving ? 'Saving…' : 'Save changes'}</button>
               </div>
             </div>
           </div>
