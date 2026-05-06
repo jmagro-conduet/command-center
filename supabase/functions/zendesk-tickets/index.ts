@@ -1,12 +1,31 @@
 import { corsHeaders } from '../_shared/cors.ts'
 
+/**
+ * Zendesk ticket counts for gameLM adoption tracking.
+ *
+ * Previous approach: one big paginated search query → groups by assignee_id.
+ * Problem: ZD Search API silently caps pagination at 1,000 results, so agents
+ * whose tickets land outside the first 1,000 are severely undercounted.
+ *
+ * New approach:
+ *   - Team total  : single /search/count.json (no pagination, always accurate)
+ *   - Per-agent   : one /search/count.json per agent email (parallel, always accurate)
+ *
+ * Channel filter: via:native_messaging — matches Zendesk Messaging (live chat).
+ * No brand_id filter — agents work across brands; the channel filter is the
+ * meaningful scope for gameLM.
+ */
+
+const ZD_BASE = 'https://conduet.zendesk.com/api/v2'
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { start_date, end_date } = await req.json()
+    const body = await req.json()
+    const { start_date, end_date, agent_emails } = body
 
     if (!start_date || !end_date) {
       return new Response(
@@ -25,79 +44,46 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const credentials = btoa(`${email}/token:${apiToken}`)
     const zdHeaders = {
-      Authorization: `Basic ${credentials}`,
+      Authorization: `Basic ${btoa(`${email}/token:${apiToken}`)}`,
       'Content-Type': 'application/json',
     }
 
-    const query = `type:ticket via:native_messaging brand_id:8399147779099 created>=${start_date} created<=${end_date}`
-
-    // 1. Get total count (fast endpoint)
-    const countUrl = `https://conduet.zendesk.com/api/v2/search/count.json?query=${encodeURIComponent(query)}`
-    const countRes = await fetch(countUrl, { headers: zdHeaders })
-    if (!countRes.ok) {
-      const errText = await countRes.text()
-      return new Response(
-        JSON.stringify({ error: `Zendesk API error: ${countRes.status} ${errText}` }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-    const countData = await countRes.json()
-    const count = countData.count ?? 0
-
-    // 2. Paginate search results to build per-agent breakdown
-    const assigneeCounts = new Map<number, number>()
-
-    if (count > 0) {
-      let nextUrl: string | null =
-        `https://conduet.zendesk.com/api/v2/search.json?query=${encodeURIComponent(query)}&per_page=100`
-
-      while (nextUrl) {
-        const res = await fetch(nextUrl, { headers: zdHeaders })
-        if (!res.ok) break
-        const data = await res.json()
-        for (const ticket of data.results ?? []) {
-          if (ticket.assignee_id) {
-            assigneeCounts.set(
-              ticket.assignee_id,
-              (assigneeCounts.get(ticket.assignee_id) ?? 0) + 1
-            )
-          }
-        }
-        nextUrl = data.next_page ?? null
-      }
-    }
-
-    // 3. Resolve assignee IDs to names/emails (batched, max 100 per call)
-    const agentMap = new Map<number, { name: string; email: string }>()
-    const ids = [...assigneeCounts.keys()]
-
-    for (let i = 0; i < ids.length; i += 100) {
-      const batch = ids.slice(i, i + 100)
-      const usersRes = await fetch(
-        `https://conduet.zendesk.com/api/v2/users/show_many.json?ids=${batch.join(',')}`,
+    async function zdCount(query: string): Promise<number> {
+      const res = await fetch(
+        `${ZD_BASE}/search/count.json?query=${encodeURIComponent(query)}`,
         { headers: zdHeaders }
       )
-      if (usersRes.ok) {
-        const usersData = await usersRes.json()
-        for (const u of usersData.users ?? []) {
-          agentMap.set(u.id, { name: u.name ?? '', email: u.email ?? '' })
-        }
-      }
+      if (!res.ok) return 0
+      const d = await res.json()
+      return d.count ?? 0
     }
 
-    // 4. Build sorted per-agent array
-    const agents = [...assigneeCounts.entries()]
-      .map(([id, agentCount]) => ({
-        name:  agentMap.get(id)?.name  ?? `Agent ${id}`,
-        email: agentMap.get(id)?.email ?? '',
-        count: agentCount,
-      }))
-      .sort((a, b) => b.count - a.count)
+    const dateClause = `created>=${start_date} created<=${end_date}`
+    const baseFilter = `type:ticket via:native_messaging ${dateClause}`
+
+    // 1. Team total — single count, no pagination needed
+    const totalCount = await zdCount(baseFilter)
+
+    // 2. Per-agent counts — parallel count queries, one per agent email
+    //    Each query returns <500 results so there's no pagination cap issue.
+    const emails: string[] = Array.isArray(agent_emails)
+      ? agent_emails.filter((e: unknown) => typeof e === 'string' && e.includes('@'))
+      : []
+
+    const agentCounts = emails.length > 0
+      ? await Promise.all(
+          emails.map(async (agentEmail: string) => {
+            const count = await zdCount(
+              `${baseFilter} assignee:${agentEmail}`
+            )
+            return { email: agentEmail, count }
+          })
+        )
+      : []
 
     return new Response(
-      JSON.stringify({ count, agents }),
+      JSON.stringify({ count: totalCount, agents: agentCounts }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err: unknown) {
