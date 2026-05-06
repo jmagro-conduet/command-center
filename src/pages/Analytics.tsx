@@ -295,19 +295,18 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
       setZdError(null)
       try {
         const { start, end } = rangeToDateParams(range)
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-        const serviceKey  = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string
-        const res = await fetch(
-          `${supabaseUrl}/functions/v1/zendesk-tickets?start_date=${start}&end_date=${end}`,
-          { headers: { Authorization: `Bearer ${serviceKey}` } }
-        )
-        const json = await res.json()
+        const { data, error } = await supabase.functions.invoke('zendesk-tickets', {
+          body: { start_date: start, end_date: end },
+        })
         if (!cancelled) {
-          if (typeof json.count === 'number') {
-            setZdCount(json.count)
+          if (error) {
+            setZdCount(null)
+            setZdError(error.message ?? 'Edge function error')
+          } else if (typeof data?.count === 'number') {
+            setZdCount(data.count)
           } else {
             setZdCount(null)
-            setZdError(json.error ?? 'No data returned')
+            setZdError(data?.error ?? 'No data returned')
           }
         }
       } catch (e: any) {

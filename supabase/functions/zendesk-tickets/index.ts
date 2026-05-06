@@ -6,13 +6,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const url    = new URL(req.url)
-    const start  = url.searchParams.get('start_date')
-    const end    = url.searchParams.get('end_date')
+    const { start_date, end_date } = await req.json()
 
-    if (!start || !end) {
+    if (!start_date || !end_date) {
       return new Response(
-        JSON.stringify({ error: 'start_date and end_date query params are required' }),
+        JSON.stringify({ error: 'start_date and end_date are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -27,11 +25,9 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Basic auth: base64({email}/token:{api_token})
     const credentials = btoa(`${email}/token:${apiToken}`)
 
-    // Search for native_messaging (Zendesk live chat) tickets in date range
-    const query = `type:ticket channel:native_messaging created>=${start} created<=${end}`
+    const query = `type:ticket channel:native_messaging created>=${start_date} created<=${end_date}`
     const zdUrl = `https://conduet.zendesk.com/api/v2/search.json?query=${encodeURIComponent(query)}&per_page=1`
 
     const zdRes = await fetch(zdUrl, {
