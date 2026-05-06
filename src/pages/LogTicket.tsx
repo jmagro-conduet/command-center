@@ -1,18 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
-const TICKET_PATTERN = /^[A-Za-z0-9_-]+$/
-const TICKET_MIN = 3
 const TICKET_MAX = 20
-const DRAFT_KEY = 'logticket_draft_v1'
+const DRAFT_KEY  = 'logticket_draft_v2'
 
 function validateTicketNumber(t: string): string | null {
   const v = t.trim()
   if (!v) return 'Ticket number is required'
-  if (v.length < TICKET_MIN) return `Must be at least ${TICKET_MIN} characters`
-  if (v.length > TICKET_MAX) return `Must be at most ${TICKET_MAX} characters`
-  if (!TICKET_PATTERN.test(v)) return 'Only letters, numbers, dashes, and underscores allowed'
   return null
 }
 
@@ -47,102 +42,118 @@ interface GamLMResponse {
   issueType: string
   reasoning: string
   finalEdits: string
-  loggedAt: string  // ISO — captured when response was added to the list
+  loggedAt: string
 }
 
-interface TicketTab {
+interface TabState {
   id: number
   ticketNumber: string
+  category: string
+  notes: string
+  responses: GamLMResponse[]
+  draftCustomer: string
+  draftSuggested: string
+  draftIssueType: string
+  draftReasoning: string
+  draftFinalEdits: string
 }
 
-let nextTabId = 2
+function newTab(id: number): TabState {
+  return {
+    id,
+    ticketNumber: '', category: '', notes: '', responses: [],
+    draftCustomer: '', draftSuggested: '', draftIssueType: '',
+    draftReasoning: '', draftFinalEdits: '',
+  }
+}
 
 export default function LogTicket() {
   const { user } = useAuth()
 
-  const [tabs, setTabs] = useState<TicketTab[]>([{ id: 1, ticketNumber: '' }])
-  const [activeTab, setActiveTab] = useState(1)
-
-  const [ticketNumber, setTicketNumber] = useState('')
-  const [ticketError, setTicketError]   = useState<string | null>(null)
-  const [category, setCategory]         = useState('')
-  const [notes, setNotes]               = useState('')
-
-  const [responses, setResponses] = useState<GamLMResponse[]>([])
-  const [draftCustomer, setDraftCustomer]     = useState('')
-  const [draftSuggested, setDraftSuggested]   = useState('')
-  const [draftIssueType, setDraftIssueType]   = useState('')
-  const [draftReasoning, setDraftReasoning]   = useState('')
-  const [draftFinalEdits, setDraftFinalEdits] = useState('')
+  const nextId = useRef(2)
+  const [allTabs, setAllTabs]       = useState<TabState[]>([newTab(1)])
+  const [activeTabId, setActiveTabId] = useState(1)
   const [responsesExpanded, setResponsesExpanded] = useState(true)
-
-  const [submitting, setSubmitting] = useState(false)
+  const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
-  // Load draft from localStorage on mount
+  const active = allTabs.find(t => t.id === activeTabId) ?? allTabs[0]
+
+  function updateActive(patch: Partial<TabState>) {
+    setAllTabs(tabs => tabs.map(t => t.id === activeTabId ? { ...t, ...patch } : t))
+  }
+
+  // Restore all tabs from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY)
       if (saved) {
         const d = JSON.parse(saved)
-        if (d.ticketNumber !== undefined) setTicketNumber(d.ticketNumber)
-        if (d.category     !== undefined) setCategory(d.category)
-        if (d.notes        !== undefined) setNotes(d.notes)
-        if (Array.isArray(d.responses))   setResponses(d.responses)
-        if (d.ticketNumber) {
-          setTabs(t => t.map(tab => tab.id === 1 ? { ...tab, ticketNumber: d.ticketNumber } : tab))
+        if (Array.isArray(d.allTabs) && d.allTabs.length > 0) {
+          setAllTabs(d.allTabs)
+          setActiveTabId(d.activeTabId ?? d.allTabs[0].id)
+          nextId.current = Math.max(...d.allTabs.map((t: TabState) => t.id)) + 1
         }
       }
     } catch { /* ignore corrupt draft */ }
   }, [])
 
-  // Save draft to localStorage whenever relevant state changes
+  // Save all tabs to localStorage on every change
   useEffect(() => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ticketNumber, category, notes, responses }))
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ allTabs, activeTabId }))
     } catch { /* ignore */ }
-  }, [ticketNumber, category, notes, responses])
+  }, [allTabs, activeTabId])
 
-  const needsReasoning  = ['majority', 'partial', 'none'].includes(draftIssueType)
-  const needsFinalEdits = ['majority', 'partial'].includes(draftIssueType)
+  const needsReasoning  = ['majority', 'partial', 'none'].includes(active.draftIssueType)
+  const needsFinalEdits = ['majority', 'partial'].includes(active.draftIssueType)
 
-  function addResponse() {
-    if (!draftCustomer || !draftSuggested || !draftIssueType) return
-    setResponses(r => [...r, {
-      id: Date.now(),
-      customerInput:     draftCustomer,
-      suggestedResponse: draftSuggested,
-      issueType:         draftIssueType,
-      reasoning:         draftReasoning,
-      finalEdits:        draftFinalEdits,
-      loggedAt:          new Date().toISOString(),
-    }])
-    setDraftCustomer('')
-    setDraftSuggested('')
-    setDraftIssueType('')
-    setDraftReasoning('')
-    setDraftFinalEdits('')
+  function handleTicketNumberChange(raw: string) {
+    // Strip non-digits and enforce max length
+    const val = raw.replace(/\D/g, '').slice(0, TICKET_MAX)
+    updateActive({ ticketNumber: val })
   }
 
-  function resetForm() {
-    setTicketNumber('')
-    setTicketError(null)
-    setCategory('')
-    setNotes('')
-    setResponses([])
-    setDraftCustomer('')
-    setDraftSuggested('')
-    setDraftIssueType('')
-    setDraftReasoning('')
-    setDraftFinalEdits('')
-    localStorage.removeItem(DRAFT_KEY)
+  function addResponse() {
+    if (!active.draftCustomer || !active.draftSuggested || !active.draftIssueType) return
+    updateActive({
+      responses: [...active.responses, {
+        id:                Date.now(),
+        customerInput:     active.draftCustomer,
+        suggestedResponse: active.draftSuggested,
+        issueType:         active.draftIssueType,
+        reasoning:         active.draftReasoning,
+        finalEdits:        active.draftFinalEdits,
+        loggedAt:          new Date().toISOString(),
+      }],
+      draftCustomer: '', draftSuggested: '', draftIssueType: '',
+      draftReasoning: '', draftFinalEdits: '',
+    })
+  }
+
+  function removeResponse(responseId: number) {
+    updateActive({ responses: active.responses.filter(r => r.id !== responseId) })
+  }
+
+  function addTab() {
+    const id = nextId.current++
+    setAllTabs(tabs => [...tabs, newTab(id)])
+    setActiveTabId(id)
+  }
+
+  function closeTab(id: number, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (allTabs.length === 1) return
+    const remaining = allTabs.filter(t => t.id !== id)
+    setAllTabs(remaining)
+    if (activeTabId === id) setActiveTabId(remaining[remaining.length - 1].id)
   }
 
   async function handleSubmit() {
-    const validationErr = validateTicketNumber(ticketNumber)
-    if (validationErr) { setTicketError(validationErr); return }
-    if (!category || responses.length === 0) return
+    const validationErr = validateTicketNumber(active.ticketNumber)
+    if (validationErr || !active.category || active.responses.length === 0) return
+
     setSubmitting(true)
     setSubmitError('')
     setSubmitSuccess(false)
@@ -150,12 +161,12 @@ export default function LogTicket() {
     const { data: ticket, error: ticketErr } = await supabase
       .from('tickets')
       .insert({
-        ticket_number:    ticketNumber.trim(),
-        ticket_category:  category,
-        agent_name:       user?.name ?? '',
-        agent_email:      user?.email ?? '',
-        agent_team:       user?.operatorTeam ?? null,
-        notes:            notes.trim(),
+        ticket_number:   active.ticketNumber.trim(),
+        ticket_category: active.category,
+        agent_name:      user?.name ?? '',
+        agent_email:     user?.email ?? '',
+        agent_team:      user?.operatorTeam ?? null,
+        notes:           active.notes.trim(),
       })
       .select('id')
       .single()
@@ -166,7 +177,7 @@ export default function LogTicket() {
       return
     }
 
-    const issues = responses.map(r => {
+    const issues = active.responses.map(r => {
       const type = ISSUE_TYPES.find(t => t.value === r.issueType)
       return {
         ticket_id:      ticket.id,
@@ -180,7 +191,6 @@ export default function LogTicket() {
     })
 
     const { error: issuesErr } = await supabase.from('ticket_issues').insert(issues)
-
     if (issuesErr) {
       setSubmitError(issuesErr.message)
       setSubmitting(false)
@@ -189,43 +199,25 @@ export default function LogTicket() {
 
     setSubmitting(false)
     setSubmitSuccess(true)
-    resetForm()
-    setTabs(t => t.map(tab => tab.id === activeTab ? { ...tab, ticketNumber: '' } : tab))
+
+    // Remove the submitted tab; if it was the last one, replace with a fresh tab
+    const remaining = allTabs.filter(t => t.id !== activeTabId)
+    if (remaining.length === 0) {
+      const freshId = nextId.current++
+      setAllTabs([newTab(freshId)])
+      setActiveTabId(freshId)
+    } else {
+      setAllTabs(remaining)
+      setActiveTabId(remaining[remaining.length - 1].id)
+    }
+
     setTimeout(() => setSubmitSuccess(false), 4000)
   }
 
-  function addTab() {
-    const id = nextTabId++
-    setTabs(t => [...t, { id, ticketNumber: '' }])
-    setActiveTab(id)
-    setTicketNumber('')
-    setTicketError(null)
-    setCategory('')
-    setNotes('')
-    setResponses([])
-    setDraftCustomer('')
-    setDraftSuggested('')
-    setDraftIssueType('')
-  }
-
-  function closeTab(id: number, e: React.MouseEvent) {
-    e.stopPropagation()
-    if (tabs.length === 1) return
-    const remaining = tabs.filter(t => t.id !== id)
-    setTabs(remaining)
-    if (activeTab === id) setActiveTab(remaining[remaining.length - 1].id)
-  }
-
-  function syncTabLabel(val: string) {
-    setTicketNumber(val)
-    setTicketError(validateTicketNumber(val))
-    setTabs(t => t.map(tab => tab.id === activeTab ? { ...tab, ticketNumber: val } : tab))
-  }
-
-  const ticketValid  = validateTicketNumber(ticketNumber) === null
-  const canAddResponse = draftCustomer.trim() && draftSuggested.trim() && draftIssueType &&
-    (!needsReasoning || draftReasoning.trim())
-  const canSubmit = ticketValid && category && responses.length > 0
+  const ticketValid    = validateTicketNumber(active.ticketNumber) === null
+  const canAddResponse = active.draftCustomer.trim() && active.draftSuggested.trim() &&
+    active.draftIssueType && (!needsReasoning || active.draftReasoning.trim())
+  const canSubmit      = ticketValid && active.category && active.responses.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -235,31 +227,30 @@ export default function LogTicket() {
 
       {/* Tab bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1.5px solid rgba(0,0,0,0.09)' }}>
-        {tabs.map(tab => (
+        {allTabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => setActiveTabId(tab.id)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               fontFamily: 'Inter, sans-serif', fontSize: 13,
-              fontWeight: activeTab === tab.id ? 500 : 400,
-              color: activeTab === tab.id ? '#9B59D0' : '#58595B',
+              fontWeight: activeTabId === tab.id ? 500 : 400,
+              color: activeTabId === tab.id ? '#9B59D0' : '#58595B',
               padding: '8px 12px',
-              borderBottom: activeTab === tab.id ? '2px solid #9B59D0' : '2px solid transparent',
+              borderBottom: activeTabId === tab.id ? '2px solid #9B59D0' : '2px solid transparent',
               marginBottom: -1.5,
               background: 'none',
               transition: 'all 0.15s',
             }}
           >
             {tab.ticketNumber || 'New ticket'}
-            {tabs.length > 1 && (
+            {allTabs.length > 1 && (
               <span
                 onClick={e => closeTab(tab.id, e)}
                 style={{
                   width: 14, height: 14, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, color: '#aaa',
-                  cursor: 'pointer',
+                  fontSize: 10, color: '#aaa', cursor: 'pointer',
                 }}
               >
                 ×
@@ -272,8 +263,7 @@ export default function LogTicket() {
           style={{
             width: 28, height: 28, borderRadius: 8,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, color: '#58595B',
-            transition: 'background 0.15s',
+            fontSize: 16, color: '#58595B', transition: 'background 0.15s',
           }}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -292,31 +282,36 @@ export default function LogTicket() {
             <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
               Ticket number <span style={{ color: '#e53e3e' }}>*</span>
             </label>
-            <input
-              value={ticketNumber}
-              onChange={e => syncTabLabel(e.target.value)}
-              placeholder="e.g. ZD-10482"
-              style={{
-                ...inputStyle,
-                borderColor: ticketError && ticketNumber ? 'rgba(229,62,62,0.6)' : 'rgba(0,0,0,0.12)',
-              }}
-              onFocus={e => (e.currentTarget.style.borderColor = ticketError && ticketNumber ? 'rgba(229,62,62,0.6)' : '#CEA4FF')}
-              onBlur={e => (e.currentTarget.style.borderColor = ticketError && ticketNumber ? 'rgba(229,62,62,0.6)' : 'rgba(0,0,0,0.12)')}
-            />
-            {ticketError && ticketNumber && (
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>
-                {ticketError}
-              </span>
-            )}
+            <div style={{ position: 'relative' }}>
+              <input
+                value={active.ticketNumber}
+                onChange={e => handleTicketNumberChange(e.target.value)}
+                inputMode="numeric"
+                placeholder="e.g. 10482"
+                maxLength={TICKET_MAX}
+                style={inputStyle}
+                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+              />
+              {active.ticketNumber.length > 0 && (
+                <span style={{
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
+                  pointerEvents: 'none',
+                }}>
+                  {active.ticketNumber.length}/{TICKET_MAX}
+                </span>
+              )}
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
               Contact / ticket category <span style={{ color: '#e53e3e' }}>*</span>
             </label>
             <select
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              style={{ ...inputStyle, color: category ? '#000' : '#aaa' }}
+              value={active.category}
+              onChange={e => updateActive({ category: e.target.value })}
+              style={{ ...inputStyle, color: active.category ? '#000' : '#aaa' }}
               onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
             >
@@ -336,8 +331,8 @@ export default function LogTicket() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Field label="Customer input" required>
             <textarea
-              value={draftCustomer}
-              onChange={e => setDraftCustomer(e.target.value)}
+              value={active.draftCustomer}
+              onChange={e => updateActive({ draftCustomer: e.target.value })}
               placeholder="Paste the original customer message or query…"
               rows={4}
               style={textareaStyle}
@@ -348,8 +343,8 @@ export default function LogTicket() {
 
           <Field label="Suggested response" required>
             <textarea
-              value={draftSuggested}
-              onChange={e => setDraftSuggested(e.target.value)}
+              value={active.draftSuggested}
+              onChange={e => updateActive({ draftSuggested: e.target.value })}
               placeholder="Paste the original gameLM response here…"
               rows={4}
               style={textareaStyle}
@@ -364,11 +359,11 @@ export default function LogTicket() {
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
               {ISSUE_TYPES.map(opt => {
-                const selected = draftIssueType === opt.value
+                const selected = active.draftIssueType === opt.value
                 return (
                   <button
                     key={opt.value}
-                    onClick={() => setDraftIssueType(opt.value)}
+                    onClick={() => updateActive({ draftIssueType: opt.value })}
                     style={{
                       border: selected ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
                       borderRadius: 10,
@@ -392,8 +387,8 @@ export default function LogTicket() {
           {needsReasoning && (
             <Field label="Reasoning" required>
               <textarea
-                value={draftReasoning}
-                onChange={e => setDraftReasoning(e.target.value)}
+                value={active.draftReasoning}
+                onChange={e => updateActive({ draftReasoning: e.target.value })}
                 placeholder="Why did gameLM require editing or fail to respond?"
                 rows={3}
                 style={textareaStyle}
@@ -406,8 +401,8 @@ export default function LogTicket() {
           {needsFinalEdits && (
             <Field label="Final edits (your corrected response)">
               <textarea
-                value={draftFinalEdits}
-                onChange={e => setDraftFinalEdits(e.target.value)}
+                value={active.draftFinalEdits}
+                onChange={e => updateActive({ draftFinalEdits: e.target.value })}
                 placeholder="Paste the final response you sent to the customer…"
                 rows={3}
                 style={textareaStyle}
@@ -449,7 +444,18 @@ export default function LogTicket() {
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.02)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         >
-          gameLM responses logged
+          <span>
+            gameLM responses logged
+            {active.responses.length > 0 && (
+              <span style={{
+                marginLeft: 8, background: '#9B59D0', color: '#fff',
+                borderRadius: 100, fontSize: 11, fontWeight: 600,
+                padding: '1px 7px', fontFamily: 'Inter, sans-serif',
+              }}>
+                {active.responses.length}
+              </span>
+            )}
+          </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
             style={{ transform: responsesExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
             <path d="M6 9l6 6 6-6" stroke="#58595B" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
@@ -458,7 +464,7 @@ export default function LogTicket() {
 
         {responsesExpanded && (
           <div style={{ padding: '0 24px 20px', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
-            {responses.length === 0 ? (
+            {active.responses.length === 0 ? (
               <div style={{ padding: '24px 0', textAlign: 'center' }}>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
                   No issues added yet.
@@ -469,7 +475,7 @@ export default function LogTicket() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 14 }}>
-                {responses.map((r, i) => {
+                {active.responses.map((r, i) => {
                   const type = ISSUE_TYPES.find(t => t.value === r.issueType)
                   return (
                     <div key={r.id} style={{
@@ -492,7 +498,7 @@ export default function LogTicket() {
                         </p>
                       </div>
                       <button
-                        onClick={() => setResponses(rs => rs.filter(x => x.id !== r.id))}
+                        onClick={() => removeResponse(r.id)}
                         style={{ color: '#aaa', fontSize: 16, flexShrink: 0, lineHeight: 1 }}
                       >
                         ×
@@ -513,8 +519,8 @@ export default function LogTicket() {
         </h2>
         <Field label="Notes / context">
           <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
+            value={active.notes}
+            onChange={e => updateActive({ notes: e.target.value })}
             placeholder="Additional context or notes at the ticket level…"
             rows={3}
             style={textareaStyle}
@@ -581,6 +587,7 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '10px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s', background: '#fff', width: '100%',
+  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
 }
 
 const textareaStyle: React.CSSProperties = {
