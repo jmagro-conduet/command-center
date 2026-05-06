@@ -34,15 +34,17 @@ function AppShell() {
   if (recoveryMode) return <ResetPasswordPage updatePassword={updatePassword} />
   if (!user) return <Login />
 
+  const isAdmin = user?.role === 'admin'
+
   function renderPage() {
     switch (activePage) {
       case 'log-ticket':  return <LogTicket />
       case 'bulletin':    return <Bulletin />
-      case 'events':      return <Events />
-      case 'submissions': return <Submissions />
-      case 'report':      return <Report />
-      case 'analytics':   return <Analytics />
-      case 'users':       return <Users />
+      case 'events':      return isAdmin ? <Events /> : <LogTicket />
+      case 'submissions': return isAdmin ? <Submissions /> : <LogTicket />
+      case 'report':      return isAdmin ? <Report /> : <LogTicket />
+      case 'analytics':   return isAdmin ? <Analytics /> : <LogTicket />
+      case 'users':       return isAdmin ? <Users /> : <LogTicket />
       case 'learn':       return <Learn />
       case 'settings':    return <Settings />
     }

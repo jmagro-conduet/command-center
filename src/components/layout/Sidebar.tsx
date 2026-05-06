@@ -123,10 +123,9 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
 }
 
 const AGENT_NAV: NavItem[] = [
-  { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
-  { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
-  { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
-  { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
+  { id: 'log-ticket', label: 'Log ticket', icon: <TicketIcon /> },
+  { id: 'bulletin',   label: 'Bulletin',   icon: <BulletinIcon /> },
+  { id: 'learn',      label: 'Learn',      icon: <LearnIcon /> },
 ]
 
 const ADMIN_NAV: NavItem[] = [
