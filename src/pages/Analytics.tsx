@@ -16,6 +16,7 @@ interface DataRow {
   issuedAt:     string | null   // ticket_issues.created_at (set for imported tickets)
   ticketNumber: string
   agentName:    string
+  agentEmail:   string
   category:     string
   createdAt:    string          // tickets.created_at (last-resort fallback)
 }
@@ -104,22 +105,36 @@ function buildChartData(rows: DataRow[], days: number, target: number) {
   })
 }
 
-function agentStats(rows: DataRow[], days: number) {
-  const map = new Map<string, { tickets: Set<string>; counts: Record<string, number> }>()
-  for (const r of rows) {
-    if (!map.has(r.agentName)) map.set(r.agentName, { tickets: new Set(), counts: {} })
-    const entry = map.get(r.agentName)!
+// rosterRows = all-time rows (for building the full agent list)
+// periodRows = time-filtered rows (for computing stats)
+function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number) {
+  // 1. Build full roster from all-time data so inactive agents still appear
+  const roster = new Map<string, string>() // agentName -> agentEmail
+  for (const r of rosterRows) {
+    if (r.agentName && !roster.has(r.agentName)) roster.set(r.agentName, r.agentEmail)
+  }
+
+  // 2. Compute period stats
+  const statsMap = new Map<string, { tickets: Set<string>; counts: Record<string, number> }>()
+  for (const r of periodRows) {
+    if (!statsMap.has(r.agentName)) statsMap.set(r.agentName, { tickets: new Set(), counts: {} })
+    const entry = statsMap.get(r.agentName)!
     entry.tickets.add(r.ticketNumber)
     entry.counts[r.issueType] = (entry.counts[r.issueType] ?? 0) + 1
   }
-  return [...map.entries()].map(([name, { tickets, counts }]) => {
+
+  // 3. Merge: every roster agent gets stats (zeros if inactive this period)
+  return [...roster.entries()].map(([name, email]) => {
+    const s       = statsMap.get(name)
+    const tickets = s?.tickets ?? new Set<string>()
+    const counts  = s?.counts  ?? {}
     const total    = Object.values(counts).reduce((a, b) => a + b, 0)
-    const perfect  = counts['Perfect'] ?? 0
+    const perfect  = counts['Perfect']       ?? 0
     const majority = counts['Majority edit'] ?? 0
-    const partial  = counts['Partial edit'] ?? 0
-    const noResp   = counts['No response'] ?? 0
+    const partial  = counts['Partial edit']  ?? 0
+    const noResp   = counts['No response']   ?? 0
     return {
-      name, total: tickets.size, issueTotal: total,
+      name, email, total: tickets.size, issueTotal: total,
       avg: parseFloat((tickets.size / days).toFixed(1)),
       perfect:  pct(perfect, total),
       majority: pct(majority, total),
@@ -170,7 +185,7 @@ async function fetchAllIssues() {
   while (true) {
     const { data, error } = await supabase
       .from('ticket_issues')
-      .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
+      .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, agent_email, ticket_category, created_at)')
       .order('created_at', { ascending: false })   // created_at is never NULL — safe for pagination
       .range(from, from + PAGE - 1)
     if (error || !data || data.length === 0) break
@@ -199,7 +214,8 @@ export default function Analytics() {
         loggedAt:     ti.logged_at  ?? null,
         issuedAt:     ti.created_at ?? null,   // ticket_issues.created_at — set for all rows
         ticketNumber: ti.tickets?.ticket_number ?? '',
-        agentName:    ti.tickets?.agent_name ?? '',
+        agentName:    ti.tickets?.agent_name  ?? '',
+        agentEmail:   ti.tickets?.agent_email ?? '',
         category:     ti.tickets?.ticket_category ?? '',
         createdAt:    ti.tickets?.created_at ?? '',
       }))
@@ -326,7 +342,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days = useMemo(() => effectiveDays(rows, range), [rows, range])
 
-  const agents = useMemo(() => agentStats(rows, days), [rows, days])
+  const agents = useMemo(() => agentStats(rows, allRows, days), [rows, allRows, days])
 
   const kpis = useMemo(() => {
     const tickets = new Set(rows.map(r => r.ticketNumber))
@@ -540,22 +556,27 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           const statusColor = onTrack ? '#166534' : almost ? '#854d0e' : '#854d0e'
           const statusBg    = onTrack ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)'
 
-          // Match gameLM agent to their Zendesk counterpart using word-level overlap.
-          // Requires at least one shared word of 4+ characters to avoid false positives
-          // (e.g. "Dan" matching "Daniel", or "Jo" matching "Jomare").
-          const agentWords = a.name.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 4)
-          const zdMatch = zdAgents?.find(z => {
-            const zdWords = z.name.toLowerCase().trim().split(/\s+/)
-            return agentWords.some(w => zdWords.some(zw => zw.startsWith(w) || w.startsWith(zw)))
+          // Match gameLM agent to their Zendesk counterpart.
+          // Primary: email match (exact, case-insensitive) — unambiguous even for agents
+          // with similar names (e.g. Michael Ryan vs Michael Joven).
+          // Fallback: all meaningful words (4+ chars) in the gameLM name must be present
+          // in the ZD name to avoid false positives on shared first names.
+          const zdMatch = zdAgents?.find(z =>
+            a.email && z.email && a.email.toLowerCase() === z.email.toLowerCase()
+          ) ?? zdAgents?.find(z => {
+            const agentWords = a.name.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 4)
+            const zdWords    = z.name.toLowerCase().trim().split(/\s+/)
+            return agentWords.length > 0 &&
+              agentWords.every(w => zdWords.some(zw => zw.startsWith(w) || w.startsWith(zw)))
           })
           const zdTickets   = zdMatch?.count ?? null
           const rawAdoption = zdTickets && zdTickets > 0
             ? (a.total / zdTickets) * 100
             : null
-          // Cap at 100 % — values above 100 indicate cross-agent ticket handling
-          // (agent logged gameLM on a ticket assigned to someone else in ZD)
+          // Show real adoption % — values above 100 indicate gameLM was logged on tickets
+          // not counted under this agent in ZD (cross-assignment, group routing, etc.)
           const adoptionPct = rawAdoption !== null
-            ? Math.min(rawAdoption, 100).toFixed(1)
+            ? rawAdoption.toFixed(1)
             : null
 
           return (
@@ -579,7 +600,14 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
                 {zdLoading ? '…' : zdTickets !== null ? zdTickets : '—'}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : adoptionPct !== null ? '#b45309' : '#aaa', fontWeight: adoptionPct !== null ? 500 : 400 }}>
+              <span style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13,
+                color: zdLoading ? 'rgba(0,0,0,0.2)'
+                  : adoptionPct !== null && parseFloat(adoptionPct) > 100 ? '#e53e3e'
+                  : adoptionPct !== null ? '#b45309'
+                  : '#aaa',
+                fontWeight: adoptionPct !== null ? 500 : 400,
+              }}>
                 {zdLoading ? '…' : adoptionPct !== null ? `${adoptionPct}%` : '—'}
               </span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusBg, color: statusColor }}>{statusLabel}</span>
@@ -599,7 +627,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const dailyTarget = getDailyTarget()
   const rows  = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days  = useMemo(() => effectiveDays(rows, range), [rows, range])
-  const agents = useMemo(() => agentStats(rows, days), [rows, days])
+  const agents = useMemo(() => agentStats(rows, allRows, days), [rows, allRows, days])
 
   const [selected, setSelected] = useState('')
   const activeAgent = useMemo(() => agents[0]?.name ?? '', [agents])

@@ -10,6 +10,7 @@ import Events from './pages/Events'
 import Submissions from './pages/Submissions'
 import Report from './pages/Report'
 import Analytics from './pages/Analytics'
+import Leaderboard from './pages/Leaderboard'
 import Users from './pages/Users'
 import Learn from './pages/Learn'
 import Settings from './pages/Settings'
@@ -65,6 +66,7 @@ function AppShell() {
     switch (activePage) {
       case 'log-ticket':  return <LogTicket    key={pageKey} />
       case 'bulletin':    return <Bulletin     key={pageKey} />
+      case 'leaderboard': return <Leaderboard  key={pageKey} />
       case 'events':      return isAdmin ? <Events      key={pageKey} /> : <LogTicket key={pageKey} />
       case 'submissions': return isAdmin ? <Submissions key={pageKey} /> : <LogTicket key={pageKey} />
       case 'report':      return isAdmin ? <Report      key={pageKey} /> : <LogTicket key={pageKey} />

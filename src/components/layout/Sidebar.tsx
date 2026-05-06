@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 export type Page =
   | 'log-ticket'
   | 'bulletin'
+  | 'leaderboard'
   | 'events'
   | 'submissions'
   | 'report'
@@ -86,6 +87,16 @@ function UsersIcon() {
   )
 }
 
+function LeaderboardIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="11" width="4" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.7"/>
+      <rect x="10" y="6"  width="4" height="15" rx="1.5" stroke="currentColor" strokeWidth="1.7"/>
+      <rect x="18" y="3"  width="4" height="18" rx="1.5" stroke="currentColor" strokeWidth="1.7"/>
+    </svg>
+  )
+}
+
 function LearnIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -123,14 +134,16 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
 }
 
 const AGENT_NAV: NavItem[] = [
-  { id: 'log-ticket', label: 'Log ticket', icon: <TicketIcon /> },
-  { id: 'bulletin',   label: 'Bulletin',   icon: <BulletinIcon /> },
-  { id: 'learn',      label: 'Learn',      icon: <LearnIcon /> },
+  { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
+  { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
+  { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
+  { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
 ]
 
 const ADMIN_NAV: NavItem[] = [
   { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
   { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
+  { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
   { id: 'events',      label: 'Events',      icon: <EventsIcon /> },
   { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
   { id: 'report',      label: 'Report',      icon: <ReportIcon /> },
