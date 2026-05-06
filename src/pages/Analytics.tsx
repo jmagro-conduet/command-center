@@ -926,7 +926,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
           // Per-agent breakdown for this category
           const catAgentRows = rows.filter(r => (r.category || 'Uncategorized') === cat.name)
-          const catAgents = agentStats(catAgentRows, days)
+          const catAgents = agentStats(catAgentRows, allRows, days)
 
           return (
             <div key={cat.name}>
