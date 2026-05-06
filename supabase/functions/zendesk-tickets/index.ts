@@ -26,29 +26,30 @@ Deno.serve(async (req: Request) => {
     }
 
     const credentials = btoa(`${email}/token:${apiToken}`)
-    const base = `https://conduet.zendesk.com/api/v2/search.json`
-    const authHeaders = {
-      Authorization: `Basic ${credentials}`,
-      'Content-Type': 'application/json',
+
+    // via:native_messaging scopes to chat tickets only; brand_id scopes to BetSaracen
+    const query = `type:ticket via:native_messaging brand_id:8399147779099 created>=${start_date} created<=${end_date}`
+    const zdUrl = `https://conduet.zendesk.com/api/v2/search/count.json?query=${encodeURIComponent(query)}`
+
+    const zdRes = await fetch(zdUrl, {
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!zdRes.ok) {
+      const errText = await zdRes.text()
+      return new Response(
+        JSON.stringify({ error: `Zendesk API error: ${zdRes.status} ${errText}` }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Query both channel types in parallel — classic Chat uses 'chat', newer Messaging uses 'native_messaging'
-    const channels = ['chat', 'native_messaging']
-    const results = await Promise.all(channels.map(async ch => {
-      const query = `type:ticket channel:${ch} created>=${start_date} created<=${end_date}`
-      const res = await fetch(`${base}?query=${encodeURIComponent(query)}&per_page=1`, { headers: authHeaders })
-      if (!res.ok) {
-        const errText = await res.text()
-        throw new Error(`Zendesk API error (${ch}): ${res.status} ${errText}`)
-      }
-      const json = await res.json()
-      return { channel: ch, count: json.count ?? 0 }
-    }))
-
-    const total = results.reduce((sum, r) => sum + r.count, 0)
+    const data = await zdRes.json()
 
     return new Response(
-      JSON.stringify({ count: total, breakdown: results }),
+      JSON.stringify({ count: data.count ?? 0 }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err: unknown) {
