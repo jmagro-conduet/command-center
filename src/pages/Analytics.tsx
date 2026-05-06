@@ -285,12 +285,14 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
   const [zdCount, setZdCount]         = useState<number | null>(null)
   const [zdLoading, setZdLoading]     = useState(false)
+  const [zdError, setZdError]         = useState<string | null>(null)
   const dailyTarget = getDailyTarget()
 
   useEffect(() => {
     let cancelled = false
     async function fetchZd() {
       setZdLoading(true)
+      setZdError(null)
       try {
         const { start, end } = rangeToDateParams(range)
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
@@ -300,9 +302,16 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           { headers: { Authorization: `Bearer ${serviceKey}` } }
         )
         const json = await res.json()
-        if (!cancelled) setZdCount(json.count ?? null)
-      } catch {
-        if (!cancelled) setZdCount(null)
+        if (!cancelled) {
+          if (typeof json.count === 'number') {
+            setZdCount(json.count)
+          } else {
+            setZdCount(null)
+            setZdError(json.error ?? 'No data returned')
+          }
+        }
+      } catch (e: any) {
+        if (!cancelled) { setZdCount(null); setZdError(e?.message ?? 'Fetch failed') }
       } finally {
         if (!cancelled) setZdLoading(false)
       }
@@ -349,9 +358,48 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {/* Row 1: Tickets | Responses | ZD Live Chat */}
         {[
           { label: `Tickets (${range === 'last7' ? 'last 7 days' : range === 'last30' ? 'last 30 days' : range === 'lastQuarter' ? 'last 90 days' : 'all time'})`, value: kpis.tickets.toString() },
-          { label: 'Responses',              value: kpis.issues.toString() },
+          { label: 'Responses', value: kpis.issues.toString() },
+        ].map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0' }}>{k.value}</p>
+          </div>
+        ))}
+
+        {/* ZD card — row 1, position 3 */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ZD Live Chat Tickets</p>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: 'rgba(243,156,18,0.12)', color: '#b45309', letterSpacing: '0.05em' }}>ZENDESK</span>
+          </div>
+          {zdLoading ? (
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>…</p>
+          ) : zdError ? (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 4 }}>{zdError}</p>
+          ) : zdCount !== null ? (
+            <>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#b45309' }}>
+                {zdCount.toLocaleString()}
+              </p>
+              {kpis.tickets > 0 && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>
+                  <span style={{ fontWeight: 500, color: '#b45309' }}>
+                    {((zdCount / kpis.tickets) * 100).toFixed(1)}%
+                  </span>
+                  {' '}adoption vs gameLM tickets
+                </p>
+              )}
+            </>
+          ) : (
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>—</p>
+          )}
+        </div>
+
+        {/* Row 2: Avg responses/ticket | Team avg/day | Target range */}
+        {[
           { label: 'Avg responses / ticket', value: kpis.avgPerTicket },
           { label: 'Team avg tickets / day', value: kpis.avgPerDay },
           { label: 'Target range / agent',   value: `${dailyTarget.min}–${dailyTarget.max}` },
@@ -361,15 +409,6 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0' }}>{k.value}</p>
           </div>
         ))}
-        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px', position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ZD Live Chat Tickets</p>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: 'rgba(243,156,18,0.12)', color: '#b45309', letterSpacing: '0.05em' }}>ZENDESK</span>
-          </div>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
-            {zdLoading ? '…' : zdCount !== null ? zdCount.toLocaleString() : '—'}
-          </p>
-        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
