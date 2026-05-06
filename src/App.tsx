@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './index.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Sidebar from './components/layout/Sidebar'
@@ -14,9 +14,34 @@ import Users from './pages/Users'
 import Learn from './pages/Learn'
 import Settings from './pages/Settings'
 
+const FOCUS_STALE_MS = 2 * 60 * 1000 // treat data as stale after 2 min away
+
 function AppShell() {
   const { user, loading, recoveryMode, updatePassword } = useAuth()
   const [activePage, setActivePage] = useState<Page>('log-ticket')
+  const [pageKey, setPageKey] = useState(0)
+  const lastActiveRef = useRef(Date.now())
+
+  // Bump pageKey on window focus if the tab has been backgrounded ≥2 min
+  useEffect(() => {
+    function onBlur()  { lastActiveRef.current = Date.now() }
+    function onFocus() {
+      if (Date.now() - lastActiveRef.current >= FOCUS_STALE_MS) {
+        setPageKey(k => k + 1)
+      }
+    }
+    window.addEventListener('blur',  onBlur)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      window.removeEventListener('blur',  onBlur)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [])
+
+  function handleNavigate(page: Page) {
+    setActivePage(page)
+    setPageKey(k => k + 1) // force remount = fresh fetch on every page switch
+  }
 
   if (loading) {
     return (
@@ -38,15 +63,15 @@ function AppShell() {
 
   function renderPage() {
     switch (activePage) {
-      case 'log-ticket':  return <LogTicket />
-      case 'bulletin':    return <Bulletin />
-      case 'events':      return isAdmin ? <Events /> : <LogTicket />
-      case 'submissions': return isAdmin ? <Submissions /> : <LogTicket />
-      case 'report':      return isAdmin ? <Report /> : <LogTicket />
-      case 'analytics':   return isAdmin ? <Analytics /> : <LogTicket />
-      case 'users':       return isAdmin ? <Users /> : <LogTicket />
-      case 'learn':       return <Learn />
-      case 'settings':    return <Settings />
+      case 'log-ticket':  return <LogTicket    key={pageKey} />
+      case 'bulletin':    return <Bulletin     key={pageKey} />
+      case 'events':      return isAdmin ? <Events      key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'submissions': return isAdmin ? <Submissions key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'report':      return isAdmin ? <Report      key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'analytics':   return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'users':       return isAdmin ? <Users       key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'learn':       return <Learn       key={pageKey} />
+      case 'settings':    return <Settings    key={pageKey} />
     }
   }
 
@@ -55,7 +80,7 @@ function AppShell() {
       height: '100vh', display: 'flex', gap: 16, padding: 16,
       background: '#F1F1F2', overflow: 'hidden', boxSizing: 'border-box',
     }}>
-      <Sidebar activePage={activePage} onNavigate={setActivePage} />
+      <Sidebar activePage={activePage} onNavigate={handleNavigate} />
       <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
         {renderPage()}
       </main>
