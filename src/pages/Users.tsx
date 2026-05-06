@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
 interface DBUser {
-  id: string
+  authId: string          // auth.users.id — always present, used for password reset
+  profileId: string | null // public.users.id — null if no profile row exists yet
   name: string
   email: string
   role: 'admin' | 'agent'
@@ -57,11 +58,30 @@ export default function Users() {
   }, [])
 
   async function loadUsers() {
-    const { data } = await supabase
-      .from('users')
-      .select('id, name, email, role, operator_team, created_at')
-      .order('name', { ascending: true })
-    setUsers(data ?? [])
+    // Pull from both sources and merge so auth users without a profile row are visible
+    const [{ data: { users: authUsers } = { users: [] } }, { data: profiles }] = await Promise.all([
+      supabase.auth.admin.listUsers({ perPage: 1000 }),
+      supabase.from('users').select('id, name, email, role, operator_team, created_at, auth_id'),
+    ])
+
+    const profileByEmail = new Map((profiles ?? []).map((p: any) => [p.email, p]))
+
+    const merged: DBUser[] = (authUsers ?? []).map((au: any) => {
+      const profile = profileByEmail.get(au.email)
+      const nameFromMeta = au.user_metadata?.name || au.user_metadata?.full_name || ''
+      return {
+        authId:       au.id,
+        profileId:    profile?.id ?? null,
+        name:         profile?.name || nameFromMeta || au.email.split('@')[0],
+        email:        au.email,
+        role:         profile?.role ?? 'agent',
+        operator_team: profile?.operator_team ?? null,
+        created_at:   au.created_at,
+      }
+    })
+
+    merged.sort((a, b) => a.name.localeCompare(b.name))
+    setUsers(merged)
     setLoading(false)
   }
 
@@ -74,15 +94,21 @@ export default function Users() {
     setTeams(data ?? [])
   }
 
-  async function handleRoleChange(userId: string, newRole: 'admin' | 'agent') {
-    await supabase.from('users').update({ role: newRole }).eq('id', userId)
-    setUsers(us => us.map(u => u.id === userId ? { ...u, role: newRole } : u))
+  async function handleRoleChange(u: DBUser, newRole: 'admin' | 'agent') {
+    await supabase.from('users').upsert(
+      { email: u.email, name: u.name, role: newRole, operator_team: u.operator_team, auth_id: u.authId },
+      { onConflict: 'email' }
+    )
+    setUsers(us => us.map(x => x.authId === u.authId ? { ...x, role: newRole } : x))
   }
 
-  async function handleTeamChange(userId: string, newTeam: string) {
+  async function handleTeamChange(u: DBUser, newTeam: string) {
     const val = newTeam === '' ? null : newTeam
-    await supabase.from('users').update({ operator_team: val }).eq('id', userId)
-    setUsers(us => us.map(u => u.id === userId ? { ...u, operator_team: val } : u))
+    await supabase.from('users').upsert(
+      { email: u.email, name: u.name, role: u.role, operator_team: val, auth_id: u.authId },
+      { onConflict: 'email' }
+    )
+    setUsers(us => us.map(x => x.authId === u.authId ? { ...x, operator_team: val } : x))
   }
 
   function openEdit(u: DBUser) {
@@ -99,7 +125,7 @@ export default function Users() {
     const pw = newPassword.trim()
     if (pw.length < 6) { setPwMessage({ ok: false, text: 'Password must be at least 6 characters' }); return }
     setPwSaving(true); setPwMessage(null)
-    const { error } = await supabase.auth.admin.updateUserById(editTarget.id, { password: pw })
+    const { error } = await supabase.auth.admin.updateUserById(editTarget.authId, { password: pw })
     setPwSaving(false)
     if (error) { setPwMessage({ ok: false, text: error.message }); return }
     setPwMessage({ ok: true, text: `Password updated — share it with ${editTarget.name} securely` })
@@ -110,13 +136,13 @@ export default function Users() {
     if (!editTarget) return
     if (!editName.trim() || !editEmail.trim()) { setSaveError('Name and email are required'); return }
     setSaving(true); setSaveError(null)
-    const { error } = await supabase
-      .from('users')
-      .update({ name: editName.trim(), email: editEmail.trim() })
-      .eq('id', editTarget.id)
+    const { error } = await supabase.from('users').upsert(
+      { email: editEmail.trim(), name: editName.trim(), role: editTarget.role, operator_team: editTarget.operator_team, auth_id: editTarget.authId },
+      { onConflict: 'email' }
+    )
     setSaving(false)
     if (error) { setSaveError(error.message); return }
-    setUsers(us => us.map(u => u.id === editTarget.id ? { ...u, name: editName.trim(), email: editEmail.trim() } : u))
+    setUsers(us => us.map(u => u.authId === editTarget.authId ? { ...u, name: editName.trim(), email: editEmail.trim() } : u))
     setEditTarget(null)
   }
 
@@ -172,7 +198,7 @@ export default function Users() {
           </thead>
           <tbody>
             {filtered.map((u, i) => (
-              <tr key={u.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}>
+              <tr key={u.authId} style={{ borderBottom: i < filtered.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}>
                 {/* Avatar + name */}
                 <td style={{ padding: '14px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -195,7 +221,7 @@ export default function Users() {
                 <td style={{ padding: '14px 16px' }}>
                   <select
                     value={u.role}
-                    onChange={e => handleRoleChange(u.id, e.target.value as 'admin' | 'agent')}
+                    onChange={e => handleRoleChange(u, e.target.value as 'admin' | 'agent')}
                     style={{
                       fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
                       padding: '4px 10px', borderRadius: 100, cursor: 'pointer',
@@ -213,7 +239,7 @@ export default function Users() {
                 <td style={{ padding: '14px 16px' }}>
                   <select
                     value={u.operator_team ?? ''}
-                    onChange={e => handleTeamChange(u.id, e.target.value)}
+                    onChange={e => handleTeamChange(u, e.target.value)}
                     style={{
                       fontFamily: 'Inter, sans-serif', fontSize: 12,
                       padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
