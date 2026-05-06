@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 const TICKET_MAX = 20
-const DRAFT_KEY  = 'logticket_draft_v2'
+const draftKey = (email: string) => `logticket_draft_v2_${email}`
 
 function validateTicketNumber(t: string): string | null {
   const v = t.trim()
@@ -84,10 +84,11 @@ export default function LogTicket() {
     setAllTabs(tabs => tabs.map(t => t.id === activeTabId ? { ...t, ...patch } : t))
   }
 
-  // Restore all tabs from localStorage on mount
+  // Restore all tabs from localStorage on mount (scoped to this user)
   useEffect(() => {
+    if (!user?.email) return
     try {
-      const saved = localStorage.getItem(DRAFT_KEY)
+      const saved = localStorage.getItem(draftKey(user.email))
       if (saved) {
         const d = JSON.parse(saved)
         if (Array.isArray(d.allTabs) && d.allTabs.length > 0) {
@@ -97,14 +98,15 @@ export default function LogTicket() {
         }
       }
     } catch { /* ignore corrupt draft */ }
-  }, [])
+  }, [user?.email])
 
-  // Save all tabs to localStorage on every change
+  // Save all tabs to localStorage on every change (scoped to this user)
   useEffect(() => {
+    if (!user?.email) return
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ allTabs, activeTabId }))
+      localStorage.setItem(draftKey(user.email), JSON.stringify({ allTabs, activeTabId }))
     } catch { /* ignore */ }
-  }, [allTabs, activeTabId])
+  }, [allTabs, activeTabId, user?.email])
 
   const needsReasoning  = ['majority', 'partial', 'none'].includes(active.draftIssueType)
   const needsFinalEdits = ['majority', 'partial'].includes(active.draftIssueType)
