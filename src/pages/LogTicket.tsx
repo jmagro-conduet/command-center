@@ -12,10 +12,7 @@ function validateTicketNumber(t: string): string | null {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    hour: 'numeric', minute: '2-digit', hour12: true,
-  })
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
 const CATEGORIES = [
