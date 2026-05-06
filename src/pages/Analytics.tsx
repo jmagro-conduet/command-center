@@ -284,6 +284,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
   const [zdCount, setZdCount]         = useState<number | null>(null)
+  const [zdAgents, setZdAgents]       = useState<{ name: string; email: string; count: number }[] | null>(null)
   const [zdLoading, setZdLoading]     = useState(false)
   const [zdError, setZdError]         = useState<string | null>(null)
   const dailyTarget = getDailyTarget()
@@ -301,16 +302,19 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
         if (!cancelled) {
           if (error) {
             setZdCount(null)
+            setZdAgents(null)
             setZdError(error.message ?? 'Edge function error')
           } else if (typeof data?.count === 'number') {
             setZdCount(data.count)
+            setZdAgents(Array.isArray(data.agents) ? data.agents : null)
           } else {
             setZdCount(null)
+            setZdAgents(null)
             setZdError(data?.error ?? 'No data returned')
           }
         }
       } catch (e: any) {
-        if (!cancelled) { setZdCount(null); setZdError(e?.message ?? 'Fetch failed') }
+        if (!cancelled) { setZdCount(null); setZdAgents(null); setZdError(e?.message ?? 'Fetch failed') }
       } finally {
         if (!cancelled) setZdLoading(false)
       }
@@ -524,8 +528,8 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Agent Performance Summary</p>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Click an agent row to view their chart above</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 120px 100px 110px 110px 110px 90px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-          {['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'Status'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 100px 85px 95px 95px 95px 80px 80px 85px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+          {['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'ZD Tickets', 'Adoption %', 'Status'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -535,10 +539,24 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           const statusLabel = onTrack ? 'ON TRACK' : almost ? 'ALMOST' : 'OFF TRACK'
           const statusColor = onTrack ? '#166534' : almost ? '#854d0e' : '#854d0e'
           const statusBg    = onTrack ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)'
+
+          // Match this gameLM agent to their Zendesk counterpart by normalised name
+          const normAgentName = a.name.toLowerCase().trim()
+          const zdMatch = zdAgents?.find(z => {
+            const normZd = z.name.toLowerCase().trim()
+            return normZd === normAgentName
+              || normZd.includes(normAgentName)
+              || normAgentName.includes(normZd)
+          })
+          const zdTickets  = zdMatch?.count ?? null
+          const adoptionPct = zdTickets && zdTickets > 0
+            ? ((a.total / zdTickets) * 100).toFixed(1)
+            : null
+
           return (
             <div key={a.name} onClick={() => setSelectedAgent(s => s === a.name ? null : a.name)}
               style={{
-                display: 'grid', gridTemplateColumns: '1.5fr 120px 100px 110px 110px 110px 90px',
+                display: 'grid', gridTemplateColumns: '1.5fr 100px 85px 95px 95px 95px 80px 80px 85px',
                 padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
                 borderBottom: i < agents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                 background: selectedAgent === a.name ? 'rgba(206,164,255,0.07)' : 'transparent',
@@ -553,6 +571,12 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{a.perfect}%</span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#854d0e' }}>{a.majority}%</span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#6b21a8' }}>{a.partial}%</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
+                {zdLoading ? '…' : zdTickets !== null ? zdTickets : '—'}
+              </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : adoptionPct !== null ? '#b45309' : '#aaa', fontWeight: adoptionPct !== null ? 500 : 400 }}>
+                {zdLoading ? '…' : adoptionPct !== null ? `${adoptionPct}%` : '—'}
+              </span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusBg, color: statusColor }}>{statusLabel}</span>
             </div>
           )
