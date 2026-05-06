@@ -49,22 +49,11 @@ async function fetchAllIssues() {
 }
 
 function matchZD(
-  agentName: string,
   agentEmail: string,
-  zdAgents: { name: string; email: string; count: number }[]
-): { name: string; email: string; count: number } | null {
-  // Email match first — unambiguous even for agents sharing a first name
-  if (agentEmail) {
-    const byEmail = zdAgents.find(z => z.email && z.email.toLowerCase() === agentEmail.toLowerCase())
-    if (byEmail) return byEmail
-  }
-  // Fallback: all meaningful words must appear in the ZD name
-  const agentWords = agentName.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 4)
-  return zdAgents.find(z => {
-    const zdWords = z.name.toLowerCase().trim().split(/\s+/)
-    return agentWords.length > 0 &&
-      agentWords.every(w => zdWords.some(zw => zw.startsWith(w) || w.startsWith(zw)))
-  }) ?? null
+  zdAgents: { email: string; count: number }[]
+): number | null {
+  if (!agentEmail) return null
+  return zdAgents.find(z => z.email && z.email.toLowerCase() === agentEmail.toLowerCase())?.count ?? null
 }
 
 // ── Medal component ────────────────────────────────────────────────────────────
@@ -247,10 +236,10 @@ export default function Leaderboard() {
   const [range, setRange]       = useState<TimeRange>('last30')
   const [allRows, setAllRows]   = useState<DataRow[]>([])
   const [loading, setLoading]   = useState(true)
-  const [zdCount, setZdCount]   = useState<number | null>(null)
-  const [zdAgents, setZdAgents] = useState<{ name: string; email: string; count: number }[] | null>(null)
+  const [zdCount, setZdCount]     = useState<number | null>(null)
+  const [zdAgents, setZdAgents]   = useState<{ email: string; count: number }[] | null>(null)
   const [zdLoading, setZdLoading] = useState(false)
-  const [zdError, setZdError]   = useState<string | null>(null)
+  const [zdError, setZdError]     = useState<string | null>(null)
 
   // Fetch gameLM data once
   useEffect(() => {
@@ -268,8 +257,17 @@ export default function Leaderboard() {
     })
   }, [])
 
-  // Fetch ZD data on range change
+  // Stable key of all-time agent emails
+  const rosterEmailsKey = useMemo(
+    () => [...new Set(allRows.map(r => r.agentEmail).filter(Boolean))].sort().join(','),
+    [allRows]
+  )
+
+  // Fetch ZD data — fires when range or agent roster changes
   useEffect(() => {
+    const agentEmails = rosterEmailsKey ? rosterEmailsKey.split(',') : []
+    if (agentEmails.length === 0) return
+
     let cancelled = false
     async function fetchZd() {
       setZdLoading(true); setZdError(null)
@@ -277,7 +275,7 @@ export default function Leaderboard() {
       const start = new Date(); start.setDate(start.getDate() - rangeDays(range))
       try {
         const { data, error } = await supabase.functions.invoke('zendesk-tickets', {
-          body: { start_date: toDateStr(start), end_date: toDateStr(end) },
+          body: { start_date: toDateStr(start), end_date: toDateStr(end), agent_emails: agentEmails },
         })
         if (!cancelled) {
           if (error) {
@@ -296,7 +294,7 @@ export default function Leaderboard() {
     }
     fetchZd()
     return () => { cancelled = true }
-  }, [range])
+  }, [range, rosterEmailsKey])
 
   // Filter to selected range
   const rows = useMemo(() => {
@@ -458,8 +456,7 @@ export default function Leaderboard() {
         {/* Agent rows */}
         {agents.map((a, i) => {
           const isMe = user?.name?.toLowerCase().trim() === a.name.toLowerCase().trim()
-          const zdMatch = zdAgents ? matchZD(a.name, a.email, zdAgents) : null
-          const zdTickets = zdMatch?.count ?? null
+          const zdTickets = zdAgents ? matchZD(a.email, zdAgents) : null
           const adoptionRaw = zdTickets && zdTickets > 0 ? (a.tickets / zdTickets) * 100 : null
 
           return (
