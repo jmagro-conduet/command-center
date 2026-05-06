@@ -28,26 +28,29 @@ interface Row {
   notes: string
 }
 
+// All timestamps are displayed in AEST (Australia/Sydney, UTC+10/+11)
+// to match the Bolt app and reflect when agents actually did the work.
+const AEST = 'Australia/Sydney'
+
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('en-US', {
+  return new Date(iso).toLocaleString('en-AU', {
+    timeZone: AEST,
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit', hour12: true,
   })
 }
 
 // Matches the Google Forms export format used as our source CSV:
-// "5/5/2026, 2:52:55 PM"
+// "5/5/2026, 2:52:55 PM"  — kept in AEST to match agent working hours
 function formatSourceTimestamp(iso: string): string {
   const d = new Date(iso)
-  const m = d.getMonth() + 1
-  const day = d.getDate()
-  const y = d.getFullYear()
-  let h = d.getHours()
-  const min = String(d.getMinutes()).padStart(2, '0')
-  const sec = String(d.getSeconds()).padStart(2, '0')
-  const ap = h >= 12 ? 'PM' : 'AM'
-  h = h % 12 || 12
-  return `${m}/${day}/${y}, ${h}:${min}:${sec} ${ap}`
+  const opts: Intl.DateTimeFormatOptions = { timeZone: AEST, hour12: true }
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    ...opts, month: 'numeric', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', second: '2-digit',
+  }).formatToParts(d)
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? ''
+  return `${get('month')}/${get('day')}/${get('year')}, ${get('hour')}:${get('minute')}:${get('second')} ${get('dayPeriod')}`
 }
 
 function csvField(val: unknown): string {
