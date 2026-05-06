@@ -383,12 +383,12 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
               <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#b45309' }}>
                 {zdCount.toLocaleString()}
               </p>
-              {kpis.tickets > 0 && (
+              {zdCount > 0 && (
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>
                   <span style={{ fontWeight: 500, color: '#b45309' }}>
-                    {((zdCount / kpis.tickets) * 100).toFixed(1)}%
+                    {((kpis.tickets / zdCount) * 100).toFixed(1)}%
                   </span>
-                  {' '}adoption vs gameLM tickets
+                  {' '}of ZD tickets logged
                 </p>
               )}
             </>
