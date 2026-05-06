@@ -540,17 +540,22 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           const statusColor = onTrack ? '#166534' : almost ? '#854d0e' : '#854d0e'
           const statusBg    = onTrack ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)'
 
-          // Match this gameLM agent to their Zendesk counterpart by normalised name
-          const normAgentName = a.name.toLowerCase().trim()
+          // Match gameLM agent to their Zendesk counterpart using word-level overlap.
+          // Requires at least one shared word of 4+ characters to avoid false positives
+          // (e.g. "Dan" matching "Daniel", or "Jo" matching "Jomare").
+          const agentWords = a.name.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 4)
           const zdMatch = zdAgents?.find(z => {
-            const normZd = z.name.toLowerCase().trim()
-            return normZd === normAgentName
-              || normZd.includes(normAgentName)
-              || normAgentName.includes(normZd)
+            const zdWords = z.name.toLowerCase().trim().split(/\s+/)
+            return agentWords.some(w => zdWords.some(zw => zw.startsWith(w) || w.startsWith(zw)))
           })
-          const zdTickets  = zdMatch?.count ?? null
-          const adoptionPct = zdTickets && zdTickets > 0
-            ? ((a.total / zdTickets) * 100).toFixed(1)
+          const zdTickets   = zdMatch?.count ?? null
+          const rawAdoption = zdTickets && zdTickets > 0
+            ? (a.total / zdTickets) * 100
+            : null
+          // Cap at 100 % — values above 100 indicate cross-agent ticket handling
+          // (agent logged gameLM on a ticket assigned to someone else in ZD)
+          const adoptionPct = rawAdoption !== null
+            ? Math.min(rawAdoption, 100).toFixed(1)
             : null
 
           return (
