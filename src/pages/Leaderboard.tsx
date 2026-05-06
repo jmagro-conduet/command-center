@@ -236,10 +236,15 @@ export default function Leaderboard() {
   const [range, setRange]       = useState<TimeRange>('last30')
   const [allRows, setAllRows]   = useState<DataRow[]>([])
   const [loading, setLoading]   = useState(true)
-  const [zdCount, setZdCount]     = useState<number | null>(null)
   const [zdAgents, setZdAgents]   = useState<{ email: string; count: number }[] | null>(null)
   const [zdLoading, setZdLoading] = useState(false)
   const [zdError, setZdError]     = useState<string | null>(null)
+
+  // Team ZD total = sum of per-agent counts only (excludes other brands / unassigned)
+  const zdCount = useMemo(
+    () => zdAgents ? zdAgents.reduce((s, a) => s + a.count, 0) : null,
+    [zdAgents]
+  )
 
   // Fetch gameLM data once
   useEffect(() => {
@@ -279,15 +284,16 @@ export default function Leaderboard() {
         })
         if (!cancelled) {
           if (error) {
-            setZdCount(null); setZdAgents(null); setZdError(error.message ?? 'ZD error')
-          } else {
-            setZdCount(typeof data?.count === 'number' ? data.count : null)
-            setZdAgents(Array.isArray(data?.agents) ? data.agents : null)
+            setZdAgents(null); setZdError(error.message ?? 'ZD error')
+          } else if (Array.isArray(data?.agents)) {
+            setZdAgents(data.agents)
             if (data?.error) setZdError(data.error)
+          } else {
+            setZdAgents(null); setZdError(data?.error ?? 'No data returned')
           }
         }
       } catch (e: any) {
-        if (!cancelled) { setZdCount(null); setZdAgents(null); setZdError(e?.message ?? 'Fetch failed') }
+        if (!cancelled) { setZdAgents(null); setZdError(e?.message ?? 'Fetch failed') }
       } finally {
         if (!cancelled) setZdLoading(false)
       }

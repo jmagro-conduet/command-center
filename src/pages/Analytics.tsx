@@ -299,13 +299,28 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange]             = useState<TimeRange>('last30')
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
-  const [zdCount, setZdCount]         = useState<number | null>(null)
-  const [zdAgents, setZdAgents]       = useState<{ name: string; email: string; count: number }[] | null>(null)
+  const [zdAgents, setZdAgents]       = useState<{ email: string; count: number }[] | null>(null)
   const [zdLoading, setZdLoading]     = useState(false)
   const [zdError, setZdError]         = useState<string | null>(null)
+
+  // Team ZD total = sum of per-agent counts (only tickets our agents handled,
+  // not all ZD native-messaging tickets across all brands / unassigned)
+  const zdCount = useMemo(
+    () => zdAgents ? zdAgents.reduce((s, a) => s + a.count, 0) : null,
+    [zdAgents]
+  )
   const dailyTarget = getDailyTarget()
 
+  // Stable key of all-time agent emails — only changes when new agents appear in the DB
+  const rosterEmailsKey = useMemo(
+    () => [...new Set(allRows.map(r => r.agentEmail).filter(Boolean))].sort().join(','),
+    [allRows]
+  )
+
   useEffect(() => {
+    const agentEmails = rosterEmailsKey ? rosterEmailsKey.split(',') : []
+    if (agentEmails.length === 0) return   // wait until agent roster is loaded
+
     let cancelled = false
     async function fetchZd() {
       setZdLoading(true)
@@ -313,31 +328,29 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
       try {
         const { start, end } = rangeToDateParams(range)
         const { data, error } = await supabase.functions.invoke('zendesk-tickets', {
-          body: { start_date: start, end_date: end },
+          body: { start_date: start, end_date: end, agent_emails: agentEmails },
         })
         if (!cancelled) {
           if (error) {
-            setZdCount(null)
             setZdAgents(null)
             setZdError(error.message ?? 'Edge function error')
-          } else if (typeof data?.count === 'number') {
-            setZdCount(data.count)
-            setZdAgents(Array.isArray(data.agents) ? data.agents : null)
+          } else if (Array.isArray(data?.agents)) {
+            setZdAgents(data.agents)
+            if (data?.error) setZdError(data.error)
           } else {
-            setZdCount(null)
             setZdAgents(null)
             setZdError(data?.error ?? 'No data returned')
           }
         }
       } catch (e: any) {
-        if (!cancelled) { setZdCount(null); setZdAgents(null); setZdError(e?.message ?? 'Fetch failed') }
+        if (!cancelled) { setZdAgents(null); setZdError(e?.message ?? 'Fetch failed') }
       } finally {
         if (!cancelled) setZdLoading(false)
       }
     }
     fetchZd()
     return () => { cancelled = true }
-  }, [range])
+  }, [range, rosterEmailsKey])
 
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days = useMemo(() => effectiveDays(rows, range), [rows, range])
@@ -556,19 +569,10 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           const statusColor = onTrack ? '#166534' : almost ? '#854d0e' : '#854d0e'
           const statusBg    = onTrack ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)'
 
-          // Match gameLM agent to their Zendesk counterpart.
-          // Primary: email match (exact, case-insensitive) — unambiguous even for agents
-          // with similar names (e.g. Michael Ryan vs Michael Joven).
-          // Fallback: all meaningful words (4+ chars) in the gameLM name must be present
-          // in the ZD name to avoid false positives on shared first names.
+          // ZD data is now keyed by email — direct lookup, no name matching needed
           const zdMatch = zdAgents?.find(z =>
             a.email && z.email && a.email.toLowerCase() === z.email.toLowerCase()
-          ) ?? zdAgents?.find(z => {
-            const agentWords = a.name.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 4)
-            const zdWords    = z.name.toLowerCase().trim().split(/\s+/)
-            return agentWords.length > 0 &&
-              agentWords.every(w => zdWords.some(zw => zw.startsWith(w) || w.startsWith(zw)))
-          })
+          )
           const zdTickets   = zdMatch?.count ?? null
           const rawAdoption = zdTickets && zdTickets > 0
             ? (a.total / zdTickets) * 100
