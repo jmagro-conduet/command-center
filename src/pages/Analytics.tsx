@@ -63,6 +63,27 @@ function pct(n: number, total: number) {
   return parseFloat(((n / total) * 100).toFixed(1))
 }
 
+// Canonical category names — merges case-variant duplicates written by agents
+// (e.g. "Bet dispute" → "Bet Dispute"). Add entries here whenever a new variant appears.
+const CATEGORY_CANONICAL: Record<string, string> = {
+  'bet dispute':         'Bet Dispute',
+  'bet placement issue': 'Bet Placement Issue',
+  'bonus/promotion':     'Bonus/promotion',
+  'kyc/verification':    'KYC/verification',
+  'deposit/withdrawal':  'Deposit/withdrawal',
+  'account access':      'Account access',
+  'technical issue':     'Technical issue',
+  'game dispute':        'Game dispute',
+  'responsible gaming':  'Responsible gaming',
+  'other':               'Other',
+}
+
+function normalizeCategory(raw: string): string {
+  if (!raw) return ''
+  const key = raw.trim().toLowerCase()
+  return CATEGORY_CANONICAL[key] ?? raw.trim()
+}
+
 function buildMetricTrendData(rows: DataRow[], days: number, issueType: string) {
   const byDate = new Map<string, { total: number; count: number }>()
   for (const r of rows) {
@@ -216,7 +237,7 @@ export default function Analytics() {
         ticketNumber: ti.tickets?.ticket_number ?? '',
         agentName:    ti.tickets?.agent_name  ?? '',
         agentEmail:   ti.tickets?.agent_email ?? '',
-        category:     ti.tickets?.ticket_category ?? '',
+        category:     normalizeCategory(ti.tickets?.ticket_category ?? ''),
         createdAt:    ti.tickets?.created_at ?? '',
       }))
 

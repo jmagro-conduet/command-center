@@ -13,6 +13,26 @@ const ISSUE_TYPES = ['All issue types', 'Perfect', 'Majority edit', 'Partial edi
 const ISSUE_TYPE_VALUES = ['Perfect', 'Majority edit', 'Partial edit', 'No response']
 const PAGE_SIZE = 25
 
+// Canonical category names — merges case-variant duplicates (e.g. "Bet dispute" → "Bet Dispute")
+const CATEGORY_CANONICAL: Record<string, string> = {
+  'bet dispute':         'Bet Dispute',
+  'bet placement issue': 'Bet Placement Issue',
+  'bonus/promotion':     'Bonus/promotion',
+  'kyc/verification':    'KYC/verification',
+  'deposit/withdrawal':  'Deposit/withdrawal',
+  'account access':      'Account access',
+  'technical issue':     'Technical issue',
+  'game dispute':        'Game dispute',
+  'responsible gaming':  'Responsible gaming',
+  'other':               'Other',
+}
+
+function normalizeCategory(raw: string): string {
+  if (!raw) return ''
+  const key = raw.trim().toLowerCase()
+  return CATEGORY_CANONICAL[key] ?? raw.trim()
+}
+
 interface Row {
   id: string
   issueType: string
@@ -101,7 +121,7 @@ export default function Submissions() {
         supabase.from('tickets').select('ticket_category').order('ticket_category'),
       ])
       const agents = [...new Set(agentData?.map(r => r.agent_name).filter(Boolean))] as string[]
-      const cats   = [...new Set(catData?.map(r => r.ticket_category).filter(Boolean))] as string[]
+      const cats   = [...new Set(catData?.map(r => normalizeCategory(r.ticket_category)).filter(Boolean))].sort() as string[]
       setAgentOptions(['All agents', ...agents])
       setCategoryOptions(['All categories', ...cats])
     }
@@ -156,7 +176,7 @@ export default function Submissions() {
         agent:             ti.tickets?.agent_name ?? '',
         agentEmail:        ti.tickets?.agent_email ?? '',
         agentTeam:         ti.tickets?.agent_team ?? '',
-        category:          ti.tickets?.ticket_category ?? '',
+        category:          normalizeCategory(ti.tickets?.ticket_category ?? ''),
         date:              ti.logged_at ? formatDate(ti.logged_at) : '',
         loggedAt:          ti.logged_at ?? null,
         customerInput:     ti.customer_input ?? '',
