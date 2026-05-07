@@ -967,8 +967,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                     Agent breakdown — {cat.name}
                   </p>
                   <div style={{ borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 100px 100px 90px 1fr', padding: '8px 14px', background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                      {['Agent', 'Issues', 'Perfect', 'No Resp', 'Progress'].map(h => (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 80px 1fr', padding: '8px 14px', background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                      {['Agent', 'Issues', 'Perfect', 'Majority', 'Partial', 'No Resp', 'Progress'].map(h => (
                         <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
                       ))}
                     </div>
@@ -977,14 +977,16 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                       const agentBarColor = a.perfect >= 90 ? '#166534' : a.perfect >= 75 ? '#854d0e' : a.perfect >= 50 ? '#f97316' : '#e53e3e'
                       return (
                         <div key={a.name} style={{
-                          display: 'grid', gridTemplateColumns: '1.5fr 100px 100px 90px 1fr',
+                          display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 80px 1fr',
                           padding: '10px 14px', alignItems: 'center',
                           borderBottom: ai < catAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                         }}>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{a.name}</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.issueTotal}</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: agentBarColor, fontWeight: 500 }}>{a.perfect}%</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{a.noResp}%</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.majority > 25 ? '#854d0e' : '#58595B' }}>{a.majority}%</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.partial > 20 ? '#6b21a8' : '#58595B' }}>{a.partial}%</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.noResp > 20 ? '#e53e3e' : '#58595B' }}>{a.noResp}%</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                               <div style={{ width: `${Math.min(100, (a.perfect / 90) * 100)}%`, height: '100%', background: agentBarColor, borderRadius: 100 }} />
