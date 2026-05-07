@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 const ISSUE_CONFIG: Record<string, { bg: string; color: string }> = {
   'Perfect':       { bg: 'rgba(22,101,52,0.09)',  color: '#166534' },
@@ -9,6 +10,7 @@ const ISSUE_CONFIG: Record<string, { bg: string; color: string }> = {
 }
 
 const ISSUE_TYPES = ['All issue types', 'Perfect', 'Majority edit', 'Partial edit', 'No response']
+const ISSUE_TYPE_VALUES = ['Perfect', 'Majority edit', 'Partial edit', 'No response']
 const PAGE_SIZE = 25
 
 interface Row {
@@ -35,8 +37,6 @@ function formatDate(iso: string) {
   })
 }
 
-// Matches the Google Forms export format used as our source CSV:
-// "5/5/2026, 2:52:55 PM"
 function formatSourceTimestamp(iso: string): string {
   const d = new Date(iso)
   const m = d.getMonth() + 1
@@ -55,12 +55,32 @@ function csvField(val: unknown): string {
   return `"${s.replace(/"/g, '""')}"`
 }
 
+// ── Icons ──────────────────────────────────────────────────────────────────────
+function EditIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M9.5 1.5l3 3L4 13H1v-3L9.5 1.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M2 4h10M5 4V2.5h4V4M5.5 6.5v4M8.5 6.5v4M3 4l.75 7.5h6.5L11 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
 export default function Submissions() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
   const [rows,        setRows]        = useState<Row[]>([])
   const [total,       setTotal]       = useState(0)
   const [ticketCount, setTicketCount] = useState(0)
   const [loading,     setLoading]     = useState(true)
   const [page,        setPage]        = useState(1)
+  const [refreshKey,  setRefreshKey]  = useState(0)
 
   const [search,    setSearch]    = useState('')
   const [agent,     setAgent]     = useState('All agents')
@@ -70,7 +90,8 @@ export default function Submissions() {
   const [agentOptions,    setAgentOptions]    = useState<string[]>(['All agents'])
   const [categoryOptions, setCategoryOptions] = useState<string[]>(['All categories'])
 
-  const [selected, setSelected] = useState<Row | null>(null)
+  const [selected,    setSelected]    = useState<Row | null>(null)
+  const [hoveredId,   setHoveredId]   = useState<string | null>(null)
 
   // Load distinct filter options once
   useEffect(() => {
@@ -115,8 +136,6 @@ export default function Submissions() {
     let cancelled = false
     setLoading(true)
 
-    // Distinct ticket count — same source as Analytics (ticket_issues join),
-    // same filters applied, then count unique ticket_numbers client-side
     let tcQ = supabase
       .from('ticket_issues')
       .select('tickets!inner(ticket_number, agent_name, ticket_category)')
@@ -156,9 +175,8 @@ export default function Submissions() {
     })
 
     return () => { cancelled = true }
-  }, [buildQuery])
+  }, [buildQuery, refreshKey])
 
-  // Reset to page 1 when filters change
   useEffect(() => { setPage(1) }, [search, agent, category, issueType])
 
   const hasFilters = agent !== 'All agents' || category !== 'All categories' ||
@@ -169,8 +187,21 @@ export default function Submissions() {
     setCategory('All categories'); setIssueType('All issue types')
   }
 
+  function refresh() { setRefreshKey(k => k + 1) }
+
+  function handleUpdated(updated: Row) {
+    setRows(prev => prev.map(r => r.id === updated.id ? updated : r))
+    setSelected(updated)
+  }
+
+  function handleDeleted(id: string) {
+    setRows(prev => prev.filter(r => r.id !== id))
+    setTotal(t => t - 1)
+    setSelected(null)
+    refresh()
+  }
+
   async function exportCSV() {
-    // Paginate through all matching rows (Supabase has a 1000-row server cap)
     const PAGE = 1000
     const all: any[] = []
     let from = 0
@@ -192,7 +223,6 @@ export default function Submissions() {
       from += PAGE
     }
 
-    // Match the source CSV column order exactly (12 cols)
     const header = [
       'Timestamp', 'Agent', 'Email', 'Team', 'Ticket', 'Category', 'Issue type',
       'Customer Input', 'Suggested Response', 'Reasoning', 'Final Edits', 'Notes',
@@ -202,17 +232,9 @@ export default function Submissions() {
       const t = ti.tickets ?? {}
       return [
         ti.logged_at ? formatSourceTimestamp(ti.logged_at) : '',
-        t.agent_name,
-        t.agent_email,
-        t.agent_team,
-        t.ticket_number,
-        t.ticket_category,
-        ti.issue_type,
-        ti.customer_input,
-        ti.suggested_response,
-        ti.reasoning,
-        ti.final_edits,
-        ti.issue_comment,
+        t.agent_name, t.agent_email, t.agent_team, t.ticket_number, t.ticket_category,
+        ti.issue_type, ti.customer_input, ti.suggested_response,
+        ti.reasoning, ti.final_edits, ti.issue_comment,
       ].map(csvField).join(',')
     })
 
@@ -354,7 +376,6 @@ export default function Submissions() {
               <div key={i} style={{
                 height: 20, borderRadius: 6,
                 background: `rgba(0,0,0,${0.04 + (i % 2) * 0.02})`,
-                animation: 'pulse 1.4s ease-in-out infinite',
               }} />
             ))}
           </div>
@@ -367,18 +388,21 @@ export default function Submissions() {
         ) : (
           rows.map((s, i) => {
             const cfg = ISSUE_CONFIG[s.issueType] ?? { bg: 'rgba(0,0,0,0.06)', color: '#58595B' }
+            const isHovered = hoveredId === s.id
             return (
               <div
                 key={s.id}
                 onClick={() => setSelected(s)}
+                onMouseEnter={() => setHoveredId(s.id)}
+                onMouseLeave={() => setHoveredId(null)}
                 style={{
+                  position: 'relative',
                   display: 'grid', gridTemplateColumns: '130px 1fr 160px 180px 1fr',
                   padding: '13px 20px', alignItems: 'center',
                   borderBottom: i < rows.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                   transition: 'background 0.1s', cursor: 'pointer',
+                  background: isHovered ? 'rgba(206,164,255,0.06)' : 'transparent',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(206,164,255,0.06)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <span style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
@@ -403,6 +427,38 @@ export default function Submissions() {
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
                   {s.date}
                 </span>
+
+                {/* Admin row actions — appear on hover */}
+                {isAdmin && isHovered && (
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+                      display: 'flex', gap: 4,
+                    }}
+                  >
+                    <RowActionBtn
+                      title="Edit submission"
+                      color="#58595B"
+                      hoverColor="#000"
+                      onClick={() => setSelected(s)}
+                    >
+                      <EditIcon />
+                    </RowActionBtn>
+                    <RowActionBtn
+                      title="Delete submission"
+                      color="#aaa"
+                      hoverColor="#e53e3e"
+                      onClick={async () => {
+                        if (!window.confirm(`Delete submission for ticket ${s.ticket}? This cannot be undone.`)) return
+                        const { error } = await supabase.from('ticket_issues').delete().eq('id', s.id)
+                        if (!error) handleDeleted(s.id)
+                      }}
+                    >
+                      <TrashIcon />
+                    </RowActionBtn>
+                  </div>
+                )}
               </div>
             )
           })
@@ -413,13 +469,11 @@ export default function Submissions() {
       {totalPages > 1 && !loading && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
           <PageBtn disabled={page === 1} onClick={() => setPage(p => p - 1)}>←</PageBtn>
-          {paginationRange(page, totalPages).map((n, i) =>
+          {paginationRange(page, totalPages).map((n, idx) =>
             n === '…' ? (
-              <span key={`ellipsis-${i}`} style={{ width: 32, textAlign: 'center', color: '#aaa', fontSize: 13 }}>…</span>
+              <span key={`e-${idx}`} style={{ width: 32, textAlign: 'center', color: '#aaa', fontSize: 13 }}>…</span>
             ) : (
-              <PageBtn key={n} active={n === page} onClick={() => setPage(n as number)}>
-                {n}
-              </PageBtn>
+              <PageBtn key={n} active={n === page} onClick={() => setPage(n as number)}>{n}</PageBtn>
             )
           )}
           <PageBtn disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>→</PageBtn>
@@ -428,17 +482,69 @@ export default function Submissions() {
 
       <div style={{ height: 8 }} />
 
-      {selected && <SubmissionModal row={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <SubmissionModal
+          row={selected}
+          isAdmin={isAdmin}
+          onClose={() => setSelected(null)}
+          onUpdated={handleUpdated}
+          onDeleted={handleDeleted}
+        />
+      )}
     </div>
   )
 }
 
-function SubmissionModal({ row, onClose }: { row: Row; onClose: () => void }) {
+// ── Row action button ──────────────────────────────────────────────────────────
+function RowActionBtn({
+  children, title, color, hoverColor, onClick,
+}: {
+  children: React.ReactNode
+  title: string
+  color: string
+  hoverColor: string
+  onClick: () => void
+}) {
+  const [hov, setHov] = useState(false)
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 28, height: 28, borderRadius: 8,
+        border: '1.5px solid rgba(0,0,0,0.09)',
+        background: hov ? (hoverColor === '#e53e3e' ? 'rgba(229,62,62,0.06)' : 'rgba(0,0,0,0.04)') : '#fff',
+        color: hov ? hoverColor : color,
+        cursor: 'pointer', transition: 'all 0.15s',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ── Submission modal ───────────────────────────────────────────────────────────
+function SubmissionModal({
+  row, isAdmin, onClose, onUpdated, onDeleted,
+}: {
+  row: Row
+  isAdmin: boolean
+  onClose: () => void
+  onUpdated: (r: Row) => void
+  onDeleted: (id: string) => void
+}) {
+  const [mode, setMode] = useState<'view' | 'edit' | 'confirmDelete'>('view')
+
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { if (mode !== 'view') setMode('view'); else onClose() }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, mode])
 
   const cfg = ISSUE_CONFIG[row.issueType] ?? { bg: 'rgba(0,0,0,0.06)', color: '#58595B' }
 
@@ -451,17 +557,9 @@ function SubmissionModal({ row, onClose }: { row: Row; onClose: () => void }) {
     { label: 'Timestamp', value: row.loggedAt ? formatDate(row.loggedAt) : '—' },
   ]
 
-  const sections: { label: string; value: string }[] = [
-    { label: 'Customer Input',     value: row.customerInput },
-    { label: 'Suggested Response', value: row.suggestedResponse },
-    { label: 'Reasoning',          value: row.reasoning },
-    { label: 'Final Edits',        value: row.finalEdits },
-    { label: 'Notes',              value: row.notes },
-  ]
-
   return (
     <div
-      onClick={onClose}
+      onClick={() => { if (mode !== 'view') return; onClose() }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -477,82 +575,342 @@ function SubmissionModal({ row, onClose }: { row: Row; onClose: () => void }) {
         }}
       >
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>
-                Ticket {row.ticket}
-              </h2>
-              <span style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                padding: '3px 10px', borderRadius: 100,
-                background: cfg.bg, color: cfg.color,
-              }}>
-                {row.issueType}
-              </span>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>
+                  {mode === 'edit' ? 'Edit Submission' : `Ticket ${row.ticket}`}
+                </h2>
+                {mode === 'view' && (
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                    padding: '3px 10px', borderRadius: 100,
+                    background: cfg.bg, color: cfg.color,
+                  }}>
+                    {row.issueType}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
+                {mode === 'edit'
+                  ? `Ticket ${row.ticket} · ${row.agent}`
+                  : `${row.category} · ${row.loggedAt ? formatDate(row.loggedAt) : 'No timestamp'}`}
+              </p>
             </div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
-              {row.category} · {row.loggedAt ? formatDate(row.loggedAt) : 'No timestamp'}
-            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {/* Admin actions — only in view mode */}
+              {isAdmin && mode === 'view' && (
+                <>
+                  <button
+                    onClick={() => setMode('edit')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '7px 13px', borderRadius: 10,
+                      border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                  >
+                    <EditIcon /> Edit
+                  </button>
+                  <button
+                    onClick={() => setMode('confirmDelete')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '7px 13px', borderRadius: 10,
+                      border: '1.5px solid rgba(229,62,62,0.25)', background: 'rgba(229,62,62,0.04)', color: '#e53e3e',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(229,62,62,0.09)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(229,62,62,0.04)')}
+                  >
+                    <TrashIcon /> Delete
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => { if (mode !== 'view') setMode('view'); else onClose() }}
+                style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 1 }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#000')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#aaa')}
+              >
+                ×
+              </button>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 1 }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#000')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#aaa')}
-          >
-            ×
-          </button>
         </div>
 
-        {/* Body — scrollable */}
-        <div style={{ overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* Metadata grid */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 24px',
-            padding: '14px 16px', background: 'rgba(0,0,0,0.02)',
-            borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)',
-          }}>
-            {meta.map(m => (
-              <div key={m.label}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
-                  {m.label}
+        {/* Delete confirmation */}
+        {mode === 'confirmDelete' && (
+          <DeleteConfirm
+            ticket={row.ticket}
+            onCancel={() => setMode('view')}
+            onConfirm={async () => {
+              const { error } = await supabase.from('ticket_issues').delete().eq('id', row.id)
+              if (!error) onDeleted(row.id)
+            }}
+          />
+        )}
+
+        {/* Edit form */}
+        {mode === 'edit' && (
+          <EditForm
+            row={row}
+            onCancel={() => setMode('view')}
+            onSaved={updated => { onUpdated(updated); setMode('view') }}
+          />
+        )}
+
+        {/* View mode body */}
+        {mode === 'view' && (
+          <div style={{ overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {/* Metadata grid */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 24px',
+              padding: '14px 16px', background: 'rgba(0,0,0,0.02)',
+              borderRadius: 10, border: '1px solid rgba(0,0,0,0.06)',
+            }}>
+              {meta.map(m => (
+                <div key={m.label}>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
+                    {m.label}
+                  </p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', wordBreak: 'break-word' }}>
+                    {m.value || <span style={{ color: '#aaa' }}>—</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Long-form text sections */}
+            {[
+              { label: 'Customer Input',     value: row.customerInput },
+              { label: 'Suggested Response', value: row.suggestedResponse },
+              { label: 'Reasoning',          value: row.reasoning },
+              { label: 'Final Edits',        value: row.finalEdits },
+              { label: 'Notes',              value: row.notes },
+            ].map(s => (
+              <div key={s.label}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                  {s.label}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', wordBreak: 'break-word' }}>
-                  {m.value || <span style={{ color: '#aaa' }}>—</span>}
-                </p>
+                {s.value ? (
+                  <p style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55,
+                    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    background: '#fafafa', border: '1px solid rgba(0,0,0,0.06)',
+                    borderRadius: 10, padding: '12px 14px',
+                  }}>
+                    {s.value}
+                  </p>
+                ) : (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>
+                    Not provided
+                  </p>
+                )}
               </div>
             ))}
           </div>
-
-          {/* Long-form text sections */}
-          {sections.map(s => (
-            <div key={s.label}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                {s.label}
-              </p>
-              {s.value ? (
-                <p style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55,
-                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                  background: '#fafafa', border: '1px solid rgba(0,0,0,0.06)',
-                  borderRadius: 10, padding: '12px 14px',
-                }}>
-                  {s.value}
-                </p>
-              ) : (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>
-                  Not provided
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
+        )}
       </div>
     </div>
   )
 }
 
+// ── Delete confirmation panel ──────────────────────────────────────────────────
+function DeleteConfirm({
+  ticket, onCancel, onConfirm,
+}: {
+  ticket: string
+  onCancel: () => void
+  onConfirm: () => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [err,  setErr]  = useState<string | null>(null)
+
+  async function handleConfirm() {
+    setBusy(true); setErr(null)
+    try { await onConfirm() }
+    catch (e: any) { setErr(e?.message ?? 'Delete failed'); setBusy(false) }
+  }
+
+  return (
+    <div style={{ padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(229,62,62,0.05)', border: '1px solid rgba(229,62,62,0.15)', width: '100%' }}>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 600, color: '#e53e3e', marginBottom: 6 }}>
+          Delete this submission?
+        </p>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.5 }}>
+          This will permanently remove the submission for ticket <strong>{ticket}</strong>. The action cannot be undone.
+        </p>
+      </div>
+      {err && (
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{err}</p>
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={handleConfirm}
+          disabled={busy}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            padding: '8px 16px', borderRadius: 10,
+            background: busy ? 'rgba(229,62,62,0.5)' : '#e53e3e', color: '#fff',
+            border: 'none', cursor: busy ? 'default' : 'pointer', transition: 'all 0.15s',
+          }}
+        >
+          {busy ? 'Deleting…' : 'Yes, delete'}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={busy}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            padding: '8px 16px', borderRadius: 10,
+            border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+          onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Edit form ──────────────────────────────────────────────────────────────────
+function EditForm({
+  row, onCancel, onSaved,
+}: {
+  row: Row
+  onCancel: () => void
+  onSaved: (updated: Row) => void
+}) {
+  const [issueType,         setIssueType]         = useState(row.issueType)
+  const [customerInput,     setCustomerInput]     = useState(row.customerInput)
+  const [suggestedResponse, setSuggestedResponse] = useState(row.suggestedResponse)
+  const [reasoning,         setReasoning]         = useState(row.reasoning)
+  const [finalEdits,        setFinalEdits]        = useState(row.finalEdits)
+  const [notes,             setNotes]             = useState(row.notes)
+  const [saving,            setSaving]            = useState(false)
+  const [err,               setErr]               = useState<string | null>(null)
+
+  async function handleSave() {
+    setSaving(true); setErr(null)
+    const { error } = await supabase.from('ticket_issues').update({
+      issue_type:         issueType         || null,
+      customer_input:     customerInput     || null,
+      suggested_response: suggestedResponse || null,
+      reasoning:          reasoning         || null,
+      final_edits:        finalEdits        || null,
+      issue_comment:      notes             || null,
+    }).eq('id', row.id)
+
+    if (error) { setErr(error.message); setSaving(false); return }
+
+    onSaved({
+      ...row,
+      issueType, customerInput, suggestedResponse, reasoning, finalEdits, notes,
+    })
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
+    padding: '10px 12px', fontSize: 13, color: '#000',
+    fontFamily: 'Inter, sans-serif', lineHeight: 1.5,
+    outline: 'none', resize: 'vertical', transition: 'border-color 0.15s',
+  }
+
+  return (
+    <div style={{ overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Issue type */}
+      <div>
+        <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
+          Issue Type
+        </label>
+        <select
+          value={issueType}
+          onChange={e => setIssueType(e.target.value)}
+          style={{ ...fieldStyle, resize: undefined, cursor: 'pointer' }}
+          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+          onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+        >
+          {ISSUE_TYPE_VALUES.map(t => <option key={t}>{t}</option>)}
+        </select>
+      </div>
+
+      {/* Text fields */}
+      {[
+        { label: 'Customer Input',     value: customerInput,     setter: setCustomerInput,     rows: 3 },
+        { label: 'Suggested Response', value: suggestedResponse, setter: setSuggestedResponse, rows: 4 },
+        { label: 'Reasoning',          value: reasoning,         setter: setReasoning,         rows: 3 },
+        { label: 'Final Edits',        value: finalEdits,        setter: setFinalEdits,        rows: 3 },
+        { label: 'Notes',              value: notes,             setter: setNotes,             rows: 2 },
+      ].map(f => (
+        <div key={f.label}>
+          <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
+            {f.label}
+          </label>
+          <textarea
+            value={f.value}
+            onChange={e => f.setter(e.target.value)}
+            rows={f.rows}
+            placeholder={`Enter ${f.label.toLowerCase()}…`}
+            style={fieldStyle}
+            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+          />
+        </div>
+      ))}
+
+      {err && (
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{err}</p>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 8, paddingTop: 4, paddingBottom: 4 }}>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            padding: '9px 20px', borderRadius: 10,
+            background: saving ? 'rgba(0,0,0,0.4)' : '#000', color: '#fff',
+            border: 'none', cursor: saving ? 'default' : 'pointer', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { if (!saving) e.currentTarget.style.opacity = '0.8' }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+        >
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            padding: '9px 16px', borderRadius: 10,
+            border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+          onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Shared ─────────────────────────────────────────────────────────────────────
 function paginationRange(current: number, total: number): (number | '…')[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
   const pages: (number | '…')[] = [1]
