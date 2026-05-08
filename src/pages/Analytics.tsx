@@ -191,7 +191,9 @@ function categoryStats(rows: DataRow[]) {
       else if (editPct > 25) blocker = 'Product quality'
       else blocker = 'On track'
     }
-    return { name, vol: total, tickets: tickets.size, perfect: perfectPct, edit: editPct, noResp: noRespPct, status, blocker }
+    const majorityPct = pct(majority, total)
+    const partialPct  = pct(partial,  total)
+    return { name, vol: total, tickets: tickets.size, perfect: perfectPct, majority: majorityPct, partial: partialPct, edit: editPct, noResp: noRespPct, status, blocker }
   }).sort((a, b) => b.vol - a.vol)
 }
 
@@ -938,8 +940,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 100px 1fr 90px 80px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-          {['Category', 'Vol', '% of Total', 'Perfect', 'Progress to 90%', 'Edit Rate', 'No Resp'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 90px 90px 90px 80px 1fr', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+          {['Category', 'Vol', '% of Total', 'Perfect', 'Majority', 'Partial', 'No Resp', 'Progress to 90%'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -957,7 +959,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
             <div key={cat.name}>
               <div onClick={() => setExpanded(isExpanded ? null : cat.name)}
                 style={{
-                  display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 100px 1fr 90px 80px',
+                  display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 90px 90px 90px 80px 1fr',
                   padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
                   borderBottom: '1px solid rgba(0,0,0,0.05)',
                   background: isExpanded ? 'rgba(206,164,255,0.06)' : 'transparent',
@@ -972,14 +974,15 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.vol}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{totalVol ? (cat.vol / totalVol * 100).toFixed(1) : '0.0'}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: barColor }}>{cat.perfect}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.majority > 25 ? '#854d0e' : '#58595B' }}>{cat.majority}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.partial > 20 ? '#6b21a8' : '#58595B' }}>{cat.partial}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.noResp > 20 ? '#e53e3e' : '#58595B' }}>{cat.noResp}%</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
                     <div style={{ width: `${Math.min(100, (cat.perfect / 90) * 100)}%`, height: '100%', background: barColor, borderRadius: 100, transition: 'width 0.4s' }} />
                   </div>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: gap === 0 ? '#166534' : '#e53e3e', fontWeight: 500, flexShrink: 0 }}>{gap === 0 ? '✓ Ready' : `−${gap}pp`}</span>
                 </div>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.edit}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.noResp > 20 ? '#e53e3e' : '#58595B' }}>{cat.noResp}%</span>
               </div>
 
               {isExpanded && catAgents.length > 0 && (
