@@ -854,7 +854,7 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
 // ── Category Performance ──────────────────────────────────────────────────────
 
 function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
-  const [range, setRange]       = useState<TimeRange>('last30')
+  const [range, setRange]       = useState<TimeRange>('last7')
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
