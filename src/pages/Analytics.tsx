@@ -974,8 +974,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.vol}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{totalVol ? (cat.vol / totalVol * 100).toFixed(1) : '0.0'}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: barColor }}>{cat.perfect}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.majority > 25 ? '#854d0e' : '#58595B' }}>{cat.majority}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.partial > 20 ? '#6b21a8' : '#58595B' }}>{cat.partial}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.majority > 10 ? '#e53e3e' : '#58595B' }}>{cat.majority}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.partial > 10 ? '#e53e3e' : '#58595B' }}>{cat.partial}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.noResp > 20 ? '#e53e3e' : '#58595B' }}>{cat.noResp}%</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
@@ -1008,8 +1008,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{a.name}</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.issueTotal}</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: agentBarColor, fontWeight: 500 }}>{a.perfect}%</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.majority > 25 ? '#854d0e' : '#58595B' }}>{a.majority}%</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.partial > 20 ? '#6b21a8' : '#58595B' }}>{a.partial}%</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.majority > 10 ? '#e53e3e' : '#58595B' }}>{a.majority}%</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.partial > 10 ? '#e53e3e' : '#58595B' }}>{a.partial}%</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.noResp > 20 ? '#e53e3e' : '#58595B' }}>{a.noResp}%</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
