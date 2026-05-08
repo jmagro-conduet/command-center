@@ -17,8 +17,8 @@ function formatTime(iso: string): string {
 
 const CATEGORIES = [
   'Account access',
-  'Bet dispute',
-  'Bet placement issue',
+  'Bet Dispute',
+  'Bet Placement Issue',
   'Bonus/promotion',
   'Deposit/withdrawal',
   'Game dispute',
@@ -182,13 +182,13 @@ export default function LogTicket() {
     const issues = active.responses.map(r => {
       const type = ISSUE_TYPES.find(t => t.value === r.issueType)
       return {
-        ticket_id:      ticket.id,
-        issue_type:     type?.dbLabel ?? r.issueType,
-        issue_comment:  r.suggestedResponse,
-        customer_input: r.customerInput,
-        reasoning:      r.reasoning || null,
-        final_edits:    r.finalEdits || null,
-        logged_at:      r.loggedAt,
+        ticket_id:         ticket.id,
+        issue_type:        type?.dbLabel ?? r.issueType,
+        customer_input:    r.customerInput,
+        suggested_response: r.suggestedResponse || null,
+        reasoning:         r.reasoning || null,
+        final_edits:       r.finalEdits || null,
+        logged_at:         r.loggedAt,
       }
     })
 
