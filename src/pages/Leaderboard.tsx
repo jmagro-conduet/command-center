@@ -233,7 +233,7 @@ function TeamAdoptionCard({
 // ── Main export ────────────────────────────────────────────────────────────────
 export default function Leaderboard() {
   const { user } = useAuth()
-  const [range, setRange]       = useState<TimeRange>('last30')
+  const [range, setRange]       = useState<TimeRange>('last7')
   const [allRows, setAllRows]   = useState<DataRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [zdAgents, setZdAgents]   = useState<{ email: string; count: number }[] | null>(null)
