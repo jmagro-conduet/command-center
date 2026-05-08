@@ -346,8 +346,28 @@ export default function Leaderboard() {
         partial:  pct(partial, total),
         noResp:   pct(noResp, total),
       }
-    }).sort((a, b) => b.tickets - a.tickets)
+    }).sort((a, b) => b.tickets - a.tickets)   // initial sort; re-ranked below once ZD data arrives
   }, [rows, allRows, days])
+
+  // Agents ranked by adoption % (gameLM tickets / ZD tickets).
+  // Falls back to ticket count sort when ZD data is unavailable.
+  const rankedAgents = useMemo(() => {
+    return [...agents]
+      .map(a => {
+        const zdTickets  = zdAgents ? matchZD(a.email, zdAgents) : null
+        const adoptionPct = zdTickets && zdTickets > 0 ? (a.tickets / zdTickets) * 100 : null
+        return { ...a, zdTickets, adoptionPct }
+      })
+      .sort((a, b) => {
+        // Both have adoption %: sort descending
+        if (a.adoptionPct !== null && b.adoptionPct !== null) return b.adoptionPct - a.adoptionPct
+        // One has %, one doesn't: ranked agent wins
+        if (a.adoptionPct !== null) return -1
+        if (b.adoptionPct !== null) return 1
+        // Neither has ZD data: fall back to ticket count
+        return b.tickets - a.tickets
+      })
+  }, [agents, zdAgents])
 
   // Team totals
   const teamGameLM = useMemo(() => {
@@ -460,10 +480,10 @@ export default function Leaderboard() {
         </div>
 
         {/* Agent rows */}
-        {agents.map((a, i) => {
+        {rankedAgents.map((a, i) => {
           const isMe = user?.name?.toLowerCase().trim() === a.name.toLowerCase().trim()
-          const zdTickets = zdAgents ? matchZD(a.email, zdAgents) : null
-          const adoptionRaw = zdTickets && zdTickets > 0 ? (a.tickets / zdTickets) * 100 : null
+          const zdTickets  = a.zdTickets
+          const adoptionRaw = a.adoptionPct
 
           return (
             <div
@@ -473,7 +493,7 @@ export default function Leaderboard() {
                 gridTemplateColumns: '44px 1fr 90px 110px 90px 100px 90px 100px',
                 padding: '13px 24px',
                 alignItems: 'center',
-                borderBottom: i < agents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                borderBottom: i < rankedAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                 background: isMe
                   ? 'linear-gradient(90deg, rgba(206,164,255,0.10) 0%, rgba(206,164,255,0.04) 100%)'
                   : 'transparent',
