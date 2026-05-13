@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
-type TimeRange = 'last7' | 'last30' | 'lastQuarter'
+type TimeRange = 'last7' | 'last14' | 'last30' | 'lastQuarter'
 
 interface DataRow {
   loggedAt:     string | null
@@ -19,7 +19,7 @@ function rowDate(r: DataRow): Date {
 }
 
 function rangeDays(range: TimeRange) {
-  return range === 'last7' ? 7 : range === 'last30' ? 30 : 90
+  return range === 'last7' ? 7 : range === 'last14' ? 14 : range === 'last30' ? 30 : 90
 }
 
 function cutoff(days: number) {
@@ -130,7 +130,7 @@ function TeamAdoptionCard({
   zdError: string | null
   range: TimeRange
 }) {
-  const rangeLabel = range === 'last7' ? 'Last 7 days' : range === 'last30' ? 'Last 30 days' : 'Last quarter'
+  const rangeLabel = range === 'last7' ? 'Last 7 days' : range === 'last14' ? 'Last 14 days' : range === 'last30' ? 'Last 30 days' : 'Last quarter'
 
   const adoptionPct = zdTotal && zdTotal > 0 ? (gameLMTotal / zdTotal) * 100 : null
   const clampedPct  = adoptionPct !== null ? Math.min(adoptionPct, 100) : 0
@@ -387,8 +387,9 @@ export default function Leaderboard() {
   }
 
   const rangeOpts: { id: TimeRange; label: string }[] = [
-    { id: 'last7',       label: 'Last 7'   },
-    { id: 'last30',      label: 'Last 30'  },
+    { id: 'last7',       label: 'Last 7'       },
+    { id: 'last14',      label: 'Last 14'      },
+    { id: 'last30',      label: 'Last 30'      },
     { id: 'lastQuarter', label: 'Last Quarter' },
   ]
 
@@ -444,7 +445,7 @@ export default function Leaderboard() {
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
               Agent Performance —{' '}
               <span style={{ color: '#9B59D0' }}>
-                {range === 'last7' ? 'Last 7' : range === 'last30' ? 'Last 30' : 'Last Quarter'}
+                {range === 'last7' ? 'Last 7' : range === 'last14' ? 'Last 14' : range === 'last30' ? 'Last 30' : 'Last Quarter'}
               </span>
             </p>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
