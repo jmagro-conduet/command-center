@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -27,6 +27,13 @@ const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
 
 const CATEGORIES = ['General', 'Processes', 'SOPs', 'Zendesk']
 
+const ACCEPTED_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+].join(',')
+
 function catStyle(cat: string): { bg: string; color: string } {
   return CATEGORY_COLORS[cat] ?? { bg: 'rgba(0,0,0,0.07)', color: '#58595B' }
 }
@@ -38,6 +45,16 @@ function fileTypeLabel(fileType: string | null): string | null {
   if (fileType.includes('spreadsheetml') || fileType.includes('xlsx')) return 'XLSX'
   if (fileType.includes('presentationml') || fileType.includes('pptx')) return 'PPTX'
   return 'FILE'
+}
+
+function isPdf(fileType: string | null) {
+  return !!fileType?.includes('pdf')
+}
+
+function embedUrl(fileUrl: string, fileType: string | null): string {
+  if (isPdf(fileType)) return fileUrl
+  // Google Docs Viewer for Office formats
+  return `https://docs.google.com/viewer?url=${encodeURIComponent(fileUrl)}&embedded=true`
 }
 
 const inputStyle: React.CSSProperties = {
@@ -76,13 +93,19 @@ export default function Learn() {
   const [readTarget, setReadTarget] = useState<KBArticle | null>(null)
   const [saving, setSaving]     = useState(false)
 
-  // form
+  // form fields
   const [formTitle,    setFormTitle]    = useState('')
   const [formCat,      setFormCat]      = useState('General')
   const [formBody,     setFormBody]     = useState('')
   const [formFileUrl,  setFormFileUrl]  = useState('')
   const [formFileName, setFormFileName] = useState('')
   const [formFileType, setFormFileType] = useState('')
+
+  // upload state
+  const [uploading,    setUploading]    = useState(false)
+  const [uploadError,  setUploadError]  = useState('')
+  const [uploadPct,    setUploadPct]    = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { loadArticles() }, [])
 
@@ -102,6 +125,7 @@ export default function Learn() {
     setEditTarget(null)
     setFormTitle(''); setFormCat('General'); setFormBody('')
     setFormFileUrl(''); setFormFileName(''); setFormFileType('')
+    setUploadError(''); setUploadPct(0)
     setView('create')
   }
 
@@ -109,20 +133,50 @@ export default function Learn() {
     setEditTarget(a)
     setFormTitle(a.title); setFormCat(a.category); setFormBody(a.content)
     setFormFileUrl(a.file_url ?? ''); setFormFileName(a.file_name ?? ''); setFormFileType(a.file_type ?? '')
+    setUploadError(''); setUploadPct(0)
     setView('edit')
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    setUploadError('')
+    setUploadPct(0)
+
+    const ext  = file.name.split('.').pop()
+    const path = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+
+    const { error } = await supabase.storage
+      .from('learn-docs')
+      .upload(path, file, { upsert: false, contentType: file.type })
+
+    if (error) {
+      setUploadError(error.message)
+      setUploading(false)
+      return
+    }
+
+    const { data: urlData } = supabase.storage.from('learn-docs').getPublicUrl(path)
+    setFormFileUrl(urlData.publicUrl)
+    setFormFileName(file.name)
+    setFormFileType(file.type)
+    setUploadPct(100)
+    setUploading(false)
+
+    // clear the input so the same file can be re-selected if needed
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function clearFile() {
+    setFormFileUrl(''); setFormFileName(''); setFormFileType('')
+    setUploadPct(0); setUploadError('')
   }
 
   async function handleSave(publish: boolean) {
     if (!user || !formTitle.trim()) return
     setSaving(true)
-
-    // Derive file_type from URL if not manually set
-    let resolvedFileType = formFileType.trim()
-    if (!resolvedFileType && formFileUrl.trim()) {
-      const lower = formFileUrl.toLowerCase()
-      if (lower.endsWith('.pdf')) resolvedFileType = 'application/pdf'
-      else if (lower.endsWith('.docx')) resolvedFileType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    }
 
     const payload = {
       title:        formTitle.trim(),
@@ -131,9 +185,9 @@ export default function Learn() {
       is_published: publish,
       updated_by:   user.email,
       updated_at:   new Date().toISOString(),
-      file_url:     formFileUrl.trim()  || null,
-      file_name:    formFileName.trim() || null,
-      file_type:    resolvedFileType    || null,
+      file_url:     formFileUrl  || null,
+      file_name:    formFileName || null,
+      file_type:    formFileType || null,
     }
     if (editTarget) {
       const { error } = await supabase.from('kb_articles').update(payload).eq('id', editTarget.id)
@@ -159,20 +213,21 @@ export default function Learn() {
   }
 
   const categories = ['All', ...Array.from(new Set(articles.map(a => a.category))).sort()]
-
-  const filtered = articles.filter(a => {
+  const filtered   = articles.filter(a => {
     if (filter !== 'All' && a.category !== filter) return false
     if (search && !a.title.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
-
   const groupedCats = Array.from(new Set(filtered.map(a => a.category))).sort()
 
   // ── Read view ────────────────────────────────────────────────────────────────
   if (view === 'read' && readTarget) {
     const ftLabel = fileTypeLabel(readTarget.file_type)
+    const hasEmbed = !!readTarget.file_url
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <button onClick={() => { setView('list'); setReadTarget(null) }} style={{ ...secondaryBtn, marginBottom: 12 }}>
@@ -199,71 +254,54 @@ export default function Learn() {
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
             {readTarget.file_url && (
               <a
                 href={readTarget.file_url}
                 target="_blank"
                 rel="noreferrer"
-                style={{
-                  ...primaryBtn,
-                  textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}
+                style={{ ...secondaryBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                   <polyline points="15 3 21 3 21 9"/>
                   <line x1="10" y1="14" x2="21" y2="3"/>
                 </svg>
-                {ftLabel === 'PDF' ? 'Open PDF' : ftLabel ? `Open ${ftLabel}` : 'Open file'}
+                Open in new tab
               </a>
             )}
             {isAdmin && (
-              <button onClick={() => { openEdit(readTarget) }} style={secondaryBtn}>Edit article</button>
+              <button onClick={() => openEdit(readTarget)} style={secondaryBtn}>Edit article</button>
             )}
           </div>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28 }}>
-          {readTarget.file_url && !readTarget.content && (
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: 14, padding: '32px 0', color: '#58595B',
-            }}>
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#CEA4FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-              </svg>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', margin: 0 }}>
-                This article is a {ftLabel ?? 'file'} attachment.
-              </p>
-              <a
-                href={readTarget.file_url}
-                target="_blank"
-                rel="noreferrer"
-                style={{ ...primaryBtn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                  <polyline points="15 3 21 3 21 9"/>
-                  <line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
-                Open {readTarget.file_name ?? (ftLabel ? `${ftLabel} file` : 'file')}
-              </a>
-            </div>
-          )}
-          {readTarget.content && (
+        {/* Embedded doc viewer */}
+        {hasEmbed && (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+            <iframe
+              src={embedUrl(readTarget.file_url!, readTarget.file_type)}
+              style={{ width: '100%', height: '78vh', border: 'none', display: 'block' }}
+              title={readTarget.title}
+              allow="fullscreen"
+            />
+          </div>
+        )}
+
+        {/* Written content (shown below embed if both exist) */}
+        {readTarget.content && (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28 }}>
             <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
               {readTarget.content}
             </div>
-          )}
-          {!readTarget.file_url && !readTarget.content && (
+          </div>
+        )}
+
+        {!hasEmbed && !readTarget.content && (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
             <em style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#aaa' }}>No content yet.</em>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -311,45 +349,91 @@ export default function Learn() {
             </div>
           </div>
 
-          {/* File attachment section */}
-          <div style={{
-            border: '1.5px dashed rgba(206,164,255,0.5)', borderRadius: 10, padding: 16,
-            background: 'rgba(206,164,255,0.04)', display: 'flex', flexDirection: 'column', gap: 12,
-          }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', margin: 0, letterSpacing: '0.04em' }}>
-              📎 FILE ATTACHMENT (optional)
-            </p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', margin: 0 }}>
-              Upload the file to Supabase Storage (Learn → admin) and paste the public URL below.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>File URL</label>
-                <input
-                  value={formFileUrl}
-                  onChange={e => setFormFileUrl(e.target.value)}
-                  placeholder="https://your-project.supabase.co/storage/v1/object/public/…"
-                  style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
+          {/* File upload */}
+          <div>
+            <label style={labelStyle}>
+              Document <span style={{ fontWeight: 400, color: '#aaa' }}>(PDF, DOCX, XLSX, PPTX — optional)</span>
+            </label>
+
+            {formFileUrl ? (
+              /* Uploaded file pill */
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                border: '1.5px solid rgba(22,101,52,0.3)', borderRadius: 10,
+                padding: '10px 14px', background: 'rgba(22,101,52,0.04)',
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {formFileName || 'Uploaded file'}
+                </span>
+                <button
+                  onClick={clearFile}
+                  style={{ color: '#aaa', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
+                  title="Remove file"
+                >×</button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ ...secondaryBtn, padding: '5px 12px', fontSize: 12, flexShrink: 0 }}
+                >
+                  Replace
+                </button>
               </div>
-              <div>
-                <label style={labelStyle}>Display file name</label>
-                <input
-                  value={formFileName}
-                  onChange={e => setFormFileName(e.target.value)}
-                  placeholder="e.g. SOP_Chargebacks.pdf"
-                  style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
+            ) : (
+              /* Drop zone / upload button */
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: '1.5px dashed rgba(206,164,255,0.6)', borderRadius: 10,
+                  padding: '28px 20px', background: 'rgba(206,164,255,0.04)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                  cursor: uploading ? 'default' : 'pointer', transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (!uploading) e.currentTarget.style.background = 'rgba(206,164,255,0.09)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(206,164,255,0.04)' }}
+              >
+                {uploading ? (
+                  <>
+                    <div style={{ width: '100%', maxWidth: 220, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                      <div style={{ width: `${uploadPct}%`, height: '100%', background: '#9B59D0', borderRadius: 100, transition: 'width 0.3s' }} />
+                    </div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', margin: 0 }}>Uploading…</p>
+                  </>
+                ) : (
+                  <>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#CEA4FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 16 12 12 8 16"/>
+                      <line x1="12" y1="12" x2="12" y2="21"/>
+                      <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                    </svg>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', margin: 0 }}>
+                      Click to upload a file
+                    </p>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', margin: 0 }}>
+                      PDF, DOCX, XLSX, PPTX
+                    </p>
+                  </>
+                )}
               </div>
-            </div>
+            )}
+
+            {uploadError && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 6 }}>{uploadError}</p>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_TYPES}
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+            />
           </div>
 
           <div>
-            <label style={labelStyle}>Article content <span style={{ fontWeight: 400, color: '#aaa' }}>(optional if file attached)</span></label>
+            <label style={labelStyle}>Article content <span style={{ fontWeight: 400, color: '#aaa' }}>(optional if file uploaded)</span></label>
             <textarea
               value={formBody}
               onChange={e => setFormBody(e.target.value)}
@@ -365,15 +449,15 @@ export default function Learn() {
             <button onClick={() => setView('list')} style={secondaryBtn}>Cancel</button>
             <button
               onClick={() => handleSave(false)}
-              disabled={!formTitle || saving}
-              style={{ ...secondaryBtn, opacity: formTitle && !saving ? 1 : 0.4 }}
+              disabled={!formTitle || saving || uploading}
+              style={{ ...secondaryBtn, opacity: formTitle && !saving && !uploading ? 1 : 0.4 }}
             >
               Save as draft
             </button>
             <button
               onClick={() => handleSave(true)}
-              disabled={!formTitle || saving}
-              style={{ ...primaryBtn, opacity: formTitle && !saving ? 1 : 0.4, cursor: formTitle && !saving ? 'pointer' : 'default' }}
+              disabled={!formTitle || saving || uploading}
+              style={{ ...primaryBtn, opacity: formTitle && !saving && !uploading ? 1 : 0.4, cursor: formTitle && !saving && !uploading ? 'pointer' : 'default' }}
             >
               {saving ? 'Saving…' : 'Publish'}
             </button>
