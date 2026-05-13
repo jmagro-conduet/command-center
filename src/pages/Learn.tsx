@@ -145,7 +145,6 @@ export default function Learn() {
     setUploadError('')
     setUploadPct(0)
 
-    const ext  = file.name.split('.').pop()
     const path = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
 
     const { error } = await supabase.storage
