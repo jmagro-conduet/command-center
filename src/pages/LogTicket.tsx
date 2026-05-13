@@ -24,7 +24,9 @@ const CATEGORIES = [
   'Game dispute',
   'KYC/verification',
   'Responsible gaming',
+  'Tax / W2',
   'Technical issue',
+  'Win-Loss Statement',
   'Other',
 ]
 
@@ -49,6 +51,7 @@ interface TabState {
   id: number
   ticketNumber: string
   category: string
+  otherDetail: string
   notes: string
   responses: GamLMResponse[]
   draftCustomer: string
@@ -61,7 +64,7 @@ interface TabState {
 function newTab(id: number): TabState {
   return {
     id,
-    ticketNumber: '', category: '', notes: '', responses: [],
+    ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '',
   }
@@ -163,12 +166,13 @@ export default function LogTicket() {
     const { data: ticket, error: ticketErr } = await supabase
       .from('tickets')
       .insert({
-        ticket_number:   active.ticketNumber.trim(),
-        ticket_category: active.category,
-        agent_name:      user?.name ?? '',
-        agent_email:     user?.email ?? '',
-        agent_team:      user?.operatorTeam ?? null,
-        notes:           active.notes.trim(),
+        ticket_number:          active.ticketNumber.trim(),
+        ticket_category:        active.category,
+        other_category_detail:  active.category === 'Other' ? active.otherDetail.trim() : null,
+        agent_name:             user?.name ?? '',
+        agent_email:            user?.email ?? '',
+        agent_team:             user?.operatorTeam ?? null,
+        notes:                  active.notes.trim(),
       })
       .select('id')
       .single()
@@ -219,7 +223,10 @@ export default function LogTicket() {
   const ticketValid    = validateTicketNumber(active.ticketNumber) === null
   const canAddResponse = active.draftCustomer.trim() && active.draftSuggested.trim() &&
     active.draftIssueType && (!needsReasoning || active.draftReasoning.trim())
-  const canSubmit      = ticketValid && active.category && active.responses.length > 0
+  const otherDetailRequired = active.category === 'Other'
+  const canSubmit      = ticketValid && active.category &&
+    (!otherDetailRequired || active.otherDetail.trim().length > 0) &&
+    active.responses.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -279,48 +286,70 @@ export default function LogTicket() {
         <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
           Ticket details
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
-              Ticket number <span style={{ color: '#e53e3e' }}>*</span>
-            </label>
-            <div style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+                Ticket number <span style={{ color: '#e53e3e' }}>*</span>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={active.ticketNumber}
+                  onChange={e => handleTicketNumberChange(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="e.g. 10482"
+                  maxLength={TICKET_MAX}
+                  style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                />
+                {active.ticketNumber.length > 0 && (
+                  <span style={{
+                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                    fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
+                    pointerEvents: 'none',
+                  }}>
+                    {active.ticketNumber.length}/{TICKET_MAX}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+                Contact / ticket category <span style={{ color: '#e53e3e' }}>*</span>
+              </label>
+              <select
+                value={active.category}
+                onChange={e => updateActive({ category: e.target.value, otherDetail: '' })}
+                style={{ ...inputStyle, color: active.category ? '#000' : '#aaa' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+              >
+                <option value="">Select category</option>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* "Other" detail — required when Other is selected */}
+          {active.category === 'Other' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+                Please describe what this ticket is about <span style={{ color: '#e53e3e' }}>*</span>
+              </label>
               <input
-                value={active.ticketNumber}
-                onChange={e => handleTicketNumberChange(e.target.value)}
-                inputMode="numeric"
-                placeholder="e.g. 10482"
-                maxLength={TICKET_MAX}
+                value={active.otherDetail}
+                onChange={e => updateActive({ otherDetail: e.target.value })}
+                placeholder="e.g. Settlement delay inquiry, wager cancellation request…"
                 style={inputStyle}
                 onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
-              {active.ticketNumber.length > 0 && (
-                <span style={{
-                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
-                  pointerEvents: 'none',
-                }}>
-                  {active.ticketNumber.length}/{TICKET_MAX}
-                </span>
-              )}
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+                This helps us identify new use cases and improve categorisation over time.
+              </span>
             </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
-              Contact / ticket category <span style={{ color: '#e53e3e' }}>*</span>
-            </label>
-            <select
-              value={active.category}
-              onChange={e => updateActive({ category: e.target.value })}
-              style={{ ...inputStyle, color: active.category ? '#000' : '#aaa' }}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-            >
-              <option value="">Select category</option>
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
+          )}
         </div>
       </div>
 

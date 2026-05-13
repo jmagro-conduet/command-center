@@ -24,6 +24,11 @@ const CATEGORY_CANONICAL: Record<string, string> = {
   'technical issue':     'Technical issue',
   'game dispute':        'Game dispute',
   'responsible gaming':  'Responsible gaming',
+  'tax / w2':            'Tax / W2',
+  'tax/w2':              'Tax / W2',
+  'win-loss statement':  'Win-Loss Statement',
+  'win loss statement':  'Win-Loss Statement',
+  'uncategorized':       'Other',
   'other':               'Other',
 }
 
