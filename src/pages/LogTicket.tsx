@@ -372,7 +372,7 @@ export default function LogTicket() {
             />
           </Field>
 
-          <Field label="Suggested response" required>
+          <Field label="gameLM suggested response" required>
             <textarea
               value={active.draftSuggested}
               onChange={e => updateActive({ draftSuggested: e.target.value })}
