@@ -355,7 +355,7 @@ export default function Leaderboard() {
     return [...agents]
       .map(a => {
         const zdTickets  = zdAgents ? matchZD(a.email, zdAgents) : null
-        const adoptionPct = zdTickets && zdTickets > 0 ? (a.tickets / zdTickets) * 100 : null
+        const adoptionPct = zdTickets && zdTickets > 0 ? Math.min((a.tickets / zdTickets) * 100, 100) : null
         return { ...a, zdTickets, adoptionPct }
       })
       .sort((a, b) => {
