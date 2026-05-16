@@ -276,7 +276,7 @@ export default function Leaderboard() {
     let cancelled = false
     async function fetchZd() {
       setZdLoading(true); setZdError(null)
-      const end   = new Date()
+      const end   = new Date(); end.setDate(end.getDate() + 1) // +1 so ZD's date filter covers all of today
       const start = new Date(); start.setDate(start.getDate() - rangeDays(range))
       try {
         const { data, error } = await supabase.functions.invoke('zendesk-tickets', {
