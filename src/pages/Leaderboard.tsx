@@ -15,7 +15,10 @@ interface DataRow {
 }
 
 function rowDate(r: DataRow): Date {
-  return new Date(r.issuedAt ?? r.loggedAt ?? r.createdAt)
+  // Prefer logged_at (when the response was actually worked) over the DB
+  // insert time (issuedAt/createdAt), so late-submitted drafts don't inflate
+  // the current window and gameLM date windows align with ZD's.
+  return new Date(r.loggedAt ?? r.issuedAt ?? r.createdAt)
 }
 
 function rangeDays(range: TimeRange) {
