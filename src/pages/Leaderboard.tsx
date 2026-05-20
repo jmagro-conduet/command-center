@@ -242,12 +242,25 @@ export default function Leaderboard() {
   const [zdAgents, setZdAgents]   = useState<{ email: string; count: number }[] | null>(null)
   const [zdLoading, setZdLoading] = useState(false)
   const [zdError, setZdError]     = useState<string | null>(null)
+  const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set())
 
   // Team ZD total = sum of per-agent counts only (excludes other brands / unassigned)
   const zdCount = useMemo(
     () => zdAgents ? zdAgents.reduce((s, a) => s + a.count, 0) : null,
     [zdAgents]
   )
+
+  // Fetch admin emails once — admins are excluded from the leaderboard roster
+  // but their ticket submissions are retained in the DB and team totals.
+  useEffect(() => {
+    supabase
+      .from('users')
+      .select('email')
+      .eq('role', 'admin')
+      .then(({ data }) => {
+        if (data) setAdminEmails(new Set(data.map((u: any) => u.email?.toLowerCase()).filter(Boolean)))
+      })
+  }, [])
 
   // Fetch gameLM data once
   useEffect(() => {
@@ -313,12 +326,15 @@ export default function Leaderboard() {
 
   const days = rangeDays(range)
 
-  // Per-agent stats — roster built from allRows so inactive agents still appear
+  // Per-agent stats — roster built from allRows so inactive agents still appear.
+  // Admins are excluded from the visible roster (their tickets still count toward team totals).
   const agents = useMemo(() => {
-    // Full agent roster (all time)
+    // Full agent roster (all time), excluding admin accounts
     const roster = new Map<string, string>() // name -> email
     for (const r of allRows) {
-      if (r.agentName && !roster.has(r.agentName)) roster.set(r.agentName, r.agentEmail)
+      if (r.agentName && !roster.has(r.agentName) && !adminEmails.has(r.agentEmail?.toLowerCase())) {
+        roster.set(r.agentName, r.agentEmail)
+      }
     }
 
     // Period stats
@@ -350,7 +366,7 @@ export default function Leaderboard() {
         noResp:   pct(noResp, total),
       }
     }).sort((a, b) => b.tickets - a.tickets)   // initial sort; re-ranked below once ZD data arrives
-  }, [rows, allRows, days])
+  }, [rows, allRows, days, adminEmails])
 
   // Agents ranked by adoption % (gameLM tickets / ZD tickets).
   // Falls back to ticket count sort when ZD data is unavailable.
