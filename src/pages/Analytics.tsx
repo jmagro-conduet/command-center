@@ -1092,20 +1092,22 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
           )
         })}
 
-        <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Perfect rate:</span>
-          {[
-            { color: '#166534', label: 'Ready', range: '80%+' },
-            { color: '#854d0e', label: 'Almost', range: '70–80%' },
-            { color: '#f97316', label: 'Getting there', range: '50–70%' },
-            { color: '#e53e3e', label: 'Not ready', range: '<50%' },
-          ].map(l => (
-            <span key={l.label} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, display: 'inline-block', flexShrink: 0 }} />
-              <strong style={{ color: l.color }}>{l.label}</strong> {l.range}
-            </span>
-          ))}
-          <span style={{ marginLeft: 'auto', fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic' }}>
+        <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Perfect rate:</span>
+            {[
+              { color: '#166534', label: 'Ready', range: '80%+' },
+              { color: '#854d0e', label: 'Almost', range: '70–80%' },
+              { color: '#f97316', label: 'Getting there', range: '50–70%' },
+              { color: '#e53e3e', label: 'Not ready', range: '<50%' },
+            ].map(l => (
+              <span key={l.label} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, display: 'inline-block', flexShrink: 0 }} />
+                <strong style={{ color: l.color }}>{l.label}</strong> {l.range}
+              </span>
+            ))}
+          </div>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic' }}>
             * Quality % excludes No Response. Categories are assigned at the ticket level — a small margin of error exists where a ticket may contain inputs across multiple categories.
           </span>
         </div>
