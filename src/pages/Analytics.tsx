@@ -867,6 +867,7 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
 function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange]       = useState<TimeRange>('last7')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [showInfo, setShowInfo] = useState(false)
 
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const days = useMemo(() => effectiveDays(rows, range), [rows, range])
@@ -899,15 +900,65 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>Autopilot Readiness</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
-              Track each category toward the 80% perfect rate needed for full gameLM automation
-            </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showInfo ? 16 : 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>Autopilot Readiness</p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+                Track each category toward the 80% perfect rate needed for full gameLM automation
+              </p>
+            </div>
+            <button
+              onClick={() => setShowInfo(s => !s)}
+              title="How to read this"
+              style={{
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                border: showInfo ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.15)',
+                background: showInfo ? 'rgba(155,89,208,0.08)' : 'transparent',
+                color: showInfo ? '#9B59D0' : '#58595B',
+                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                cursor: 'pointer', transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginTop: 2,
+              }}
+            >
+              ⓘ
+            </button>
           </div>
           <TimeRangeFilter value={range} onChange={setRange} />
         </div>
+
+        {showInfo && (
+          <div style={{
+            marginBottom: 20, padding: 16, borderRadius: 12,
+            background: 'rgba(155,89,208,0.04)', border: '1.5px solid rgba(155,89,208,0.15)',
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+              {[
+                {
+                  title: 'Perfect / Majority / Partial',
+                  color: '#166534',
+                  body: 'These three always sum to 100%. They measure how well gameLM responded on interactions it actually attempted — No Response is excluded from the denominator. The 80% Perfect threshold is the Full Auto readiness target.',
+                },
+                {
+                  title: 'Escalation Rate',
+                  color: '#e53e3e',
+                  body: 'Ticket-level metric: the % of tickets in this category where at least one interaction got No Response — meaning gameLM had no answer and a human had to step in. Note: because categories are set at the ticket level, a small % of escalations may belong to a different topic that slipped into the ticket.',
+                },
+                {
+                  title: 'Full Auto Readiness',
+                  color: '#9B59D0',
+                  body: 'A category needs both signals healthy before going live: quality score ≥ 80% and a low escalation rate. High quality + high escalation means gameLM is strong on what it knows but still hits too many gaps. Both must clear the bar.',
+                },
+              ].map(s => (
+                <div key={s.title}>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: s.color, marginBottom: 5 }}>{s.title}</p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.6 }}>{s.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
