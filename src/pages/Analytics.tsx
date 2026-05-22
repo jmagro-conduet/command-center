@@ -171,34 +171,40 @@ function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number) 
 }
 
 function categoryStats(rows: DataRow[]) {
-  const map = new Map<string, { counts: Record<string, number>; tickets: Set<string> }>()
+  const map = new Map<string, { counts: Record<string, number>; tickets: Set<string>; noRespTickets: Set<string> }>()
   for (const r of rows) {
     const cat = r.category || 'Uncategorized'
-    if (!map.has(cat)) map.set(cat, { counts: {}, tickets: new Set() })
+    if (!map.has(cat)) map.set(cat, { counts: {}, tickets: new Set(), noRespTickets: new Set() })
     const entry = map.get(cat)!
     entry.counts[r.issueType] = (entry.counts[r.issueType] ?? 0) + 1
     entry.tickets.add(r.ticketNumber)
+    if (r.issueType === 'No response') entry.noRespTickets.add(r.ticketNumber)
   }
-  return [...map.entries()].map(([name, { counts, tickets }]) => {
-    const total    = Object.values(counts).reduce((a, b) => a + b, 0)
-    const perfect  = counts['Perfect'] ?? 0
+  return [...map.entries()].map(([name, { counts, tickets, noRespTickets }]) => {
+    const perfect  = counts['Perfect']       ?? 0
     const majority = counts['Majority edit'] ?? 0
-    const partial  = counts['Partial edit'] ?? 0
-    const noResp   = counts['No response'] ?? 0
-    const perfectPct = pct(perfect, total)
-    const editPct    = pct(majority + partial, total)
-    const noRespPct  = pct(noResp, total)
-    const status = total < 10 ? 'low-data' : perfectPct >= 80 ? 'ready' : perfectPct >= 70 ? 'almost' : 'not-ready'
+    const partial  = counts['Partial edit']  ?? 0
+    const noResp   = counts['No response']   ?? 0
+    const vol          = perfect + majority + partial + noResp  // total issue rows (for volume display)
+    const qualityDenom = perfect + majority + partial           // excludes No Response
+
+    // Quality %s: how well gameLM responds when it does respond — sums to 100%
+    const perfectPct  = pct(perfect,  qualityDenom)
+    const majorityPct = pct(majority, qualityDenom)
+    const partialPct  = pct(partial,  qualityDenom)
+
+    // Escalation rate: tickets with ≥1 No Response / total tickets (ticket-level signal)
+    const escalationRate = pct(noRespTickets.size, tickets.size)
+
+    const status = vol < 10 ? 'low-data' : perfectPct >= 80 ? 'ready' : perfectPct >= 70 ? 'almost' : 'not-ready'
     let blocker = 'Need more data'
-    if (total >= 10) {
-      if (noRespPct > 20 && editPct > 20) blocker = 'Product + Coverage'
-      else if (noRespPct > 20) blocker = 'Coverage gap'
-      else if (editPct > 25) blocker = 'Product quality'
+    if (vol >= 10) {
+      if (escalationRate > 20 && perfectPct < 70) blocker = 'Quality + Escalation'
+      else if (escalationRate > 20) blocker = 'High escalation rate'
+      else if (perfectPct < 70) blocker = 'Response quality'
       else blocker = 'On track'
     }
-    const majorityPct = pct(majority, total)
-    const partialPct  = pct(partial,  total)
-    return { name, vol: total, tickets: tickets.size, perfect: perfectPct, majority: majorityPct, partial: partialPct, edit: editPct, noResp: noRespPct, status, blocker }
+    return { name, vol, tickets: tickets.size, perfect: perfectPct, majority: majorityPct, partial: partialPct, escalationRate, status, blocker }
   }).sort((a, b) => b.vol - a.vol)
 }
 
@@ -872,11 +878,15 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const lowData  = cats.filter(c => c.status === 'low-data').length
   const total    = cats.length
 
-  const totalIssues = rows.length
-  const overallPerfect  = totalIssues ? Math.round(rows.filter(r => r.issueType === 'Perfect').length / totalIssues * 100) : 0
-  const overallMajority = totalIssues ? Math.round(rows.filter(r => r.issueType === 'Majority edit').length / totalIssues * 100) : 0
-  const overallPartial  = totalIssues ? Math.round(rows.filter(r => r.issueType === 'Partial edit').length / totalIssues * 100) : 0
-  const overallNoResp   = totalIssues ? Math.round(rows.filter(r => r.issueType === 'No response').length / totalIssues * 100) : 0
+  const totalIssues   = rows.length
+  const qualityIssues = rows.filter(r => r.issueType !== 'No response').length
+  const overallPerfect  = qualityIssues ? Math.round(rows.filter(r => r.issueType === 'Perfect').length      / qualityIssues * 100) : 0
+  const overallMajority = qualityIssues ? Math.round(rows.filter(r => r.issueType === 'Majority edit').length / qualityIssues * 100) : 0
+  const overallPartial  = qualityIssues ? Math.round(rows.filter(r => r.issueType === 'Partial edit').length  / qualityIssues * 100) : 0
+  // Escalation rate: tickets with ≥1 No Response / all tickets (ticket-level, not issue-level)
+  const allTicketNums        = new Set(rows.map(r => r.ticketNumber))
+  const escalatedTicketNums  = new Set(rows.filter(r => r.issueType === 'No response').map(r => r.ticketNumber))
+  const overallEscalationRate = allTicketNums.size ? Math.round(escalatedTicketNums.size / allTicketNums.size * 100) : 0
 
   const totalVol = cats.reduce((s, c) => s + c.vol, 0)
 
@@ -930,14 +940,15 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
           <div style={{ display: 'flex', gap: 1, flex: 1, borderLeft: '1px solid rgba(0,0,0,0.07)', paddingLeft: 32 }}>
             {[
-              { label: 'Perfect rate',   value: `${overallPerfect}%`,  color: overallPerfect >= 80 ? '#166534' : overallPerfect >= 70 ? '#854d0e' : '#e53e3e' },
-              { label: 'Majority edit',  value: `${overallMajority}%`, color: '#854d0e' },
-              { label: 'Partial edit',   value: `${overallPartial}%`,  color: '#f97316' },
-              { label: 'No response',    value: `${overallNoResp}%`,   color: overallNoResp > 20 ? '#e53e3e' : '#58595B' },
+              { label: 'Perfect rate',    value: `${overallPerfect}%`,         color: overallPerfect >= 80 ? '#166534' : overallPerfect >= 70 ? '#854d0e' : '#e53e3e', note: 'of responses' },
+              { label: 'Majority edit',   value: `${overallMajority}%`,        color: '#854d0e',                                                                        note: 'of responses' },
+              { label: 'Partial edit',    value: `${overallPartial}%`,         color: '#f97316',                                                                        note: 'of responses' },
+              { label: 'Escalation rate', value: `${overallEscalationRate}%`,  color: overallEscalationRate > 20 ? '#e53e3e' : '#58595B',                              note: 'of tickets' },
             ].map(k => (
               <div key={k.label} style={{ flex: 1, padding: '0 16px', borderRight: '1px solid rgba(0,0,0,0.07)' }}>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 1 }}>{k.note}</p>
               </div>
             ))}
           </div>
@@ -946,7 +957,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 90px 90px 90px 80px 1fr', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-          {['Category', 'Vol', '% of Total', 'Perfect', 'Majority', 'Partial', 'No Resp', 'Progress to 80%'].map(h => (
+          {['Category', 'Vol', '% of Total', 'Perfect', 'Majority', 'Partial', 'Escalation', 'Progress to 80%'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -981,7 +992,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: barColor }}>{cat.perfect}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.majority > 10 ? '#e53e3e' : '#58595B' }}>{cat.majority}%</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.partial > 10 ? '#e53e3e' : '#58595B' }}>{cat.partial}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.noResp > 20 ? '#e53e3e' : '#58595B' }}>{cat.noResp}%</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.escalationRate > 20 ? '#e53e3e' : '#58595B' }}>{cat.escalationRate}%</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
                     <div style={{ width: `${Math.min(100, (cat.perfect / 80) * 100)}%`, height: '100%', background: barColor, borderRadius: 100, transition: 'width 0.4s' }} />
@@ -996,8 +1007,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                     Agent breakdown — {cat.name}
                   </p>
                   <div style={{ borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 80px 1fr', padding: '8px 14px', background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                      {['Agent', 'Issues', 'Perfect', 'Majority', 'Partial', 'No Resp', 'Progress'].map(h => (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 1fr', padding: '8px 14px', background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                      {['Agent', 'Issues', 'Perfect', 'Majority', 'Partial', 'Progress'].map(h => (
                         <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
                       ))}
                     </div>
@@ -1006,7 +1017,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                       const agentBarColor = a.perfect >= 80 ? '#166534' : a.perfect >= 70 ? '#854d0e' : a.perfect >= 50 ? '#f97316' : '#e53e3e'
                       return (
                         <div key={a.name} style={{
-                          display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 80px 1fr',
+                          display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 1fr',
                           padding: '10px 14px', alignItems: 'center',
                           borderBottom: ai < catAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                         }}>
@@ -1015,7 +1026,6 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: agentBarColor, fontWeight: 500 }}>{a.perfect}%</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.majority > 10 ? '#e53e3e' : '#58595B' }}>{a.majority}%</span>
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.partial > 10 ? '#e53e3e' : '#58595B' }}>{a.partial}%</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.noResp > 20 ? '#e53e3e' : '#58595B' }}>{a.noResp}%</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                               <div style={{ width: `${Math.min(100, (a.perfect / 80) * 100)}%`, height: '100%', background: agentBarColor, borderRadius: 100 }} />
