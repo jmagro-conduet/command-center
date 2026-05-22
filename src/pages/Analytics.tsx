@@ -1105,6 +1105,9 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
               <strong style={{ color: l.color }}>{l.label}</strong> {l.range}
             </span>
           ))}
+          <span style={{ marginLeft: 'auto', fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic' }}>
+            * Quality % excludes No Response. Categories are assigned at the ticket level — a small margin of error exists where a ticket may contain inputs across multiple categories.
+          </span>
         </div>
       </div>
       <div style={{ height: 8 }} />
