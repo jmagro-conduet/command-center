@@ -878,7 +878,6 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const lowData  = cats.filter(c => c.status === 'low-data').length
   const total    = cats.length
 
-  const totalIssues   = rows.length
   const qualityIssues = rows.filter(r => r.issueType !== 'No response').length
   const overallPerfect  = qualityIssues ? Math.round(rows.filter(r => r.issueType === 'Perfect').length      / qualityIssues * 100) : 0
   const overallMajority = qualityIssues ? Math.round(rows.filter(r => r.issueType === 'Majority edit').length / qualityIssues * 100) : 0
