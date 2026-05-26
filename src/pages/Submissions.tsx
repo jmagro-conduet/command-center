@@ -118,15 +118,26 @@ export default function Submissions() {
   const [selected,    setSelected]    = useState<Row | null>(null)
   const [hoveredId,   setHoveredId]   = useState<string | null>(null)
 
-  // Load distinct filter options once
+  // Load distinct filter options once — paginate to avoid Supabase's 1000-row default cap
   useEffect(() => {
+    async function paginate(col: string) {
+      const PAGE = 1000
+      const all: any[] = []
+      let from = 0
+      while (true) {
+        const { data } = await supabase.from('tickets').select(col).range(from, from + PAGE - 1)
+        if (!data || data.length === 0) break
+        all.push(...data)
+        if (data.length < PAGE) break
+        from += PAGE
+      }
+      return all
+    }
+
     async function loadFilters() {
-      const [{ data: agentData }, { data: catData }] = await Promise.all([
-        supabase.from('tickets').select('agent_name').order('agent_name'),
-        supabase.from('tickets').select('ticket_category').order('ticket_category'),
-      ])
-      const agents = [...new Set(agentData?.map(r => r.agent_name).filter(Boolean))] as string[]
-      const cats   = [...new Set(catData?.map(r => normalizeCategory(r.ticket_category)).filter(Boolean))].sort() as string[]
+      const [agentRows, catRows] = await Promise.all([paginate('agent_name'), paginate('ticket_category')])
+      const agents = [...new Set(agentRows.map((r: any) => r.agent_name).filter(Boolean))].sort() as string[]
+      const cats   = [...new Set(catRows.map((r: any) => normalizeCategory(r.ticket_category)).filter(Boolean))].sort() as string[]
       setAgentOptions(['All agents', ...agents])
       setCategoryOptions(['All categories', ...cats])
     }
