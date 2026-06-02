@@ -107,7 +107,9 @@ async function evalRow(client: Anthropic, row: IssueRow): Promise<EvalResult> {
     messages:   [{ role: 'user', content: buildUserMessage(row) }],
   })
 
-  const text = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
+  const raw  = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
+  // Strip markdown code fences if Claude wraps the JSON
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
   try {
     const parsed = JSON.parse(text)
     if (!['CORRECTION', 'ENHANCEMENT', 'PREFERENCE'].includes(parsed.verdict)) {
