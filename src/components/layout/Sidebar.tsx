@@ -9,6 +9,7 @@ export type Page =
   | 'submissions'
   | 'report'
   | 'analytics'
+  | 'report-card'
   | 'users'
   | 'learn'
   | 'settings'
@@ -116,6 +117,16 @@ function SettingsIcon() {
   )
 }
 
+function ReportCardIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.7"/>
+      <path d="M7 8h4M7 12h6M7 16h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M15 13l1.5 1.5L19 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
 function SignOutIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -146,8 +157,9 @@ const ADMIN_NAV: NavItem[] = [
   { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
   { id: 'events',      label: 'Events',      icon: <EventsIcon /> },
   { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
-  { id: 'report',      label: 'Report',      icon: <ReportIcon /> },
+  { id: 'report',       label: 'Report',       icon: <ReportIcon /> },
   { id: 'analytics',   label: 'Analytics',   icon: <AnalyticsIcon /> },
+  { id: 'report-card', label: 'Report Card', icon: <ReportCardIcon /> },
   { id: 'users',       label: 'Users',       icon: <UsersIcon /> },
   { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
 ]

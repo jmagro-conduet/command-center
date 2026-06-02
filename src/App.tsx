@@ -14,6 +14,7 @@ import Leaderboard from './pages/Leaderboard'
 import Users from './pages/Users'
 import Learn from './pages/Learn'
 import Settings from './pages/Settings'
+import ReportCard from './pages/ReportCard'
 
 const FOCUS_STALE_MS = 2 * 60 * 1000 // treat data as stale after 2 min away
 
@@ -70,7 +71,8 @@ function AppShell() {
       case 'events':      return isAdmin ? <Events      key={pageKey} /> : <LogTicket key={pageKey} />
       case 'submissions': return isAdmin ? <Submissions key={pageKey} /> : <LogTicket key={pageKey} />
       case 'report':      return isAdmin ? <Report      key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'analytics':   return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'analytics':    return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'report-card': return isAdmin ? <ReportCard  key={pageKey} /> : <LogTicket key={pageKey} />
       case 'users':       return isAdmin ? <Users       key={pageKey} /> : <LogTicket key={pageKey} />
       case 'learn':       return <Learn       key={pageKey} />
       case 'settings':    return <Settings    key={pageKey} />
