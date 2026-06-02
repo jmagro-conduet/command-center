@@ -219,20 +219,36 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-        {[
-          { label: 'Total evals',  value: total.toString(),        color: '#9B59D0' },
-          { label: 'Corrections',  value: `${pct(correction, total)}%`,  color: '#e53e3e' },
-          { label: 'Enhancements', value: `${pct(enhancement, total)}%`, color: '#854d0e' },
-          { label: 'Preferences',  value: `${pct(preference, total)}%`,  color: '#58595B' },
-          { label: 'Avg confidence', value: `${avgConf}%`,               color: avgConf >= 80 ? '#166534' : '#854d0e' },
-        ].map(k => (
-          <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+      {(() => {
+        const ticketsWithData  = tickets.filter(t => t.zdMessageCount !== null)
+        const completeTickets  = ticketsWithData.filter(t => t.issueCount >= (t.zdMessageCount ?? 0)).length
+        const completenessVal  = ticketsWithData.length
+          ? `${pct(completeTickets, ticketsWithData.length)}%`
+          : '—'
+        const completenessColor = ticketsWithData.length === 0 ? '#aaa'
+          : pct(completeTickets, ticketsWithData.length) >= 80 ? '#166534'
+          : pct(completeTickets, ticketsWithData.length) >= 60 ? '#854d0e'
+          : '#e53e3e'
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
+            {[
+              { label: 'Total evals',    value: total.toString(),                   color: '#9B59D0' },
+              { label: 'Corrections',    value: `${pct(correction, total)}%`,       color: '#e53e3e' },
+              { label: 'Enhancements',   value: `${pct(enhancement, total)}%`,      color: '#854d0e' },
+              { label: 'Preferences',    value: `${pct(preference, total)}%`,       color: '#58595B' },
+              { label: 'Avg confidence', value: `${avgConf}%`,                      color: avgConf >= 80 ? '#166534' : '#854d0e' },
+              { label: 'Completeness',   value: completenessVal,                    color: completenessColor,
+                note: ticketsWithData.length ? `${completeTickets}/${ticketsWithData.length} tickets` : 'No ZD data yet' },
+            ].map(k => (
+              <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+                {'note' in k && k.note && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )
+      })()}
 
       {/* Tab switcher */}
       <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3, alignSelf: 'flex-start' }}>
