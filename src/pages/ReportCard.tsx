@@ -192,7 +192,8 @@ function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: 
 // ── Agent Drilldown ────────────────────────────────────────────────────────────
 
 function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void }) {
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expanded, setExpanded]   = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'evals' | 'completeness'>('evals')
 
   const total      = rows.length
   const correction = rows.filter(r => r.evalVerdict === 'CORRECTION').length
@@ -233,7 +234,34 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
         ))}
       </div>
 
-      {/* Issue rows */}
+      {/* Tab switcher */}
+      <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3, alignSelf: 'flex-start' }}>
+        {([
+          { id: 'evals',        label: 'Edit Evaluations',      count: rows.length },
+          { id: 'completeness', label: 'Logging Completeness',  count: tickets.length },
+        ] as const).map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13,
+            fontWeight: activeTab === t.id ? 500 : 400,
+            padding: '6px 14px', borderRadius: 8,
+            background: activeTab === t.id ? '#000' : 'transparent',
+            color: activeTab === t.id ? '#fff' : '#58595B',
+            border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            {t.label}
+            <span style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+              padding: '1px 6px', borderRadius: 100,
+              background: activeTab === t.id ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.07)',
+              color: activeTab === t.id ? '#fff' : '#58595B',
+            }}>{t.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Edit Evaluations tab */}
+      {activeTab === 'evals' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
           <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Edit Evaluations</p>
@@ -303,9 +331,15 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
           </div>
         )}
       </div>
+      )}
 
-      {/* Signal 2 — Logging completeness */}
-      {tickets.length > 0 && (
+      {/* Logging Completeness tab */}
+      {activeTab === 'completeness' && tickets.length === 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No ZD message data yet — run the backfill script to populate.</p>
+        </div>
+      )}
+      {activeTab === 'completeness' && tickets.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Logging Completeness</p>
