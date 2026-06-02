@@ -191,7 +191,7 @@ function AgentDrilldown({ rows, agentName, onBack }: { rows: EvalRow[]; agentNam
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
-        {rows.map((r, i) => {
+        {rows.map((r) => {
           const isExp = expanded === r.id
           return (
             <div key={r.id}>
@@ -359,7 +359,7 @@ export default function ReportCard() {
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
-        {agentSummaries.map((a) => (
+        {agentSummaries.map((a, i) => (
           <div
             key={a.name}
             onClick={() => setSelected(a.name)}
