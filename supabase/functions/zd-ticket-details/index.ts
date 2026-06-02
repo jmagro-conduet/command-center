@@ -1,9 +1,12 @@
 // zd-ticket-details
 // Accepts an array of { supabase_id, ticket_number } objects.
-// For each: fetches ZD ticket created_at + player message count,
+// For each: fetches ZD ticket created_at + player message count via audits API,
 // then patches the tickets row with zd_created_at + zd_message_count.
-// Called fire-and-forget from LogTicket after submission,
-// and in bulk from the backfill script.
+//
+// Uses the audits API (not comments) because native messaging / live chat tickets
+// store player messages as audit events, not as standard comments. Agent messages
+// are excluded by fetching the ZD agent list and filtering them out — giving an
+// accurate count of player inputs per ticket.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,11 +37,45 @@ interface TicketInput {
 }
 
 interface ZDResult {
-  supabase_id:       string
-  ticket_number:     string
-  zd_created_at:     string | null
-  zd_message_count:  number | null
-  error?:            string
+  supabase_id:      string
+  ticket_number:    string
+  zd_created_at:    string | null
+  zd_message_count: number | null
+  error?:           string
+}
+
+// Fetch all ZD agent user IDs once per request — used to exclude agent messages
+// from the player message count. Cached in module scope for the request lifetime.
+let agentIdCache: Set<number> | null = null
+
+async function getAgentIds(): Promise<Set<number>> {
+  if (agentIdCache) return agentIdCache
+
+  const ids = new Set<number>()
+  let url: string | null = `${ZD_BASE}/users.json?role=agent&per_page=100`
+
+  while (url) {
+    const res = await fetch(url, { headers: zdHeaders })
+    if (!res.ok) break
+    const data = await res.json()
+    const users: any[] = data.users ?? []
+    users.forEach((u: any) => ids.add(u.id))
+    url = data.next_page ?? null
+  }
+
+  // Also fetch admins — they can also respond to tickets
+  let adminUrl: string | null = `${ZD_BASE}/users.json?role=admin&per_page=100`
+  while (adminUrl) {
+    const res = await fetch(adminUrl, { headers: zdHeaders })
+    if (!res.ok) break
+    const data = await res.json()
+    const users: any[] = data.users ?? []
+    users.forEach((u: any) => ids.add(u.id))
+    adminUrl = data.next_page ?? null
+  }
+
+  agentIdCache = ids
+  return ids
 }
 
 async function fetchZDTicket(ticketNumber: string): Promise<{ created_at: string } | null> {
@@ -49,28 +86,39 @@ async function fetchZDTicket(ticketNumber: string): Promise<{ created_at: string
   return { created_at: data.ticket.created_at }
 }
 
-// For native messaging / live chat tickets, requester_id matching is unreliable
-// (visitor accounts, bot handoffs, etc.). Count all public comments instead —
-// this gives the total conversation length, which is what we need for the
-// completeness check (did the agent log all the exchanges?).
-async function countPublicMessages(ticketNumber: string): Promise<number> {
+// Count player messages using the audits API.
+// Audits capture every event on the ticket including native messaging chat messages.
+// We count Comment-type events where the author is NOT one of our agents/admins.
+async function countPlayerMessages(ticketNumber: string, agentIds: Set<number>): Promise<number> {
   let count = 0
-  let url: string | null = `${ZD_BASE}/tickets/${ticketNumber}/comments.json?per_page=100`
+  let url: string | null = `${ZD_BASE}/tickets/${ticketNumber}/audits.json?per_page=100`
 
   while (url) {
     const res = await fetch(url, { headers: zdHeaders })
     if (!res.ok) break
     const data = await res.json()
-    const comments: any[] = data.comments ?? []
-    count += comments.filter((c: any) => c.public === true).length
+    const audits: any[] = data.audits ?? []
+
+    for (const audit of audits) {
+      const authorId: number = audit.author_id
+      // Skip anything authored by an agent or admin
+      if (agentIds.has(authorId)) continue
+
+      // Count Comment events that are public (player-facing messages)
+      const events: any[] = audit.events ?? []
+      const hasPublicComment = events.some(
+        (e: any) => e.type === 'Comment' && e.public === true
+      )
+      if (hasPublicComment) count++
+    }
+
     url = data.next_page ?? null
   }
 
   return count
 }
 
-async function processTicket(t: TicketInput): Promise<ZDResult> {
-  // Skip non-numeric or obviously wrong ticket numbers
+async function processTicket(t: TicketInput, agentIds: Set<number>): Promise<ZDResult> {
   if (!/^\d{5,7}$/.test(t.ticket_number)) {
     return { ...t, zd_created_at: null, zd_message_count: null, error: 'invalid ticket number' }
   }
@@ -80,9 +128,8 @@ async function processTicket(t: TicketInput): Promise<ZDResult> {
     return { ...t, zd_created_at: null, zd_message_count: null, error: 'not found in ZD' }
   }
 
-  const messageCount = await countPublicMessages(t.ticket_number)
+  const messageCount = await countPlayerMessages(t.ticket_number, agentIds)
 
-  // Patch the Supabase tickets row
   await fetch(`${SUPABASE_URL}/rest/v1/tickets?id=eq.${t.supabase_id}`, {
     method:  'PATCH',
     headers: { ...sbHeaders, Prefer: 'return=minimal' },
@@ -107,17 +154,20 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // Fetch agent IDs once for the whole batch
+    const agentIds = await getAgentIds()
+
     // Process sequentially to respect ZD rate limits
     const results: ZDResult[] = []
     for (const t of tickets) {
-      results.push(await processTicket(t))
+      results.push(await processTicket(t, agentIds))
     }
 
     const ok     = results.filter(r => !r.error).length
     const failed = results.filter(r =>  r.error).length
 
     return new Response(
-      JSON.stringify({ processed: ok, failed, results }),
+      JSON.stringify({ processed: ok, failed, agentIdsLoaded: agentIds.size, results }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err: unknown) {
