@@ -41,14 +41,19 @@ interface ZDResult {
   error?:            string
 }
 
-async function fetchZDTicket(ticketNumber: string): Promise<{ created_at: string; requester_id: number } | null> {
+async function fetchZDTicket(ticketNumber: string): Promise<{ created_at: string } | null> {
   const res = await fetch(`${ZD_BASE}/tickets/${ticketNumber}.json`, { headers: zdHeaders })
   if (!res.ok) return null
   const data = await res.json()
-  return { created_at: data.ticket?.created_at, requester_id: data.ticket?.requester_id }
+  if (!data.ticket) return null
+  return { created_at: data.ticket.created_at }
 }
 
-async function countPlayerMessages(ticketNumber: string, requesterId: number): Promise<number> {
+// For native messaging / live chat tickets, requester_id matching is unreliable
+// (visitor accounts, bot handoffs, etc.). Count all public comments instead —
+// this gives the total conversation length, which is what we need for the
+// completeness check (did the agent log all the exchanges?).
+async function countPublicMessages(ticketNumber: string): Promise<number> {
   let count = 0
   let url: string | null = `${ZD_BASE}/tickets/${ticketNumber}/comments.json?per_page=100`
 
@@ -57,7 +62,7 @@ async function countPlayerMessages(ticketNumber: string, requesterId: number): P
     if (!res.ok) break
     const data = await res.json()
     const comments: any[] = data.comments ?? []
-    count += comments.filter((c: any) => c.author_id === requesterId && c.public === true).length
+    count += comments.filter((c: any) => c.public === true).length
     url = data.next_page ?? null
   }
 
@@ -75,7 +80,7 @@ async function processTicket(t: TicketInput): Promise<ZDResult> {
     return { ...t, zd_created_at: null, zd_message_count: null, error: 'not found in ZD' }
   }
 
-  const messageCount = await countPlayerMessages(t.ticket_number, zdTicket.requester_id)
+  const messageCount = await countPublicMessages(t.ticket_number)
 
   // Patch the Supabase tickets row
   await fetch(`${SUPABASE_URL}/rest/v1/tickets?id=eq.${t.supabase_id}`, {

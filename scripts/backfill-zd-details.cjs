@@ -12,7 +12,7 @@ const KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const h        = { apikey: KEY, Authorization: 'Bearer ' + KEY }
 
 // ⚠️ Update this URL after deploying zd-ticket-details via the Supabase dashboard
-const ZD_FN_URL = 'REPLACE_WITH_ZD_TICKET_DETAILS_FUNCTION_URL'
+const ZD_FN_URL = 'https://uepigbagbaskbslpjeqq.supabase.co/functions/v1/zd-ticket-details'
 
 const BATCH = 10  // keep low to respect ZD rate limits
 
@@ -24,6 +24,16 @@ async function main() {
     console.error('❌  Update ZD_FN_URL in this script with the deployed function URL first.')
     process.exit(1)
   }
+
+  // Reset 0-count rows too — these were set by a previous run where the ZD
+  // requester_id filter incorrectly returned 0 for all live chat tickets.
+  process.stdout.write('  Resetting zd_message_count=0 rows to null... ')
+  const resetRes = await fetch(BASE + '/rest/v1/tickets?zd_message_count=eq.0', {
+    method: 'PATCH',
+    headers: { ...h, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ zd_message_count: null }),
+  })
+  console.log(resetRes.ok ? 'done ✓' : 'FAILED ' + resetRes.status)
 
   let query = BASE + '/rest/v1/tickets?zd_message_count=is.null&select=id,ticket_number,created_at&order=created_at.desc'
   if (DAYS) {
