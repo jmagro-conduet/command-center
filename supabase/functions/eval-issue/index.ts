@@ -43,6 +43,11 @@ ENHANCEMENT — the edit added genuine value but gameLM's original was not wrong
 - Added VIP or account-specific context gameLM doesn't have access to
 - Added relevant information that answered more than gameLM did
 - Replaced a generic closing appropriate to the actual conversation state
+- Replaced an unnecessary clarifying question with the direct answer when
+  the definitive answer was already knowable from the player's message
+  (e.g. gameLM asks "What seems to be the issue?" for a casino question
+  when the correct answer — "we don't offer casino products" — could have
+  been given immediately, saving an unnecessary round-trip)
 
 PREFERENCE — the edit was stylistic only and the original was fully send-worthy:
 - Rephrasing with the same meaning and no added information
