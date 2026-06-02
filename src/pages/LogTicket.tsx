@@ -206,6 +206,12 @@ export default function LogTicket() {
     setSubmitting(false)
     setSubmitSuccess(true)
 
+    // Fire-and-forget: fetch ZD ticket details (created_at + player message count)
+    // Runs in background — does not block or affect the submission UX
+    supabase.functions.invoke('zd-ticket-details', {
+      body: { tickets: [{ supabase_id: ticket.id, ticket_number: active.ticketNumber.trim() }] },
+    }).catch(() => {}) // intentionally swallow — non-critical enrichment
+
     // Remove the submitted tab; if it was the last one, replace with a fresh tab
     const remaining = allTabs.filter(t => t.id !== activeTabId)
     if (remaining.length === 0) {

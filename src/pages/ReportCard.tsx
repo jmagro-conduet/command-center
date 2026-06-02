@@ -23,6 +23,16 @@ interface EvalRow {
   category:           string
 }
 
+interface TicketRow {
+  id:               string
+  ticketNumber:     string
+  agentName:        string
+  agentEmail:       string
+  zdMessageCount:   number | null
+  issueCount:       number   // filled in after join
+  createdAt:        string
+}
+
 const VERDICT_CONFIG: Record<Verdict, { label: string; color: string; bg: string; desc: string }> = {
   CORRECTION:  { label: 'Correction',  color: '#e53e3e', bg: 'rgba(229,62,62,0.09)',    desc: 'gameLM made an error — agent fix was necessary' },
   ENHANCEMENT: { label: 'Enhancement', color: '#854d0e', bg: 'rgba(234,179,8,0.12)',    desc: 'gameLM was acceptable — agent added genuine value' },
@@ -73,6 +83,49 @@ function ConfidencePip({ value }: { value: number }) {
       {value}%
     </span>
   )
+}
+
+async function fetchTicketCompleteness(): Promise<TicketRow[]> {
+  // Fetch all tickets with zd_message_count populated
+  const PAGE = 1000
+  const allTickets: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('id,ticket_number,agent_name,agent_email,zd_message_count,created_at')
+      .not('zd_message_count', 'is', null)
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1)
+    if (error || !data || data.length === 0) break
+    allTickets.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+
+  // For each ticket, count its issue rows
+  if (allTickets.length === 0) return []
+  const ids = allTickets.map((t: any) => t.id)
+  const issueCounts = new Map<string, number>()
+
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200)
+    const { data } = await supabase
+      .from('ticket_issues')
+      .select('ticket_id')
+      .in('ticket_id', chunk)
+    data?.forEach((r: any) => issueCounts.set(r.ticket_id, (issueCounts.get(r.ticket_id) ?? 0) + 1))
+  }
+
+  return allTickets.map((t: any) => ({
+    id:             t.id,
+    ticketNumber:   t.ticket_number,
+    agentName:      t.agent_name ?? '',
+    agentEmail:     t.agent_email ?? '',
+    zdMessageCount: t.zd_message_count,
+    issueCount:     issueCounts.get(t.id) ?? 0,
+    createdAt:      t.created_at ?? '',
+  }))
 }
 
 async function fetchAllEvals(): Promise<EvalRow[]> {
@@ -138,7 +191,7 @@ function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: 
 
 // ── Agent Drilldown ────────────────────────────────────────────────────────────
 
-function AgentDrilldown({ rows, agentName, onBack }: { rows: EvalRow[]; agentName: string; onBack: () => void }) {
+function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void }) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const total      = rows.length
@@ -250,6 +303,53 @@ function AgentDrilldown({ rows, agentName, onBack }: { rows: EvalRow[]; agentNam
           </div>
         )}
       </div>
+
+      {/* Signal 2 — Logging completeness */}
+      {tickets.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Logging Completeness</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+              Issues logged vs actual player messages in ZD — flags potential under-logging
+            </p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '100px 90px 90px 90px 1fr', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+            {['Ticket', 'Logged', 'ZD msgs', 'Delta', 'Status'].map(h => (
+              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            ))}
+          </div>
+          {tickets.map((t, i) => {
+            const delta      = t.issueCount - (t.zdMessageCount ?? 0)
+            const underLogged = delta < 0
+            const overLogged  = delta > 0
+            const exact       = delta === 0
+            return (
+              <div key={t.id} style={{
+                display: 'grid', gridTemplateColumns: '100px 90px 90px 90px 1fr',
+                padding: '11px 20px', alignItems: 'center',
+                borderBottom: i < tickets.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                background: underLogged ? 'rgba(229,62,62,0.03)' : 'transparent',
+              }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{t.issueCount}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{t.zdMessageCount ?? '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: underLogged ? '#e53e3e' : overLogged ? '#854d0e' : '#166534' }}>
+                  {delta > 0 ? `+${delta}` : delta}
+                </span>
+                <span style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                  padding: '2px 8px', borderRadius: 100, width: 'fit-content',
+                  background: underLogged ? 'rgba(229,62,62,0.09)' : overLogged ? 'rgba(234,179,8,0.12)' : 'rgba(22,101,52,0.09)',
+                  color: underLogged ? '#e53e3e' : overLogged ? '#854d0e' : '#166534',
+                }}>
+                  {underLogged ? 'Under-logged' : overLogged ? 'Over-logged' : 'Exact'}
+                  {exact && ' ✓'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -257,13 +357,18 @@ function AgentDrilldown({ rows, agentName, onBack }: { rows: EvalRow[]; agentNam
 // ── Main export ────────────────────────────────────────────────────────────────
 
 export default function ReportCard() {
-  const [allRows, setAllRows] = useState<EvalRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [range, setRange]     = useState<TimeRange>('last30')
-  const [selected, setSelected] = useState<string | null>(null)
+  const [allRows, setAllRows]         = useState<EvalRow[]>([])
+  const [ticketRows, setTicketRows]   = useState<TicketRow[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [range, setRange]             = useState<TimeRange>('last30')
+  const [selected, setSelected]       = useState<string | null>(null)
 
   useEffect(() => {
-    fetchAllEvals().then(rows => { setAllRows(rows); setLoading(false) })
+    Promise.all([fetchAllEvals(), fetchTicketCompleteness()]).then(([evals, tickets]) => {
+      setAllRows(evals)
+      setTicketRows(tickets)
+      setLoading(false)
+    })
   }, [])
 
   const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
@@ -310,14 +415,15 @@ export default function ReportCard() {
 
   // Drilldown view
   if (selected) {
-    const agentRows = rows.filter(r => r.agentName === selected)
+    const agentRows    = rows.filter(r => r.agentName === selected)
+    const agentTickets = ticketRows.filter(t => t.agentName === selected)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600 }}>Report Card</h1>
           <TimeRangeFilter value={range} onChange={setRange} />
         </div>
-        <AgentDrilldown rows={agentRows} agentName={selected} onBack={() => setSelected(null)} />
+        <AgentDrilldown rows={agentRows} tickets={agentTickets} agentName={selected} onBack={() => setSelected(null)} />
       </div>
     )
   }
