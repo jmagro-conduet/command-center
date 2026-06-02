@@ -359,7 +359,7 @@ export default function ReportCard() {
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
-        {agentSummaries.map((a, i) => (
+        {agentSummaries.map((a) => (
           <div
             key={a.name}
             onClick={() => setSelected(a.name)}
