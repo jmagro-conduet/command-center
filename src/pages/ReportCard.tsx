@@ -369,10 +369,12 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
             ))}
           </div>
           {tickets.map((t, i) => {
-            const delta      = t.issueCount - (t.zdMessageCount ?? 0)
-            const underLogged = delta < 0
-            const overLogged  = delta > 0
-            const exact       = delta === 0
+            const delta = t.issueCount - (t.zdMessageCount ?? 0)
+            // ±1 tolerance: ZD audit consolidation (back-to-back messages) and
+            // button-click events can cause a natural ±1 gap. Only flag when ≥2.
+            const underLogged = delta < -1
+            const overLogged  = delta >  1
+            const exact       = !underLogged && !overLogged
             return (
               <div key={t.id} style={{
                 display: 'grid', gridTemplateColumns: '100px 90px 90px 90px 1fr',
@@ -392,8 +394,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
                   background: underLogged ? 'rgba(229,62,62,0.09)' : overLogged ? 'rgba(234,179,8,0.12)' : 'rgba(22,101,52,0.09)',
                   color: underLogged ? '#e53e3e' : overLogged ? '#854d0e' : '#166534',
                 }}>
-                  {underLogged ? 'Under-logged' : overLogged ? 'Over-logged' : 'Exact'}
-                  {exact && ' ✓'}
+                  {underLogged ? 'Under-logged' : overLogged ? 'Over-logged' : 'Exact ✓'}
                 </span>
               </div>
             )

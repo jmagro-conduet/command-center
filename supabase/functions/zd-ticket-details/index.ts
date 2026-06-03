@@ -88,10 +88,15 @@ async function fetchZDTicket(ticketNumber: string): Promise<{ created_at: string
 
 // Count player messages using the audits API.
 // Audits capture every event on the ticket including native messaging chat messages.
-// We count Comment-type events where the author is NOT one of our agents/admins.
+// We count audits where the author is NOT one of our agents/admins and the audit
+// contains either:
+//   (a) a public Comment event (typed message), OR
+//   (b) any Comment event — catches button clicks / quick replies (e.g. "Talk to an Agent")
+//       which ZD sometimes stores as non-public Comment events in native messaging.
 async function countPlayerMessages(ticketNumber: string, agentIds: Set<number>): Promise<number> {
   let count = 0
   let url: string | null = `${ZD_BASE}/tickets/${ticketNumber}/audits.json?per_page=100`
+  let isFirst = true
 
   while (url) {
     const res = await fetch(url, { headers: zdHeaders })
@@ -101,15 +106,23 @@ async function countPlayerMessages(ticketNumber: string, agentIds: Set<number>):
 
     for (const audit of audits) {
       const authorId: number = audit.author_id
-      // Skip anything authored by an agent or admin
-      if (agentIds.has(authorId)) continue
+      if (agentIds.has(authorId)) { isFirst = false; continue }
 
-      // Count Comment events that are public (player-facing messages)
       const events: any[] = audit.events ?? []
-      const hasPublicComment = events.some(
-        (e: any) => e.type === 'Comment' && e.public === true
-      )
-      if (hasPublicComment) count++
+
+      // For the very first audit (ticket creation by the player), count it if
+      // there's a Create event — this captures the opening message/button press
+      // that starts the native messaging conversation.
+      if (isFirst) {
+        const hasCreate = events.some((e: any) => e.type === 'Create')
+        if (hasCreate) { count++; isFirst = false; continue }
+      }
+      isFirst = false
+
+      // Count any Comment event from a non-agent — includes typed messages AND
+      // button/quick-reply clicks which may come through as non-public Comments.
+      const hasComment = events.some((e: any) => e.type === 'Comment')
+      if (hasComment) count++
     }
 
     url = data.next_page ?? null
