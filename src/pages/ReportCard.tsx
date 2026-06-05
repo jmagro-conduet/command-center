@@ -453,6 +453,10 @@ export default function ReportCard() {
   const teamEnhancement = rows.filter(r => r.evalVerdict === 'ENHANCEMENT').length
   const teamPreference = rows.filter(r => r.evalVerdict === 'PREFERENCE').length
 
+  // "Added today" — always counted from all evals regardless of time range filter
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const addedToday = allRows.filter(r => (r.evalRanAt ?? '').slice(0, 10) === todayStr).length
+
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -492,11 +496,31 @@ export default function ReportCard() {
 
       {/* Team summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {/* Evals run — split card with "added today" secondary metric */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Evals run</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 0 }}>
+            {/* Primary: total */}
+            <div style={{ flex: 1 }}>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0', lineHeight: 1 }}>{teamTotal}</p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>in period</p>
+            </div>
+            {/* Divider */}
+            <div style={{ width: 1, height: 36, background: 'rgba(0,0,0,0.08)', margin: '0 14px', flexShrink: 0 }} />
+            {/* Secondary: today */}
+            <div style={{ flexShrink: 0 }}>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: addedToday > 0 ? '#9B59D0' : 'rgba(0,0,0,0.2)', lineHeight: 1 }}>
+                {addedToday > 0 ? `+${addedToday}` : '—'}
+              </p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>today</p>
+            </div>
+          </div>
+        </div>
+
         {[
-          { label: 'Evals run',           value: teamTotal.toString(),                   color: '#9B59D0' },
-          { label: 'Corrections',         value: `${pct(teamCorrection, teamTotal)}%`,   color: '#e53e3e', note: 'gameLM had an error' },
-          { label: 'Enhancements',        value: `${pct(teamEnhancement, teamTotal)}%`,  color: '#854d0e', note: 'Agent added value' },
-          { label: 'Preferences',         value: `${pct(teamPreference, teamTotal)}%`,   color: '#58595B', note: 'Stylistic only' },
+          { label: 'Corrections',  value: `${pct(teamCorrection, teamTotal)}%`,  color: '#e53e3e', note: 'gameLM had an error' },
+          { label: 'Enhancements', value: `${pct(teamEnhancement, teamTotal)}%`, color: '#854d0e', note: 'Agent added value' },
+          { label: 'Preferences',  value: `${pct(teamPreference, teamTotal)}%`,  color: '#58595B', note: 'Stylistic only' },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>

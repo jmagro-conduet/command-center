@@ -25,10 +25,11 @@ async function main() {
     process.exit(1)
   }
 
-  // Reset 0-count rows too — these were set by a previous run where the ZD
-  // requester_id filter incorrectly returned 0 for all live chat tickets.
-  process.stdout.write('  Resetting zd_message_count=0 rows to null... ')
-  const resetRes = await fetch(BASE + '/rest/v1/tickets?zd_message_count=eq.0', {
+  // Reset ALL previously populated counts — earlier runs used wrong approaches
+  // (requester_id matching → 0, all public comments → 1-3) so we clear everything
+  // and re-run with the correct audits + agent-exclusion method.
+  process.stdout.write('  Resetting all existing zd_message_count values to null... ')
+  const resetRes = await fetch(BASE + '/rest/v1/tickets?zd_message_count=not.is.null', {
     method: 'PATCH',
     headers: { ...h, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ zd_message_count: null }),
