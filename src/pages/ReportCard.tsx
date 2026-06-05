@@ -70,6 +70,28 @@ function fmtMinutes(mins: number | null): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
+// Strip email quoting artifacts so we only show the player's actual words.
+// Removes: "> quoted lines", "On [date] ... wrote:" headers, forwarding dividers,
+// trailing whitespace, and collapses multiple blank lines.
+function cleanPlayerMessage(raw: string): string {
+  const lines = raw.split('\n')
+  const clean: string[] = []
+  for (const line of lines) {
+    const trimmed = line.trim()
+    // Skip quoted lines ("> text" or ">> text")
+    if (/^>+/.test(trimmed)) continue
+    // Skip "On [date/time], [name] wrote:" reply headers (single or multi-line)
+    if (/^on .{5,100} wrote:$/i.test(trimmed)) continue
+    // Skip forwarding / original message dividers
+    if (/^-{3,}|^_{3,}|^={3,}/.test(trimmed)) continue
+    // Skip "From:", "Sent:", "To:", "Subject:" email header lines
+    if (/^(from|sent|to|subject|date):/i.test(trimmed)) continue
+    clean.push(line)
+  }
+  // Collapse 3+ consecutive blank lines into one, then trim edges
+  return clean.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function VerdictBadge({ verdict, small }: { verdict: Verdict; small?: boolean }) {
   const c = VERDICT_CONFIG[verdict]
   return (
@@ -491,7 +513,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
                     background: 'rgba(22,101,52,0.04)',
                     borderLeft: '3px solid rgba(22,101,52,0.3)',
                   }}>
-                    "{t.zdLastPlayerMessage}"
+                    "{cleanPlayerMessage(t.zdLastPlayerMessage ?? '')}"
                   </p>
                 )}
               </div>
@@ -665,7 +687,7 @@ export default function ReportCard() {
                     borderLeft: '3px solid rgba(22,101,52,0.25)',
                     margin: 0,
                   }}>
-                    "{t.zdLastPlayerMessage}"
+                    "{cleanPlayerMessage(t.zdLastPlayerMessage ?? '')}"
                   </p>
                 )}
               </div>
