@@ -82,8 +82,11 @@ async function fetchTicketMetrics(ticketNumber: string): Promise<{ resolutionMin
   if (!m) return { resolutionMinutes: null, fcr: null }
   // Use calendar (wall-clock) minutes, not business hours
   const resolutionMinutes = m.full_resolution_time_in_minutes?.calendar ?? null
-  // FCR: ticket was never reopened after being solved
-  const fcr = typeof m.reopens === 'number' ? m.reopens === 0 : null
+  // FCR: ticket was resolved (resolution_time not null) AND never reopened.
+  // Excluding unresolved tickets prevents open/pending tickets (reopens=0 trivially)
+  // from inflating the rate.
+  const resolved = resolutionMinutes !== null && resolutionMinutes > 0
+  const fcr = resolved ? (typeof m.reopens === 'number' ? m.reopens === 0 : null) : null
   return { resolutionMinutes, fcr }
 }
 
