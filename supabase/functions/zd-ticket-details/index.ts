@@ -1,12 +1,8 @@
 // zd-ticket-details
 // Accepts an array of { supabase_id, ticket_number } objects.
-// For each: fetches ZD ticket created_at + player message count via audits API,
-// then patches the tickets row with zd_created_at + zd_message_count.
-//
-// Uses the audits API (not comments) because native messaging / live chat tickets
-// store player messages as audit events, not as standard comments. Agent messages
-// are excluded by fetching the ZD agent list and filtering them out — giving an
-// accurate count of player inputs per ticket.
+// For each ticket: fetches ZD metadata, ticket metrics (resolution time + FCR),
+// player message count via audits API, and classifies the last player message
+// for sentiment using Claude Haiku. Patches all fields in one DB write.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +14,7 @@ const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ZD_EMAIL             = Deno.env.get('ZENDESK_EMAIL')!
 const ZD_TOKEN             = Deno.env.get('ZENDESK_API_TOKEN')!
+const ANTHROPIC_API_KEY    = Deno.env.get('ANTHROPIC_API_KEY')!
 const ZD_BASE              = 'https://conduet.zendesk.com/api/v2'
 
 const sbHeaders = {
@@ -37,64 +34,68 @@ interface TicketInput {
 }
 
 interface ZDResult {
-  supabase_id:      string
-  ticket_number:    string
-  zd_created_at:    string | null
-  zd_message_count: number | null
-  error?:           string
+  supabase_id:           string
+  ticket_number:         string
+  zd_created_at:         string | null
+  zd_message_count:      number | null
+  zd_resolution_minutes: number | null
+  zd_fcr:                boolean | null
+  zd_player_sentiment:   string | null
+  error?:                string
 }
 
-// Fetch all ZD agent user IDs once per request — used to exclude agent messages
-// from the player message count. Cached in module scope for the request lifetime.
+// Agent/admin ID cache — fetched once per request, reused across all tickets in the batch
 let agentIdCache: Set<number> | null = null
 
 async function getAgentIds(): Promise<Set<number>> {
   if (agentIdCache) return agentIdCache
-
   const ids = new Set<number>()
-  let url: string | null = `${ZD_BASE}/users.json?role=agent&per_page=100`
-
-  while (url) {
-    const res = await fetch(url, { headers: zdHeaders })
-    if (!res.ok) break
-    const data = await res.json()
-    const users: any[] = data.users ?? []
-    users.forEach((u: any) => ids.add(u.id))
-    url = data.next_page ?? null
+  for (const role of ['agent', 'admin']) {
+    let url: string | null = `${ZD_BASE}/users.json?role=${role}&per_page=100`
+    while (url) {
+      const res = await fetch(url, { headers: zdHeaders })
+      if (!res.ok) break
+      const data = await res.json()
+      ;(data.users ?? []).forEach((u: any) => ids.add(u.id))
+      url = data.next_page ?? null
+    }
   }
-
-  // Also fetch admins — they can also respond to tickets
-  let adminUrl: string | null = `${ZD_BASE}/users.json?role=admin&per_page=100`
-  while (adminUrl) {
-    const res = await fetch(adminUrl, { headers: zdHeaders })
-    if (!res.ok) break
-    const data = await res.json()
-    const users: any[] = data.users ?? []
-    users.forEach((u: any) => ids.add(u.id))
-    adminUrl = data.next_page ?? null
-  }
-
   agentIdCache = ids
   return ids
 }
+
+// ── ZD data fetchers ────────────────────────────────────────────────────────
 
 async function fetchZDTicket(ticketNumber: string): Promise<{ created_at: string } | null> {
   const res = await fetch(`${ZD_BASE}/tickets/${ticketNumber}.json`, { headers: zdHeaders })
   if (!res.ok) return null
   const data = await res.json()
-  if (!data.ticket) return null
-  return { created_at: data.ticket.created_at }
+  return data.ticket ? { created_at: data.ticket.created_at } : null
 }
 
-// Count player messages using the audits API.
-// Audits capture every event on the ticket including native messaging chat messages.
-// We count audits where the author is NOT one of our agents/admins and the audit
-// contains either:
-//   (a) a public Comment event (typed message), OR
-//   (b) any Comment event — catches button clicks / quick replies (e.g. "Talk to an Agent")
-//       which ZD sometimes stores as non-public Comment events in native messaging.
-async function countPlayerMessages(ticketNumber: string, agentIds: Set<number>): Promise<number> {
+// Ticket metrics endpoint: resolution time (calendar minutes) + reopen count for FCR
+async function fetchTicketMetrics(ticketNumber: string): Promise<{ resolutionMinutes: number | null; fcr: boolean | null }> {
+  const res = await fetch(`${ZD_BASE}/tickets/${ticketNumber}/metrics.json`, { headers: zdHeaders })
+  if (!res.ok) return { resolutionMinutes: null, fcr: null }
+  const data = await res.json()
+  const m = data.ticket_metric
+  if (!m) return { resolutionMinutes: null, fcr: null }
+  // Use calendar (wall-clock) minutes, not business hours
+  const resolutionMinutes = m.full_resolution_time_in_minutes?.calendar ?? null
+  // FCR: ticket was never reopened after being solved
+  const fcr = typeof m.reopens === 'number' ? m.reopens === 0 : null
+  return { resolutionMinutes, fcr }
+}
+
+// Audits API: count non-agent messages + capture the last player message text.
+// Native messaging (live chat) tickets store player messages as audit events,
+// not standard comments — this approach covers both channel types.
+async function fetchAuditData(
+  ticketNumber: string,
+  agentIds: Set<number>
+): Promise<{ count: number; lastPlayerMessage: string | null }> {
   let count = 0
+  let lastPlayerMessage: string | null = null
   let url: string | null = `${ZD_BASE}/tickets/${ticketNumber}/audits.json?per_page=100`
   let isFirst = true
 
@@ -102,58 +103,122 @@ async function countPlayerMessages(ticketNumber: string, agentIds: Set<number>):
     const res = await fetch(url, { headers: zdHeaders })
     if (!res.ok) break
     const data = await res.json()
-    const audits: any[] = data.audits ?? []
 
-    for (const audit of audits) {
-      const authorId: number = audit.author_id
-      if (agentIds.has(authorId)) { isFirst = false; continue }
+    for (const audit of (data.audits ?? [])) {
+      if (agentIds.has(audit.author_id)) { isFirst = false; continue }
 
       const events: any[] = audit.events ?? []
 
-      // For the very first audit (ticket creation by the player), count it if
-      // there's a Create event — this captures the opening message/button press
-      // that starts the native messaging conversation.
+      // First non-agent audit: count if it contains a Create event (ticket opener)
       if (isFirst) {
-        const hasCreate = events.some((e: any) => e.type === 'Create')
-        if (hasCreate) { count++; isFirst = false; continue }
+        if (events.some((e: any) => e.type === 'Create')) { count++; isFirst = false; continue }
       }
       isFirst = false
 
-      // Count any Comment event from a non-agent — includes typed messages AND
-      // button/quick-reply clicks which may come through as non-public Comments.
-      const hasComment = events.some((e: any) => e.type === 'Comment')
-      if (hasComment) count++
+      // Count any Comment event from a non-agent; also capture the text for sentiment
+      const commentEvent = events.find((e: any) => e.type === 'Comment')
+      if (commentEvent) {
+        count++
+        const body = (commentEvent.plain_body ?? commentEvent.body ?? '').trim()
+        if (body) lastPlayerMessage = body.slice(0, 2000) // cap at 2 KB
+      }
     }
 
     url = data.next_page ?? null
   }
 
-  return count
+  return { count, lastPlayerMessage }
 }
+
+// ── Sentiment classification ────────────────────────────────────────────────
+
+const SENTIMENT_PROMPT = `You classify the sentiment of a player's final message to a customer support agent.
+
+COMPLIMENT — Player expressed genuine appreciation or positive feedback about the agent or support they received, beyond a routine closing. Examples: "you were so helpful!", "amazing service", "you're the best", "that solved everything, thank you so much!"
+NEUTRAL — Standard acknowledgment or closing with no clear sentiment. Examples: "ok", "thanks", "got it", "bye", "understood", "alright"
+NEGATIVE — Player expressed frustration, dissatisfaction, or an unresolved concern. Examples: "this didn't help", "still not working", "very disappointed"
+
+Important: "thanks" or "thank you" alone = NEUTRAL. Only classify as COMPLIMENT when there is additional genuine positive language beyond the routine acknowledgment.
+
+Respond with ONLY valid JSON — no markdown, no explanation:
+{"verdict": "COMPLIMENT"|"NEUTRAL"|"NEGATIVE", "confidence": 0-100}`
+
+async function classifySentiment(message: string): Promise<{ verdict: string; confidence: number } | null> {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:  'POST',
+      headers: {
+        'x-api-key':         ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type':      'application/json',
+      },
+      body: JSON.stringify({
+        model:      'claude-haiku-4-5', // fast + cheap for simple 3-way classification
+        max_tokens: 64,
+        system:     SENTIMENT_PROMPT,
+        messages:   [{ role: 'user', content: `Player message: "${message}"` }],
+      }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const raw  = data.content?.[0]?.type === 'text' ? data.content[0].text.trim() : ''
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+// ── Per-ticket processor ────────────────────────────────────────────────────
 
 async function processTicket(t: TicketInput, agentIds: Set<number>): Promise<ZDResult> {
   if (!/^\d{5,7}$/.test(t.ticket_number)) {
-    return { ...t, zd_created_at: null, zd_message_count: null, error: 'invalid ticket number' }
+    return { ...t, zd_created_at: null, zd_message_count: null, zd_resolution_minutes: null, zd_fcr: null, zd_player_sentiment: null, error: 'invalid ticket number' }
   }
 
-  const zdTicket = await fetchZDTicket(t.ticket_number)
+  // Fetch ZD ticket info, metrics, and audit data in parallel
+  const [zdTicket, metrics, auditData] = await Promise.all([
+    fetchZDTicket(t.ticket_number),
+    fetchTicketMetrics(t.ticket_number),
+    fetchAuditData(t.ticket_number, agentIds),
+  ])
+
   if (!zdTicket) {
-    return { ...t, zd_created_at: null, zd_message_count: null, error: 'not found in ZD' }
+    return { ...t, zd_created_at: null, zd_message_count: null, zd_resolution_minutes: null, zd_fcr: null, zd_player_sentiment: null, error: 'not found in ZD' }
   }
 
-  const messageCount = await countPlayerMessages(t.ticket_number, agentIds)
+  // Classify sentiment on the last player message if one was found
+  let sentiment: { verdict: string; confidence: number } | null = null
+  if (auditData.lastPlayerMessage) {
+    sentiment = await classifySentiment(auditData.lastPlayerMessage)
+  }
 
+  // Write everything in a single DB patch
   await fetch(`${SUPABASE_URL}/rest/v1/tickets?id=eq.${t.supabase_id}`, {
     method:  'PATCH',
     headers: { ...sbHeaders, Prefer: 'return=minimal' },
     body:    JSON.stringify({
-      zd_created_at:    zdTicket.created_at,
-      zd_message_count: messageCount,
+      zd_created_at:           zdTicket.created_at,
+      zd_message_count:        auditData.count,
+      zd_resolution_minutes:   metrics.resolutionMinutes,
+      zd_fcr:                  metrics.fcr,
+      zd_last_player_message:  auditData.lastPlayerMessage,
+      zd_player_sentiment:     sentiment?.verdict     ?? null,
+      zd_sentiment_confidence: sentiment?.confidence  ?? null,
     }),
   })
 
-  return { ...t, zd_created_at: zdTicket.created_at, zd_message_count: messageCount }
+  return {
+    ...t,
+    zd_created_at:         zdTicket.created_at,
+    zd_message_count:      auditData.count,
+    zd_resolution_minutes: metrics.resolutionMinutes,
+    zd_fcr:                metrics.fcr,
+    zd_player_sentiment:   sentiment?.verdict ?? null,
+  }
 }
+
+// ── Handler ─────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -167,10 +232,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Fetch agent IDs once for the whole batch
     const agentIds = await getAgentIds()
-
-    // Process sequentially to respect ZD rate limits
     const results: ZDResult[] = []
     for (const t of tickets) {
       results.push(await processTicket(t, agentIds))

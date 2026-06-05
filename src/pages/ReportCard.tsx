@@ -24,13 +24,18 @@ interface EvalRow {
 }
 
 interface TicketRow {
-  id:               string
-  ticketNumber:     string
-  agentName:        string
-  agentEmail:       string
-  zdMessageCount:   number | null
-  issueCount:       number   // filled in after join
-  createdAt:        string
+  id:                    string
+  ticketNumber:          string
+  agentName:             string
+  agentEmail:            string
+  zdMessageCount:        number | null
+  zdResolutionMinutes:   number | null
+  zdFcr:                 boolean | null
+  zdLastPlayerMessage:   string | null
+  zdPlayerSentiment:     string | null  // COMPLIMENT | NEUTRAL | NEGATIVE
+  zdSentimentConfidence: number | null
+  issueCount:            number   // filled in after join
+  createdAt:             string
 }
 
 const VERDICT_CONFIG: Record<Verdict, { label: string; color: string; bg: string; desc: string }> = {
@@ -55,6 +60,14 @@ function filterByRange(rows: EvalRow[], range: TimeRange): EvalRow[] {
 
 function pct(n: number, total: number) {
   return total ? Math.round((n / total) * 100) : 0
+}
+
+function fmtMinutes(mins: number | null): string {
+  if (mins === null || mins === 0) return '—'
+  if (mins < 60) return `${mins}m`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
 function VerdictBadge({ verdict, small }: { verdict: Verdict; small?: boolean }) {
@@ -93,7 +106,7 @@ async function fetchTicketCompleteness(): Promise<TicketRow[]> {
   while (true) {
     const { data, error } = await supabase
       .from('tickets')
-      .select('id,ticket_number,agent_name,agent_email,zd_message_count,created_at')
+      .select('id,ticket_number,agent_name,agent_email,zd_message_count,zd_resolution_minutes,zd_fcr,zd_last_player_message,zd_player_sentiment,zd_sentiment_confidence,created_at')
       .not('zd_message_count', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -118,13 +131,18 @@ async function fetchTicketCompleteness(): Promise<TicketRow[]> {
   }
 
   return allTickets.map((t: any) => ({
-    id:             t.id,
-    ticketNumber:   t.ticket_number,
-    agentName:      t.agent_name ?? '',
-    agentEmail:     t.agent_email ?? '',
-    zdMessageCount: t.zd_message_count,
-    issueCount:     issueCounts.get(t.id) ?? 0,
-    createdAt:      t.created_at ?? '',
+    id:                    t.id,
+    ticketNumber:          t.ticket_number,
+    agentName:             t.agent_name ?? '',
+    agentEmail:            t.agent_email ?? '',
+    zdMessageCount:        t.zd_message_count,
+    zdResolutionMinutes:   t.zd_resolution_minutes ?? null,
+    zdFcr:                 t.zd_fcr ?? null,
+    zdLastPlayerMessage:   t.zd_last_player_message ?? null,
+    zdPlayerSentiment:     t.zd_player_sentiment ?? null,
+    zdSentimentConfidence: t.zd_sentiment_confidence ?? null,
+    issueCount:            issueCounts.get(t.id) ?? 0,
+    createdAt:             t.created_at ?? '',
   }))
 }
 
@@ -193,7 +211,7 @@ function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: 
 
 function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void }) {
   const [expanded, setExpanded]   = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'evals' | 'completeness'>('evals')
+  const [activeTab, setActiveTab] = useState<'evals' | 'completeness' | 'wins'>('evals')
 
   const total      = rows.length
   const correction = rows.filter(r => r.evalVerdict === 'CORRECTION').length
@@ -222,30 +240,52 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
       {(() => {
         const ticketsWithData  = tickets.filter(t => t.zdMessageCount !== null)
         const completeTickets  = ticketsWithData.filter(t => t.issueCount >= (t.zdMessageCount ?? 0)).length
-        const completenessVal  = ticketsWithData.length
-          ? `${pct(completeTickets, ticketsWithData.length)}%`
-          : '—'
+        const completenessVal  = ticketsWithData.length ? `${pct(completeTickets, ticketsWithData.length)}%` : '—'
         const completenessColor = ticketsWithData.length === 0 ? '#aaa'
           : pct(completeTickets, ticketsWithData.length) >= 80 ? '#166534'
           : pct(completeTickets, ticketsWithData.length) >= 60 ? '#854d0e'
           : '#e53e3e'
+
+        const ticketsWithRes   = tickets.filter(t => t.zdResolutionMinutes !== null)
+        const avgRes           = ticketsWithRes.length
+          ? Math.round(ticketsWithRes.reduce((s, t) => s + (t.zdResolutionMinutes ?? 0), 0) / ticketsWithRes.length)
+          : null
+        const ticketsWithFcr   = tickets.filter(t => t.zdFcr !== null)
+        const fcrPct           = ticketsWithFcr.length ? pct(ticketsWithFcr.filter(t => t.zdFcr).length, ticketsWithFcr.length) : null
+        const complimentCount  = tickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT').length
+
         return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
-            {[
-              { label: 'Total evals',    value: total.toString(),                   color: '#9B59D0' },
-              { label: 'Corrections',    value: `${pct(correction, total)}%`,       color: '#e53e3e' },
-              { label: 'Enhancements',   value: `${pct(enhancement, total)}%`,      color: '#854d0e' },
-              { label: 'Preferences',    value: `${pct(preference, total)}%`,       color: '#58595B' },
-              { label: 'Avg confidence', value: `${avgConf}%`,                      color: avgConf >= 80 ? '#166534' : '#854d0e' },
-              { label: 'Completeness',   value: completenessVal,                    color: completenessColor,
-                note: ticketsWithData.length ? `${completeTickets}/${ticketsWithData.length} tickets` : 'No ZD data yet' },
-            ].map(k => (
-              <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
-                {'note' in k && k.note && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>}
-              </div>
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Row 1: eval metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+              {[
+                { label: 'Total evals',    value: total.toString(),             color: '#9B59D0' },
+                { label: 'Corrections',    value: `${pct(correction, total)}%`, color: '#e53e3e' },
+                { label: 'Enhancements',   value: `${pct(enhancement, total)}%`,color: '#854d0e' },
+                { label: 'Preferences',    value: `${pct(preference, total)}%`, color: '#58595B' },
+                { label: 'Avg confidence', value: `${avgConf}%`,                color: avgConf >= 80 ? '#166534' : '#854d0e' },
+              ].map(k => (
+                <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+                </div>
+              ))}
+            </div>
+            {/* Row 2: operations metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+              {[
+                { label: 'Logging completeness', value: completenessVal, color: completenessColor, note: ticketsWithData.length ? `${completeTickets}/${ticketsWithData.length} tickets` : 'No ZD data yet' },
+                { label: 'Avg resolution time',  value: fmtMinutes(avgRes), color: '#000', note: ticketsWithRes.length ? `${ticketsWithRes.length} resolved tickets` : 'No data yet' },
+                { label: 'FCR rate',             value: fcrPct !== null ? `${fcrPct}%` : '—', color: fcrPct === null ? '#aaa' : fcrPct >= 80 ? '#166534' : fcrPct >= 60 ? '#854d0e' : '#e53e3e', note: 'First contact resolution' },
+                { label: 'Player compliments',   value: complimentCount > 0 ? `+${complimentCount}` : complimentCount.toString(), color: complimentCount > 0 ? '#166534' : 'rgba(0,0,0,0.25)', note: 'Genuine positive feedback' },
+              ].map(k => (
+                <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+                  {k.note && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>}
+                </div>
+              ))}
+            </div>
           </div>
         )
       })()}
@@ -255,6 +295,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
         {([
           { id: 'evals',        label: 'Edit Evaluations',      count: rows.length },
           { id: 'completeness', label: 'Logging Completeness',  count: tickets.length },
+          { id: 'wins',         label: 'Agent Wins',            count: tickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT').length },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
             fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -400,6 +441,64 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
           })}
         </div>
       )}
+      {/* Agent Wins tab */}
+      {activeTab === 'wins' && (() => {
+        const wins = tickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT')
+        if (wins.length === 0) {
+          return (
+            <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+                No compliments detected yet — run the ZD backfill to analyse player messages.
+              </p>
+            </div>
+          )
+        }
+        return (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Agent Wins</p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+                Tickets where the player left a genuine compliment — classified by AI from the last player message
+              </p>
+            </div>
+            {wins.map((t, i) => (
+              <div key={t.id} style={{
+                padding: '14px 20px',
+                borderBottom: i < wins.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                    padding: '2px 8px', borderRadius: 100,
+                    background: 'rgba(22,101,52,0.09)', color: '#166534',
+                  }}>Compliment</span>
+                  {t.zdSentimentConfidence !== null && (
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                      {t.zdSentimentConfidence}% confidence
+                    </span>
+                  )}
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
+                    {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                  </span>
+                </div>
+                {t.zdLastPlayerMessage && (
+                  <p style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                    lineHeight: 1.5, fontStyle: 'italic',
+                    padding: '8px 12px', borderRadius: 8,
+                    background: 'rgba(22,101,52,0.04)',
+                    borderLeft: '3px solid rgba(22,101,52,0.3)',
+                  }}>
+                    "{t.zdLastPlayerMessage}"
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -447,14 +546,31 @@ export default function ReportCard() {
   }, [rows])
 
   // Team-level summary
-  const teamTotal      = rows.length
-  const teamCorrection = rows.filter(r => r.evalVerdict === 'CORRECTION').length
+  const teamTotal       = rows.length
+  const teamCorrection  = rows.filter(r => r.evalVerdict === 'CORRECTION').length
   const teamEnhancement = rows.filter(r => r.evalVerdict === 'ENHANCEMENT').length
-  const teamPreference = rows.filter(r => r.evalVerdict === 'PREFERENCE').length
+  const teamPreference  = rows.filter(r => r.evalVerdict === 'PREFERENCE').length
 
   // "Added today" — always counted from all evals regardless of time range filter
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const todayStr   = new Date().toISOString().slice(0, 10)
   const addedToday = allRows.filter(r => (r.evalRanAt ?? '').slice(0, 10) === todayStr).length
+
+  // Ticket-level ops metrics — filtered by selected time range
+  const filteredTickets = useMemo(() => {
+    if (range === 'allTime') return ticketRows
+    const c = new Date(); c.setDate(c.getDate() - rangeDays(range))
+    return ticketRows.filter(t => new Date(t.createdAt) >= c)
+  }, [ticketRows, range])
+
+  const ticketsWithRes  = filteredTickets.filter(t => t.zdResolutionMinutes !== null)
+  const avgResolutionMins = ticketsWithRes.length
+    ? Math.round(ticketsWithRes.reduce((s, t) => s + (t.zdResolutionMinutes ?? 0), 0) / ticketsWithRes.length)
+    : null
+  const ticketsWithFcr  = filteredTickets.filter(t => t.zdFcr !== null)
+  const teamFcrPct      = ticketsWithFcr.length
+    ? pct(ticketsWithFcr.filter(t => t.zdFcr).length, ticketsWithFcr.length)
+    : null
+  const teamCompliments = filteredTickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT').length
 
   if (loading) {
     return (
@@ -470,7 +586,7 @@ export default function ReportCard() {
   // Drilldown view
   if (selected) {
     const agentRows    = rows.filter(r => r.agentName === selected)
-    const agentTickets = ticketRows.filter(t => t.agentName === selected)
+    const agentTickets = filteredTickets.filter(t => t.agentName === selected)
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -525,6 +641,36 @@ export default function ReportCard() {
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
             {k.note && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>{k.note}</p>}
+          </div>
+        ))}
+      </div>
+
+      {/* Operations KPIs row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {[
+          {
+            label: 'Avg resolution time',
+            value: fmtMinutes(avgResolutionMins),
+            color: '#000',
+            note: ticketsWithRes.length ? `across ${ticketsWithRes.length} resolved tickets` : 'Run ZD backfill to populate',
+          },
+          {
+            label: 'FCR rate',
+            value: teamFcrPct !== null ? `${teamFcrPct}%` : '—',
+            color: teamFcrPct === null ? '#aaa' : teamFcrPct >= 80 ? '#166534' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e',
+            note: 'First contact resolution — no reopens',
+          },
+          {
+            label: 'Player compliments',
+            value: teamCompliments > 0 ? `+${teamCompliments}` : teamCompliments.toString(),
+            color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.25)',
+            note: 'Genuine positive feedback detected',
+          },
+        ].map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>{k.note}</p>
           </div>
         ))}
       </div>
