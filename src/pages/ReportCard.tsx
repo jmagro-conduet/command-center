@@ -71,25 +71,57 @@ function fmtMinutes(mins: number | null): string {
 }
 
 // Strip email quoting artifacts so we only show the player's actual words.
-// Removes: "> quoted lines", "On [date] ... wrote:" headers, forwarding dividers,
-// trailing whitespace, and collapses multiple blank lines.
-function cleanPlayerMessage(raw: string): string {
+function cleanEmailMessage(raw: string): string {
   const lines = raw.split('\n')
   const clean: string[] = []
   for (const line of lines) {
     const trimmed = line.trim()
-    // Skip quoted lines ("> text" or ">> text")
     if (/^>+/.test(trimmed)) continue
-    // Skip "On [date/time], [name] wrote:" reply headers (single or multi-line)
     if (/^on .{5,100} wrote:$/i.test(trimmed)) continue
-    // Skip forwarding / original message dividers
     if (/^-{3,}|^_{3,}|^={3,}/.test(trimmed)) continue
-    // Skip "From:", "Sent:", "To:", "Subject:" email header lines
     if (/^(from|sent|to|subject|date):/i.test(trimmed)) continue
     clean.push(line)
   }
-  // Collapse 3+ consecutive blank lines into one, then trim edges
   return clean.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+// For native messaging (live chat), ZD stores the entire transcript as one Comment
+// body, formatted as "(HH:MM AM/PM) Name: text". Parse it and return only the last
+// message from the player — identified by excluding BetSaracen/Web User (bot/system)
+// and the logged agent's name.
+function extractLastPlayerMessage(raw: string, agentName?: string): string {
+  const isTranscript = /\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)\)/i.test(raw)
+  if (!isTranscript) return cleanEmailMessage(raw)
+
+  // Split on timestamp markers, parse "Name: message" from each chunk
+  const segments = raw
+    .split(/(?=\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)\))/i)
+    .map(p => {
+      const m = p.match(/^\([^)]+\)\s*([^:]+):\s*(.+)/s)
+      return m ? { name: m[1].trim(), msg: m[2].trim() } : null
+    })
+    .filter(Boolean) as { name: string; msg: string }[]
+
+  if (segments.length === 0) return raw
+
+  // Agent's first name for fuzzy matching against transcript speaker names
+  const agentFirst = agentName?.split(/[\s.]/)[0]?.toLowerCase() ?? ''
+
+  const playerSegments = segments.filter(s => {
+    const n = s.name.toLowerCase()
+    // Exclude bot and system speakers
+    if (/^(BetSaracen|Web User)/i.test(s.name)) return false
+    // Exclude the logged agent's lines (first-name match)
+    if (agentFirst && n.includes(agentFirst)) return false
+    return true
+  })
+
+  // Fall back to any non-bot segment if we couldn't isolate player lines
+  const candidates = playerSegments.length > 0
+    ? playerSegments
+    : segments.filter(s => !/^(BetSaracen|Web User)/i.test(s.name))
+
+  return candidates[candidates.length - 1]?.msg.trim() ?? raw
 }
 
 function VerdictBadge({ verdict, small }: { verdict: Verdict; small?: boolean }) {
@@ -513,7 +545,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
                     background: 'rgba(22,101,52,0.04)',
                     borderLeft: '3px solid rgba(22,101,52,0.3)',
                   }}>
-                    "{cleanPlayerMessage(t.zdLastPlayerMessage ?? '')}"
+                    "{extractLastPlayerMessage(t.zdLastPlayerMessage ?? '', t.agentName)}"
                   </p>
                 )}
               </div>
@@ -687,7 +719,7 @@ export default function ReportCard() {
                     borderLeft: '3px solid rgba(22,101,52,0.25)',
                     margin: 0,
                   }}>
-                    "{cleanPlayerMessage(t.zdLastPlayerMessage ?? '')}"
+                    "{extractLastPlayerMessage(t.zdLastPlayerMessage ?? '', t.agentName)}"
                   </p>
                 )}
               </div>

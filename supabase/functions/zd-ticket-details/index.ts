@@ -90,6 +90,26 @@ async function fetchTicketMetrics(ticketNumber: string): Promise<{ resolutionMin
   return { resolutionMinutes, fcr }
 }
 
+// For native messaging, ZD sometimes stores the full chat transcript in a single
+// Comment event body formatted as "(HH:MM AM/PM) Name: text". Parse it and return
+// only the last non-bot line so we store a clean message, not the whole conversation.
+function extractLastLineFromTranscript(body: string): string {
+  const isTranscript = /\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)\)/i.test(body)
+  if (!isTranscript) return body
+
+  const segments = body
+    .split(/(?=\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)\))/i)
+    .map((p: string) => {
+      const m = p.match(/^\([^)]+\)\s*([^:]+):\s*(.+)/s)
+      return m ? { name: m[1].trim(), msg: m[2].trim() } : null
+    })
+    .filter(Boolean) as { name: string; msg: string }[]
+
+  const nonBot = segments.filter((s: { name: string; msg: string }) => !/^(BetSaracen|Web User)/i.test(s.name))
+  if (nonBot.length === 0) return body
+  return nonBot[nonBot.length - 1].msg.trim()
+}
+
 // Audits API: count non-agent messages + capture the last player message text.
 // Native messaging (live chat) tickets store player messages as audit events,
 // not standard comments — this approach covers both channel types.
@@ -122,8 +142,9 @@ async function fetchAuditData(
       const commentEvent = events.find((e: any) => e.type === 'Comment')
       if (commentEvent) {
         count++
-        const body = (commentEvent.plain_body ?? commentEvent.body ?? '').trim()
-        if (body) lastPlayerMessage = body.slice(0, 2000) // cap at 2 KB
+        const raw = (commentEvent.plain_body ?? commentEvent.body ?? '').trim()
+        // If the body is a full chat transcript, extract just the last non-bot line
+        if (raw) lastPlayerMessage = extractLastLineFromTranscript(raw).slice(0, 2000)
       }
     }
 
