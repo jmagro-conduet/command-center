@@ -107,19 +107,30 @@ function extractLastPlayerMessage(raw: string, agentName?: string): string {
   // Agent's first name for fuzzy matching against transcript speaker names
   const agentFirst = agentName?.split(/[\s.]/)[0]?.toLowerCase() ?? ''
 
-  const playerSegments = segments.filter(s => {
-    const n = s.name.toLowerCase()
-    // Exclude bot and system speakers
-    if (/^(BetSaracen|Web User)/i.test(s.name)) return false
-    // Exclude the logged agent's lines (first-name match)
-    if (agentFirst && n.includes(agentFirst)) return false
-    return true
-  })
+  const nonBot = segments.filter(s => !/^(BetSaracen|Web User)/i.test(s.name))
 
-  // Fall back to any non-bot segment if we couldn't isolate player lines
-  const candidates = playerSegments.length > 0
-    ? playerSegments
-    : segments.filter(s => !/^(BetSaracen|Web User)/i.test(s.name))
+  // Try player name extracted from BetSaracen's verification form-fill first
+  let playerFirstName: string | null = null
+  const nameMatch = raw.match(/Name:\s*([A-Z][a-z]+)(?:\s+[A-Z][a-z]+)*\s+(?:Email:|Date)/m)
+  if (nameMatch) playerFirstName = nameMatch[1].toLowerCase()
+
+  if (playerFirstName) {
+    const playerSegs = nonBot.filter(s => s.name.toLowerCase().startsWith(playerFirstName!))
+    if (playerSegs.length > 0) return playerSegs[playerSegs.length - 1].msg.trim()
+  }
+
+  // Exclude the logged agent's lines by first-name match
+  const withoutAgent = agentFirst
+    ? nonBot.filter(s => !s.name.toLowerCase().includes(agentFirst))
+    : nonBot
+
+  // Exclude obvious agent closing patterns
+  const agentClosingPattern = /thank you for contacting|have a great|feel free to contact|if you have any other questions|you can also contact us/i
+  const nonClosing = withoutAgent.filter(s => !agentClosingPattern.test(s.msg))
+
+  const candidates = nonClosing.length > 0 ? nonClosing
+    : withoutAgent.length > 0 ? withoutAgent
+    : nonBot
 
   return candidates[candidates.length - 1]?.msg.trim() ?? raw
 }

@@ -92,7 +92,7 @@ async function fetchTicketMetrics(ticketNumber: string): Promise<{ resolutionMin
 
 // For native messaging, ZD sometimes stores the full chat transcript in a single
 // Comment event body formatted as "(HH:MM AM/PM) Name: text". Parse it and return
-// only the last non-bot line so we store a clean message, not the whole conversation.
+// only the last player message — not the agent's closing line.
 function extractLastLineFromTranscript(body: string): string {
   const isTranscript = /\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)\)/i.test(body)
   if (!isTranscript) return body
@@ -105,9 +105,29 @@ function extractLastLineFromTranscript(body: string): string {
     })
     .filter(Boolean) as { name: string; msg: string }[]
 
-  const nonBot = segments.filter((s: { name: string; msg: string }) => !/^(BetSaracen|Web User)/i.test(s.name))
-  if (nonBot.length === 0) return body
-  return nonBot[nonBot.length - 1].msg.trim()
+  // BetSaracen's verification flow always collects the player's name upfront.
+  // Format in transcript: "Web User [hash]: Name: John Smith Email: ..."
+  // Extract it so we can identify the player's segments by name.
+  let playerFirstName: string | null = null
+  const nameMatch = body.match(/Name:\s*([A-Z][a-z]+)(?:\s+[A-Z][a-z]+)*\s+(?:Email:|Date)/m)
+  if (nameMatch) playerFirstName = nameMatch[1].toLowerCase()
+
+  // Non-bot segments only
+  const nonBot = segments.filter(s => !/^(BetSaracen|Web User)/i.test(s.name))
+
+  if (playerFirstName) {
+    // Filter to segments where the speaker name starts with the player's first name
+    const playerSegs = nonBot.filter(s => s.name.toLowerCase().startsWith(playerFirstName!))
+    if (playerSegs.length > 0) return playerSegs[playerSegs.length - 1].msg.trim()
+  }
+
+  // Fallback: exclude obvious agent closing messages and return the last remaining line
+  const agentClosingPattern = /thank you for contacting|have a great|feel free to contact|if you have any other questions|you can also contact us/i
+  const nonClosing = nonBot.filter(s => !agentClosingPattern.test(s.msg))
+
+  if (nonClosing.length > 0) return nonClosing[nonClosing.length - 1].msg.trim()
+  if (nonBot.length > 0) return nonBot[nonBot.length - 1].msg.trim()
+  return body
 }
 
 // Audits API: count non-agent messages + capture the last player message text.
