@@ -374,7 +374,6 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
             // button-click events can cause a natural ±1 gap. Only flag when ≥2.
             const underLogged = delta < -1
             const overLogged  = delta >  1
-            const exact       = !underLogged && !overLogged
             return (
               <div key={t.id} style={{
                 display: 'grid', gridTemplateColumns: '100px 90px 90px 90px 1fr',
