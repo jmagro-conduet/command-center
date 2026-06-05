@@ -511,6 +511,7 @@ export default function ReportCard() {
   const [loading, setLoading]         = useState(true)
   const [range, setRange]             = useState<TimeRange>('last30')
   const [selected, setSelected]       = useState<string | null>(null)
+  const [showWins, setShowWins]       = useState(false)
 
   useEffect(() => {
     Promise.all([fetchAllEvals(), fetchTicketCompleteness()]).then(([evals, tickets]) => {
@@ -598,6 +599,83 @@ export default function ReportCard() {
     )
   }
 
+  // Team Wins view
+  if (showWins) {
+    const wins = filteredTickets
+      .filter(t => t.zdPlayerSentiment === 'COMPLIMENT')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={() => setShowWins(false)} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+              background: 'none', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 8,
+              padding: '6px 12px', cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              ← Back
+            </button>
+            <div>
+              <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Player Compliments</h1>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+                {wins.length} genuine compliment{wins.length !== 1 ? 's' : ''} across the team in this period
+              </p>
+            </div>
+          </div>
+          <TimeRangeFilter value={range} onChange={setRange} />
+        </div>
+
+        {wins.length === 0 ? (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 60, textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+              No compliments detected in this period. Run the ZD backfill to analyse player messages.
+            </p>
+          </div>
+        ) : (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+            {wins.map((t, i) => (
+              <div key={t.id} style={{
+                padding: '16px 20px',
+                borderBottom: i < wins.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{t.agentName}</span>
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                    padding: '2px 8px', borderRadius: 100,
+                    background: 'rgba(22,101,52,0.09)', color: '#166534',
+                  }}>Compliment</span>
+                  {t.zdSentimentConfidence !== null && (
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                      {t.zdSentimentConfidence}% confidence
+                    </span>
+                  )}
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
+                    {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                  </span>
+                </div>
+                {t.zdLastPlayerMessage && (
+                  <p style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                    lineHeight: 1.55, fontStyle: 'italic',
+                    padding: '10px 14px', borderRadius: 8,
+                    background: 'rgba(22,101,52,0.04)',
+                    borderLeft: '3px solid rgba(22,101,52,0.25)',
+                    margin: 0,
+                  }}>
+                    "{t.zdLastPlayerMessage}"
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // Team overview
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -660,12 +738,6 @@ export default function ReportCard() {
             color: teamFcrPct === null ? '#aaa' : teamFcrPct >= 80 ? '#166534' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e',
             note: 'First contact resolution — no reopens',
           },
-          {
-            label: 'Player compliments',
-            value: teamCompliments > 0 ? `+${teamCompliments}` : teamCompliments.toString(),
-            color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.25)',
-            note: 'Genuine positive feedback detected',
-          },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
@@ -673,6 +745,27 @@ export default function ReportCard() {
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>{k.note}</p>
           </div>
         ))}
+
+        {/* Player compliments — clickable card */}
+        <div
+          onClick={() => teamCompliments > 0 && setShowWins(true)}
+          style={{
+            background: '#fff', borderRadius: 14, padding: '16px 18px',
+            border: teamCompliments > 0 ? '1.5px solid rgba(22,101,52,0.25)' : '1.5px solid rgba(0,0,0,0.09)',
+            cursor: teamCompliments > 0 ? 'pointer' : 'default',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { if (teamCompliments > 0) e.currentTarget.style.background = 'rgba(22,101,52,0.03)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+        >
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Player compliments</p>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
+            {teamCompliments > 0 ? `+${teamCompliments}` : '—'}
+          </p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.3)', marginTop: 3 }}>
+            {teamCompliments > 0 ? 'Click to view all →' : 'Genuine positive feedback detected'}
+          </p>
+        </div>
       </div>
 
       {/* Per-agent table */}
