@@ -46,13 +46,12 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
 
         if (user.role === 'admin') {
           // Admins can switch — restore last selection from localStorage
-          const savedId   = localStorage.getItem(STORAGE_KEY)
-          const savedOp   = savedId ? ops.find(o => o.id === savedId) : null
+          const savedId = localStorage.getItem(STORAGE_KEY)
+          const savedOp = savedId ? ops.find(o => o.id === savedId) : null
           setSelected(savedOp ?? ops[0])
         } else {
-          // Agents are locked to their own operator
-          const agentOp = user.operatorId ? ops.find(o => o.id === user.operatorId) : null
-          setSelected(agentOp ?? ops[0])
+          // Agents default to first operator until operator_id is on users table
+          setSelected(ops[0])
         }
 
         setLoading(false)
