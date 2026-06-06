@@ -199,7 +199,7 @@ export default function LogTicket() {
     const { data: insertedIssues, error: issuesErr } = await supabase
       .from('ticket_issues')
       .insert(issues)
-      .select('id, issue_type, final_edits')
+      .select('id, issue_type, final_edits, suggested_response')
     if (issuesErr) {
       setSubmitError(issuesErr.message)
       setSubmitting(false)
@@ -215,14 +215,28 @@ export default function LogTicket() {
       body: { tickets: [{ supabase_id: ticket.id, ticket_number: active.ticketNumber.trim() }] },
     }).catch(() => {}) // intentionally swallow — non-critical enrichment
 
-    // Fire-and-forget: run AI eval on any Majority/Partial edits that have final_edits
+    // Fire-and-forget: run edit validity eval on Majority/Partial edits with final_edits
     const evalIds = (insertedIssues ?? [])
       .filter((r: any) => (r.issue_type === 'Majority edit' || r.issue_type === 'Partial edit') && r.final_edits)
       .map((r: any) => r.id)
     if (evalIds.length > 0) {
       supabase.functions.invoke('eval-issue-v2', {
         body: { ids: evalIds },
-      }).catch(() => {}) // intentionally swallow — non-critical enrichment
+      }).catch(() => {})
+    }
+
+    // Fire-and-forget: run accuracy + quality evals on all issues that have a suggested response
+    // (Perfect, Majority edit, Partial edit — excludes "No response")
+    const accuracyQualityIds = (insertedIssues ?? [])
+      .filter((r: any) => r.issue_type !== 'No response' && r.suggested_response)
+      .map((r: any) => r.id)
+    if (accuracyQualityIds.length > 0) {
+      supabase.functions.invoke('eval-accuracy', {
+        body: { ids: accuracyQualityIds },
+      }).catch(() => {})
+      supabase.functions.invoke('eval-quality', {
+        body: { ids: accuracyQualityIds },
+      }).catch(() => {})
     }
 
     // Remove the submitted tab; if it was the last one, replace with a fresh tab

@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
-type TimeRange = 'last7' | 'last14' | 'last30' | 'allTime'
-type Verdict   = 'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE'
+type TimeRange    = 'last7' | 'last14' | 'last30' | 'allTime'
+type Verdict      = 'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE'
+type TopTab       = 'evals' | 'accuracy' | 'quality'
+type AccuracyClass = 'P1A' | 'P1B' | 'P2' | 'NONE'
 
 interface EvalRow {
   id:                 string
@@ -21,6 +23,22 @@ interface EvalRow {
   agentName:          string
   agentEmail:         string
   category:           string
+  // Eval 2 — Response Accuracy
+  accuracyErrorClass:   AccuracyClass | null
+  accuracyEvidence:     string | null
+  accuracyReasoning:    string | null
+  accuracyHumanReview:  boolean | null
+  accuracyRanAt:        string | null
+  // Eval 3 — Response Quality
+  qualityIntent:        number | null
+  qualityResolution:    number | null
+  qualityInfoGathering: number | null
+  qualityClarity:       number | null
+  qualityBrand:         number | null
+  qualityScore:         number | null
+  qualityFlag:          boolean | null
+  qualityFlagReason:    string | null
+  qualityRanAt:         string | null
 }
 
 interface TicketRow {
@@ -218,7 +236,7 @@ async function fetchAllEvals(): Promise<EvalRow[]> {
   while (true) {
     const { data, error } = await supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .not('eval_verdict', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -244,6 +262,22 @@ async function fetchAllEvals(): Promise<EvalRow[]> {
     agentName:         r.tickets?.agent_name ?? '',
     agentEmail:        r.tickets?.agent_email ?? '',
     category:          r.tickets?.ticket_category ?? '',
+    // Eval 2
+    accuracyErrorClass:   (r.accuracy_error_class as AccuracyClass) ?? null,
+    accuracyEvidence:     r.accuracy_evidence     ?? null,
+    accuracyReasoning:    r.accuracy_reasoning    ?? null,
+    accuracyHumanReview:  r.accuracy_human_review ?? null,
+    accuracyRanAt:        r.accuracy_ran_at       ?? null,
+    // Eval 3
+    qualityIntent:        r.quality_intent         ?? null,
+    qualityResolution:    r.quality_resolution     ?? null,
+    qualityInfoGathering: r.quality_info_gathering ?? null,
+    qualityClarity:       r.quality_clarity        ?? null,
+    qualityBrand:         r.quality_brand          ?? null,
+    qualityScore:         r.quality_score          ?? null,
+    qualityFlag:          r.quality_flag           ?? null,
+    qualityFlagReason:    r.quality_flag_reason    ?? null,
+    qualityRanAt:         r.quality_ran_at         ?? null,
   }))
 }
 
@@ -272,11 +306,376 @@ function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: 
   )
 }
 
+// ── Accuracy helpers ────────────────────────────────────────────────────────
+
+const ACCURACY_CONFIG: Record<AccuracyClass, { label: string; color: string; bg: string; desc: string }> = {
+  P1A:  { label: 'P1A — Regulatory', color: '#e53e3e',  bg: 'rgba(229,62,62,0.09)',    desc: 'Regulatory-level — creates direct legal exposure' },
+  P1B:  { label: 'P1B — Hallucination', color: '#c05621', bg: 'rgba(237,137,54,0.12)', desc: 'Topic mismatch or unsupported confident claim — human review required' },
+  P2:   { label: 'P2 — Data error',  color: '#854d0e',  bg: 'rgba(234,179,8,0.12)',    desc: 'Account data presented as confirmed fact' },
+  NONE: { label: 'Clean',            color: '#166534',  bg: 'rgba(22,101,52,0.09)',     desc: 'No accuracy errors detected' },
+}
+
+function AccuracyBadge({ cls, small }: { cls: AccuracyClass; small?: boolean }) {
+  const c = ACCURACY_CONFIG[cls]
+  return (
+    <span style={{
+      fontFamily: 'Inter, sans-serif', fontSize: small ? 10 : 11, fontWeight: 600,
+      padding: small ? '2px 7px' : '3px 9px', borderRadius: 100,
+      background: c.bg, color: c.color, whiteSpace: 'nowrap', letterSpacing: '0.03em',
+    }}>
+      {c.label}
+    </span>
+  )
+}
+
+function QualityScore({ score, small }: { score: number; small?: boolean }) {
+  const color = score >= 4 ? '#166534' : score >= 3.5 ? '#854d0e' : '#e53e3e'
+  return (
+    <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: small ? 13 : 20, fontWeight: 600, color }}>
+      {score.toFixed(2)}
+    </span>
+  )
+}
+
+// ── Response Accuracy tab ───────────────────────────────────────────────────
+
+function ResponseAccuracyView({ rows, agentFilter }: { rows: EvalRow[]; agentFilter?: string }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const scoped    = agentFilter ? rows.filter(r => r.agentName === agentFilter) : rows
+  const withEval  = scoped.filter(r => r.accuracyRanAt !== null)
+  const total     = withEval.length
+  const p1a       = withEval.filter(r => r.accuracyErrorClass === 'P1A').length
+  const p1b       = withEval.filter(r => r.accuracyErrorClass === 'P1B').length
+  const p2        = withEval.filter(r => r.accuracyErrorClass === 'P2').length
+  const clean     = withEval.filter(r => r.accuracyErrorClass === 'NONE').length
+  const errorRate = total ? Math.round(((p1a + p1b + p2) / total) * 100) : 0
+  const reviewQueue = withEval.filter(r => r.accuracyHumanReview === true && r.accuracyErrorClass !== 'NONE')
+
+  if (withEval.length === 0) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No accuracy evals yet</p>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+          New submissions automatically trigger Eval 2. Run a backfill script to score existing issues.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* KPI row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+        {[
+          { label: 'Evals run',    value: total.toString(),         color: '#9B59D0', note: 'responses scored' },
+          { label: 'Error rate',   value: `${errorRate}%`,          color: errorRate > 10 ? '#e53e3e' : errorRate > 5 ? '#854d0e' : '#166534', note: 'P1A + P1B + P2 combined' },
+          { label: 'P1A — Regulatory', value: p1a.toString(),       color: p1a > 0 ? '#e53e3e' : '#166534', note: p1a > 0 ? 'Action required' : 'None detected' },
+          { label: 'P1B — Review queue', value: p1b.toString(),     color: p1b > 0 ? '#c05621' : '#166534', note: p1b > 0 ? 'Human review required' : 'None detected' },
+          { label: 'Clean responses', value: total ? `${pct(clean, total)}%` : '—', color: '#166534', note: 'No errors detected' },
+        ].map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Flagged items table */}
+      {reviewQueue.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(229,62,62,0.2)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(229,62,62,0.03)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Human Review Queue</p>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.1)', color: '#e53e3e' }}>
+              {reviewQueue.length} item{reviewQueue.length !== 1 ? 's' : ''}
+            </span>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginLeft: 4 }}>P1A and P1B flagged responses — verify and clear</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 140px 90px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+            {['Ticket', 'Agent', 'Category', 'Error class', 'Date'].map(h => (
+              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            ))}
+          </div>
+          {reviewQueue.map((r) => {
+            const isExp = expanded === r.id
+            return (
+              <div key={r.id}>
+                <div
+                  onClick={() => setExpanded(isExp ? null : r.id)}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '100px 1fr 160px 140px 90px',
+                    padding: '11px 20px', alignItems: 'center', cursor: 'pointer',
+                    borderBottom: '1px solid rgba(0,0,0,0.05)',
+                    background: isExp ? 'rgba(229,62,62,0.03)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(229,62,62,0.03)' : 'transparent' }}
+                >
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.agentName}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.category || '—'}</span>
+                  {r.accuracyErrorClass && <AccuracyBadge cls={r.accuracyErrorClass} small />}
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
+                    {r.accuracyRanAt ? new Date(r.accuracyRanAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                  </span>
+                </div>
+                {isExp && r.accuracyErrorClass && (
+                  <div style={{ padding: '16px 20px 20px', background: 'rgba(229,62,62,0.02)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: ACCURACY_CONFIG[r.accuracyErrorClass].color, marginBottom: 12 }}>
+                      {ACCURACY_CONFIG[r.accuracyErrorClass].desc}
+                      {r.accuracyReasoning && <span style={{ color: '#58595B', fontWeight: 400 }}> — {r.accuracyReasoning}</span>}
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                      {[
+                        { label: 'Player message',      value: r.customerInput },
+                        { label: 'gameLM suggested',    value: r.suggestedResponse },
+                      ].map(box => (
+                        <div key={box.label} style={{ padding: '12px 14px', borderRadius: 10, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {r.accuracyEvidence && r.accuracyEvidence !== 'None' && (
+                      <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(229,62,62,0.05)', border: '1px solid rgba(229,62,62,0.15)' }}>
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e' }}>
+                          <strong style={{ fontWeight: 600 }}>Flagged text: </strong>"{r.accuracyEvidence}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* All evals table — non-review items */}
+      {withEval.filter(r => !r.accuracyHumanReview || r.accuracyErrorClass === 'NONE').length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>All Accuracy Results</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 140px 90px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+            {['Ticket', 'Agent', 'Category', 'Result', 'Date'].map(h => (
+              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            ))}
+          </div>
+          {withEval.filter(r => !r.accuracyHumanReview || r.accuracyErrorClass === 'NONE').slice(0, 50).map((r, i, arr) => (
+            <div key={r.id} style={{
+              display: 'grid', gridTemplateColumns: '100px 1fr 160px 140px 90px',
+              padding: '11px 20px', alignItems: 'center',
+              borderBottom: i < arr.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+            }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.agentName}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.category || '—'}</span>
+              {r.accuracyErrorClass && <AccuracyBadge cls={r.accuracyErrorClass} small />}
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
+                {r.accuracyRanAt ? new Date(r.accuracyRanAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Response Quality tab ────────────────────────────────────────────────────
+
+const QUALITY_CATEGORIES = [
+  { key: 'qualityIntent' as const,        label: 'Intent',        weight: '25%' },
+  { key: 'qualityResolution' as const,    label: 'Resolution',    weight: '25%' },
+  { key: 'qualityInfoGathering' as const, label: 'Info Gathering',weight: '20%' },
+  { key: 'qualityClarity' as const,       label: 'Clarity',       weight: '15%' },
+  { key: 'qualityBrand' as const,         label: 'Brand',         weight: '15%' },
+]
+
+function avgOf(rows: EvalRow[], key: keyof EvalRow): number | null {
+  const vals = rows.map(r => r[key] as number | null).filter((v): v is number => v !== null)
+  return vals.length ? parseFloat((vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(2)) : null
+}
+
+function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilter?: string }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const scoped      = agentFilter ? rows.filter(r => r.agentName === agentFilter) : rows
+  const withEval    = scoped.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
+  const total       = withEval.length
+  const avgScore    = avgOf(withEval, 'qualityScore')
+  const aboveBar    = withEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length
+  const flagged     = withEval.filter(r => r.qualityFlag === true).length
+  const belowBar    = withEval.filter(r => (r.qualityScore ?? 0) < 3.5)
+
+  if (withEval.length === 0) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No quality evals yet</p>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+          New submissions automatically trigger Eval 3. Run a backfill script to score existing issues.
+        </p>
+      </div>
+    )
+  }
+
+  const scoreColor = (s: number | null) => s === null ? '#aaa' : s >= 4 ? '#166534' : s >= 3.5 ? '#854d0e' : '#e53e3e'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Top KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        {[
+          { label: 'Evals run',        value: total.toString(),                                       color: '#9B59D0', note: 'responses scored' },
+          { label: 'Avg quality score', value: avgScore !== null ? avgScore.toFixed(2) : '—',          color: scoreColor(avgScore), note: 'target ≥ 3.50' },
+          { label: 'Above bar (≥3.5)', value: total ? `${pct(aboveBar, total)}%` : '—',               color: '#166534', note: `${aboveBar} / ${total} responses` },
+          { label: 'Flagged (any cat=1)', value: flagged.toString(),                                   color: flagged > 0 ? '#e53e3e' : '#166534', note: flagged > 0 ? 'Minimum quality fail' : 'None this period' },
+        ].map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Category averages */}
+      <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px' }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 14 }}>Category Averages</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+          {QUALITY_CATEGORIES.map(cat => {
+            const avg = avgOf(withEval, cat.key)
+            const color = scoreColor(avg)
+            const pctFill = avg !== null ? ((avg - 1) / 4) * 100 : 0
+            return (
+              <div key={cat.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B' }}>{cat.label}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.3)' }}>{cat.weight}</span>
+                </div>
+                <div style={{ height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                  <div style={{ width: `${pctFill}%`, height: '100%', borderRadius: 100, background: color, transition: 'width 0.3s' }} />
+                </div>
+                <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color }}>{avg !== null ? avg.toFixed(2) : '—'}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Below-bar items */}
+      {belowBar.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Below Threshold</p>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>
+              {belowBar.length} response{belowBar.length !== 1 ? 's' : ''} below 3.5
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 80px 80px 80px 80px 80px 80px 80px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)', gap: 8 }}>
+            {['Ticket', 'Agent', 'Category', 'Score', 'Intent', 'Res', 'Info', 'Clarity', 'Brand', 'Flag'].map(h => (
+              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+            ))}
+          </div>
+          {belowBar.map((r) => {
+            const isExp = expanded === r.id
+            const sc = (v: number | null) => v !== null ? (
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: v <= 2 ? '#e53e3e' : v >= 4 ? '#166634' : '#854d0e' }}>{v}</span>
+            ) : <span style={{ color: 'rgba(0,0,0,0.2)', fontSize: 12 }}>—</span>
+            return (
+              <div key={r.id}>
+                <div
+                  onClick={() => setExpanded(isExp ? null : r.id)}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '100px 1fr 160px 80px 80px 80px 80px 80px 80px 80px',
+                    padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 8,
+                    borderBottom: '1px solid rgba(0,0,0,0.05)',
+                    background: isExp ? 'rgba(206,164,255,0.04)' : 'transparent',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.04)' : 'transparent' }}
+                >
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.agentName}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.category || '—'}</span>
+                  <QualityScore score={r.qualityScore!} small />
+                  {sc(r.qualityIntent)} {sc(r.qualityResolution)} {sc(r.qualityInfoGathering)} {sc(r.qualityClarity)} {sc(r.qualityBrand)}
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: r.qualityFlag ? 'rgba(229,62,62,0.09)' : 'rgba(0,0,0,0.05)', color: r.qualityFlag ? '#e53e3e' : '#58595B', width: 'fit-content' }}>
+                    {r.qualityFlag ? 'Flagged' : 'OK'}
+                  </span>
+                </div>
+                {isExp && (
+                  <div style={{ padding: '16px 20px 20px', background: 'rgba(206,164,255,0.02)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                    {r.qualityFlagReason && r.qualityFlagReason !== 'None' && (
+                      <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(229,62,62,0.05)', border: '1px solid rgba(229,62,62,0.15)' }}>
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e' }}>
+                          <strong style={{ fontWeight: 600 }}>Flag reason: </strong>{r.qualityFlagReason}
+                        </p>
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      {[
+                        { label: 'Player message',   value: r.customerInput },
+                        { label: 'gameLM suggested', value: r.suggestedResponse },
+                      ].map(box => (
+                        <div key={box.label} style={{ padding: '12px 14px', borderRadius: 10, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* All evals table */}
+      {withEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Passing Responses</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 160px 80px 80px 80px 80px 80px 80px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)', gap: 8 }}>
+            {['Ticket', 'Agent', 'Category', 'Score', 'Intent', 'Res', 'Info', 'Clarity', 'Brand'].map(h => (
+              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+            ))}
+          </div>
+          {withEval.filter(r => (r.qualityScore ?? 0) >= 3.5).slice(0, 30).map((r, i, arr) => {
+            const sc = (v: number | null) => v !== null ? (
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: v <= 2 ? '#e53e3e' : v >= 4 ? '#166534' : '#854d0e' }}>{v}</span>
+            ) : <span style={{ color: 'rgba(0,0,0,0.2)', fontSize: 12 }}>—</span>
+            return (
+              <div key={r.id} style={{
+                display: 'grid', gridTemplateColumns: '100px 1fr 160px 80px 80px 80px 80px 80px 80px',
+                padding: '11px 20px', alignItems: 'center', gap: 8,
+                borderBottom: i < arr.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+              }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.agentName}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.category || '—'}</span>
+                <QualityScore score={r.qualityScore!} small />
+                {sc(r.qualityIntent)} {sc(r.qualityResolution)} {sc(r.qualityInfoGathering)} {sc(r.qualityClarity)} {sc(r.qualityBrand)}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Agent Drilldown ────────────────────────────────────────────────────────────
 
 function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void }) {
   const [expanded, setExpanded]   = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'evals' | 'completeness' | 'wins'>('evals')
+  const [activeTab, setActiveTab] = useState<'evals' | 'accuracy' | 'quality' | 'completeness' | 'wins'>('evals')
 
   const total      = rows.length
   const correction = rows.filter(r => r.evalVerdict === 'CORRECTION').length
@@ -358,9 +757,11 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
       {/* Tab switcher */}
       <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3, alignSelf: 'flex-start' }}>
         {([
-          { id: 'evals',        label: 'Edit Evaluations',      count: rows.length },
-          { id: 'completeness', label: 'Logging Completeness',  count: tickets.length },
-          { id: 'wins',         label: 'Agent Wins',            count: tickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT').length },
+          { id: 'evals',        label: 'Edit Evals',       count: rows.length },
+          { id: 'accuracy',     label: 'Accuracy',         count: rows.filter(r => r.accuracyRanAt).length },
+          { id: 'quality',      label: 'Quality',          count: rows.filter(r => r.qualityRanAt).length },
+          { id: 'completeness', label: 'Completeness',     count: tickets.length },
+          { id: 'wins',         label: 'Wins',             count: tickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT').length },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
             fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -453,6 +854,16 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
           </div>
         )}
       </div>
+      )}
+
+      {/* Response Accuracy tab */}
+      {activeTab === 'accuracy' && (
+        <ResponseAccuracyView rows={rows} agentFilter={agentName} />
+      )}
+
+      {/* Response Quality tab */}
+      {activeTab === 'quality' && (
+        <ResponseQualityView rows={rows} agentFilter={agentName} />
       )}
 
       {/* Logging Completeness tab */}
@@ -577,6 +988,7 @@ export default function ReportCard() {
   const [range, setRange]             = useState<TimeRange>('last30')
   const [selected, setSelected]       = useState<string | null>(null)
   const [showWins, setShowWins]       = useState(false)
+  const [topTab, setTopTab]           = useState<TopTab>('evals')
 
   useEffect(() => {
     Promise.all([fetchAllEvals(), fetchTicketCompleteness()]).then(([evals, tickets]) => {
@@ -747,10 +1159,39 @@ export default function ReportCard() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Report Card</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>AI evaluation of agent edit validity — click an agent to drill down</p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>AI evaluation of agent performance — click an agent to drill down</p>
         </div>
         <TimeRangeFilter value={range} onChange={setRange} />
       </div>
+
+      {/* Top-level tab switcher */}
+      <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3, alignSelf: 'flex-start' }}>
+        {([
+          { id: 'evals' as TopTab,    label: 'Edit Evaluations' },
+          { id: 'accuracy' as TopTab, label: 'Response Accuracy' },
+          { id: 'quality' as TopTab,  label: 'Response Quality'  },
+        ]).map(t => (
+          <button key={t.id} onClick={() => setTopTab(t.id)} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13,
+            fontWeight: topTab === t.id ? 500 : 400,
+            padding: '7px 16px', borderRadius: 9,
+            background: topTab === t.id ? '#000' : 'transparent',
+            color: topTab === t.id ? '#fff' : '#58595B',
+            border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+          }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Response Accuracy tab ── */}
+      {topTab === 'accuracy' && <ResponseAccuracyView rows={rows} />}
+
+      {/* ── Response Quality tab ── */}
+      {topTab === 'quality' && <ResponseQualityView rows={rows} />}
+
+      {/* ── Edit Evaluations tab ── */}
+      {topTab === 'evals' && <>
 
       {/* Team summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
@@ -891,6 +1332,8 @@ export default function ReportCard() {
         )}
       </div>
       <div style={{ height: 8 }} />
+
+      </> /* end topTab === 'evals' */}
     </div>
   )
 }

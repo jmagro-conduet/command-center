@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import './index.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { OperatorProvider } from './context/OperatorContext'
 import Sidebar from './components/layout/Sidebar'
 import type { Page } from './components/layout/Sidebar'
 import Login, { ResetPasswordPage } from './pages/Login'
@@ -95,7 +96,9 @@ function AppShell() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppShell />
+      <OperatorProvider>
+        <AppShell />
+      </OperatorProvider>
     </AuthProvider>
   )
 }
