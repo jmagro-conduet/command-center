@@ -272,6 +272,7 @@ export default function LogTicket() {
     active.responses.length > 0
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
         Log ticket
@@ -706,6 +707,7 @@ export default function LogTicket() {
         </div>
       )
     })()}
+    </>
   )
 }
 
