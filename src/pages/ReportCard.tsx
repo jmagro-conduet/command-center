@@ -648,11 +648,12 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
   onClose: () => void
 }) {
   const [expandedTheme, setExpandedTheme] = useState<string | null>(null)
+  const [view,          setView]          = useState<'categories' | 'context'>('categories')
   const meta = VERDICT_META[verdict]
 
   const filtered = rows.filter(r => r.evalVerdict === verdict)
 
-  // Build theme map
+  // Build category → items map
   const themeMap = new Map<string, EvalRow[]>()
   for (const r of filtered) {
     const key = r.themeTag ?? 'Uncategorized'
@@ -663,9 +664,34 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
     .map(([theme, items]) => ({ theme, count: items.length, items }))
     .sort((a, b) => b.count - a.count)
 
+  // Build context sub-themes: category → themeDetail frequency
+  const contextMap = new Map<string, Map<string, number>>()
+  for (const r of filtered) {
+    const cat = r.themeTag ?? 'Uncategorized'
+    if (!contextMap.has(cat)) contextMap.set(cat, new Map())
+    if (r.themeDetail) {
+      const m = contextMap.get(cat)!
+      m.set(r.themeDetail, (m.get(r.themeDetail) ?? 0) + 1)
+    }
+  }
+  const contextGroups = themes
+    .filter(t => t.theme !== 'Uncategorized')
+    .map(({ theme, count }) => ({
+      theme,
+      total: count,
+      details: [...(contextMap.get(theme) ?? new Map()).entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10),
+    }))
+  const hasDetails   = filtered.some(r => r.themeDetail)
+  const pendingCount = contextGroups.filter(g => g.details.length === 0).length
+
   const maxCount = themes[0]?.count ?? 1
   const themed   = filtered.filter(r => r.themeTag).length
   const unthemed = filtered.length - themed
+
+  // Reset expanded state when switching views
+  useEffect(() => { setExpandedTheme(null) }, [view])
 
   // Keyboard close
   useEffect(() => {
@@ -690,7 +716,7 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
           background: '#fff', borderRadius: 20,
           border: '1.5px solid rgba(0,0,0,0.09)',
           boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
-          width: '100%', maxWidth: 600,
+          width: '100%', maxWidth: 620,
           maxHeight: '80vh', overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
         }}
@@ -698,7 +724,7 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
         {/* Header */}
         <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid rgba(0,0,0,0.07)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <span style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
@@ -711,10 +737,31 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
                   {filtered.length} response{filtered.length !== 1 ? 's' : ''} in period
                 </span>
               </div>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 4 }}>
-                Theme Breakdown
-              </h2>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{meta.desc}</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 4 }}>
+                    {view === 'categories' ? 'Theme Breakdown' : 'Context Themes'}
+                  </h2>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                    {view === 'categories' ? meta.desc : 'Specific situations driving each category — expand to see sub-themes'}
+                  </p>
+                </div>
+                {/* Categories / Context toggle */}
+                <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2, flexShrink: 0 }}>
+                  {([
+                    { id: 'categories' as const, label: 'Categories' },
+                    { id: 'context'    as const, label: 'Context'    },
+                  ]).map(t => (
+                    <button key={t.id} onClick={() => setView(t.id)} style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: view === t.id ? 500 : 400,
+                      padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                      background: view === t.id ? '#000' : 'transparent',
+                      color:      view === t.id ? '#fff' : '#58595B',
+                      boxShadow:  view === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+                    }}>{t.label}</button>
+                  ))}
+                </div>
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -737,95 +784,127 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
 
         {/* Body */}
         <div style={{ overflowY: 'auto', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {themes.length === 0 && (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '24px 0' }}>
-              No theme data yet — run the quality backfill to populate themes.
-            </p>
-          )}
-          {themes.map(({ theme, count, items }) => {
-            const barWidth = Math.round((count / maxCount) * 100)
-            const isExp    = expandedTheme === theme
-            const isUncat  = theme === 'Uncategorized'
-            return (
-              <div key={theme}>
-                {/* Theme row */}
-                <div
-                  onClick={() => setExpandedTheme(isExp ? null : theme)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                    background: isExp ? meta.bg : 'transparent', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = isExp ? meta.bg : 'transparent' }}
-                >
-                  {/* Theme name */}
-                  <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                    color: isUncat ? 'rgba(0,0,0,0.3)' : '#000',
-                    minWidth: 160, flexShrink: 0,
-                  }}>
-                    {isUncat ? 'Not yet themed' : theme}
-                  </span>
-                  {/* Bar */}
-                  <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
-                    <div style={{
-                      width: `${barWidth}%`, height: '100%', borderRadius: 100,
-                      background: isUncat ? 'rgba(0,0,0,0.15)' : meta.color,
-                      opacity: isUncat ? 0.4 : 1,
-                      transition: 'width 0.4s ease',
-                    }} />
-                  </div>
-                  {/* Count */}
-                  <span style={{
-                    fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600,
-                    color: isUncat ? 'rgba(0,0,0,0.25)' : meta.color,
-                    minWidth: 28, textAlign: 'right', flexShrink: 0,
-                  }}>{count}</span>
-                  {/* Chevron */}
-                  {!isUncat && (
-                    <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.25)', flexShrink: 0, transition: 'transform 0.15s', transform: isExp ? 'rotate(180deg)' : 'none' }}>▼</span>
-                  )}
-                </div>
 
-                {/* Expanded examples */}
-                {isExp && !isUncat && (
-                  <div style={{ marginLeft: 12, marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {items.slice(0, 4).map(r => (
-                      <div key={r.id} style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.07)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{r.agentName}</span>
-                          {r.evalVerdict && (
-                            <span style={{
-                              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
-                              padding: '1px 7px', borderRadius: 100,
-                              background: meta.bg, color: meta.color,
-                            }}>{r.evalVerdict}</span>
-                          )}
-                        </div>
-                        {r.customerInput && (
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 4, fontStyle: 'italic' }}>
-                            "{r.customerInput.length > 120 ? r.customerInput.slice(0, 120) + '…' : r.customerInput}"
-                          </p>
-                        )}
-                        {r.evalReasoning && (
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.45)', lineHeight: 1.5 }}>
-                            {r.evalReasoning.length > 160 ? r.evalReasoning.slice(0, 160) + '…' : r.evalReasoning}
+          {/* ── Categories view ─────────────────────────────────────────────── */}
+          {view === 'categories' && (
+            <>
+              {themes.length === 0 && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '24px 0' }}>
+                  No theme data yet — run the quality backfill to populate themes.
+                </p>
+              )}
+              {themes.map(({ theme, count, items }) => {
+                const barWidth = Math.round((count / maxCount) * 100)
+                const isExp    = expandedTheme === theme
+                const isUncat  = theme === 'Uncategorized'
+                return (
+                  <div key={theme}>
+                    <div
+                      onClick={() => setExpandedTheme(isExp ? null : theme)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                        background: isExp ? meta.bg : 'transparent', transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = isExp ? meta.bg : 'transparent' }}
+                    >
+                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: isUncat ? 'rgba(0,0,0,0.3)' : '#000', minWidth: 160, flexShrink: 0 }}>
+                        {isUncat ? 'Not yet themed' : theme}
+                      </span>
+                      <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                        <div style={{ width: `${barWidth}%`, height: '100%', borderRadius: 100, background: isUncat ? 'rgba(0,0,0,0.15)' : meta.color, opacity: isUncat ? 0.4 : 1, transition: 'width 0.4s ease' }} />
+                      </div>
+                      <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: isUncat ? 'rgba(0,0,0,0.25)' : meta.color, minWidth: 28, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                      {!isUncat && <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.25)', flexShrink: 0, transition: 'transform 0.15s', transform: isExp ? 'rotate(180deg)' : 'none' }}>▼</span>}
+                    </div>
+                    {isExp && !isUncat && (
+                      <div style={{ marginLeft: 12, marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {items.slice(0, 4).map(r => (
+                          <div key={r.id} style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.07)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
+                              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{r.agentName}</span>
+                              {r.evalVerdict && (
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 100, background: meta.bg, color: meta.color }}>{r.evalVerdict}</span>
+                              )}
+                            </div>
+                            {r.customerInput && (
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 4, fontStyle: 'italic' }}>
+                                "{r.customerInput.length > 120 ? r.customerInput.slice(0, 120) + '…' : r.customerInput}"
+                              </p>
+                            )}
+                            {r.evalReasoning && (
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.45)', lineHeight: 1.5 }}>
+                                {r.evalReasoning.length > 160 ? r.evalReasoning.slice(0, 160) + '…' : r.evalReasoning}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                        {items.length > 4 && (
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', paddingLeft: 12 }}>
+                            +{items.length - 4} more in this theme
                           </p>
                         )}
                       </div>
-                    ))}
-                    {items.length > 4 && (
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', paddingLeft: 12 }}>
-                        +{items.length - 4} more in this theme
-                      </p>
                     )}
                   </div>
-                )}
-              </div>
-            )
-          })}
+                )
+              })}
+            </>
+          )}
+
+          {/* ── Context view ────────────────────────────────────────────────── */}
+          {view === 'context' && !hasDetails && (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '28px 0' }}>
+              Context themes populate as new issues are scored — run a backfill to generate for existing data.
+            </p>
+          )}
+          {view === 'context' && hasDetails && (
+            <>
+              {contextGroups.filter(g => g.details.length > 0).map(group => {
+                const isExp     = expandedTheme === group.theme
+                const detailMax = group.details[0]?.[1] ?? 1
+                return (
+                  <div key={group.theme}>
+                    <div
+                      onClick={() => setExpandedTheme(isExp ? null : group.theme)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                        background: isExp ? meta.bg : 'transparent', transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = isExp ? meta.bg : 'transparent' }}
+                    >
+                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', minWidth: 160, flexShrink: 0 }}>{group.theme}</span>
+                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', flex: 1 }}>{group.details.length} situation{group.details.length !== 1 ? 's' : ''}</span>
+                      <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: meta.color, minWidth: 28, textAlign: 'right', flexShrink: 0 }}>{group.total}</span>
+                      <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.25)', flexShrink: 0, transition: 'transform 0.15s', transform: isExp ? 'rotate(180deg)' : 'none' }}>▼</span>
+                    </div>
+                    {isExp && (
+                      <div style={{ marginLeft: 12, marginBottom: 6, padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.07)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {group.details.map(([detail, count]) => (
+                          <div key={detail} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', flex: 1, minWidth: 0, lineHeight: 1.3 }}>{detail}</span>
+                            <div style={{ width: 80, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)', flexShrink: 0 }}>
+                              <div style={{ width: `${(count / detailMax) * 100}%`, height: '100%', borderRadius: 100, background: meta.color, opacity: 0.6, transition: 'width 0.3s' }} />
+                            </div>
+                            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 600, color: meta.color, width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {pendingCount > 0 && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.28)', textAlign: 'center', marginTop: 8 }}>
+                  +{pendingCount} categor{pendingCount > 1 ? 'ies' : 'y'} awaiting backfill
+                </p>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
