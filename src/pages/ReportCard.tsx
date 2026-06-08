@@ -245,10 +245,35 @@ async function fetchAllEvals(): Promise<EvalRow[]> {
     if (data.length < PAGE) break
     from += PAGE
   }
-  return all.map((r: any) => ({
+  return all.map(mapEvalRow)
+}
+
+// Fetches all issues that have been scored by eval-accuracy or eval-quality,
+// regardless of whether eval_verdict (edit eval) has been run.
+async function fetchAllScoredIssues(): Promise<EvalRow[]> {
+  const PAGE = 1000
+  const all: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('ticket_issues')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .or('accuracy_ran_at.not.is.null,quality_ran_at.not.is.null')
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1)
+    if (error || !data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+  return all.map(mapEvalRow)
+}
+
+function mapEvalRow(r: any): EvalRow {
+  return {
     id:                r.id,
     issueType:         r.issue_type ?? '',
-    evalVerdict:       r.eval_verdict as Verdict,
+    evalVerdict:       (r.eval_verdict as Verdict) ?? 'PREFERENCE',
     evalConfidence:    r.eval_confidence ?? 0,
     evalReasoning:     r.eval_reasoning ?? '',
     evalRanAt:         r.eval_ran_at ?? '',
@@ -278,7 +303,7 @@ async function fetchAllEvals(): Promise<EvalRow[]> {
     qualityFlag:          r.quality_flag           ?? null,
     qualityFlagReason:    r.quality_flag_reason    ?? null,
     qualityRanAt:         r.quality_ran_at         ?? null,
-  }))
+  }
 }
 
 function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: TimeRange) => void }) {
@@ -982,23 +1007,26 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
 // ── Main export ────────────────────────────────────────────────────────────────
 
 export default function ReportCard() {
-  const [allRows, setAllRows]         = useState<EvalRow[]>([])
-  const [ticketRows, setTicketRows]   = useState<TicketRow[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [range, setRange]             = useState<TimeRange>('last30')
-  const [selected, setSelected]       = useState<string | null>(null)
-  const [showWins, setShowWins]       = useState(false)
-  const [topTab, setTopTab]           = useState<TopTab>('evals')
+  const [allRows, setAllRows]           = useState<EvalRow[]>([])
+  const [allScoredRows, setAllScoredRows] = useState<EvalRow[]>([])
+  const [ticketRows, setTicketRows]     = useState<TicketRow[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [range, setRange]               = useState<TimeRange>('last30')
+  const [selected, setSelected]         = useState<string | null>(null)
+  const [showWins, setShowWins]         = useState(false)
+  const [topTab, setTopTab]             = useState<TopTab>('evals')
 
   useEffect(() => {
-    Promise.all([fetchAllEvals(), fetchTicketCompleteness()]).then(([evals, tickets]) => {
+    Promise.all([fetchAllEvals(), fetchTicketCompleteness(), fetchAllScoredIssues()]).then(([evals, tickets, scored]) => {
       setAllRows(evals)
       setTicketRows(tickets)
+      setAllScoredRows(scored)
       setLoading(false)
     })
   }, [])
 
-  const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
+  const rows        = useMemo(() => filterByRange(allRows, range), [allRows, range])
+  const scoredRows  = useMemo(() => filterByRange(allScoredRows, range), [allScoredRows, range])
 
   // Per-agent summary
   const agentSummaries = useMemo(() => {
@@ -1185,10 +1213,10 @@ export default function ReportCard() {
       </div>
 
       {/* ── Response Accuracy tab ── */}
-      {topTab === 'accuracy' && <ResponseAccuracyView rows={rows} />}
+      {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} />}
 
       {/* ── Response Quality tab ── */}
-      {topTab === 'quality' && <ResponseQualityView rows={rows} />}
+      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} />}
 
       {/* ── Edit Evaluations tab ── */}
       {topTab === 'evals' && <>
