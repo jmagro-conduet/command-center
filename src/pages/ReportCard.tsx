@@ -755,6 +755,7 @@ function avgOf(rows: EvalRow[], key: keyof EvalRow): number | null {
 
 function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilter?: string }) {
   const [expanded,       setExpanded]       = useState<string | null>(null)
+  const [viewMode,       setViewMode]       = useState<'issue' | 'ticket'>('issue')
   const [subTab,         setSubTab]         = useState<'below' | 'passing'>('below')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [agentFil,       setAgentFil]       = useState('')
@@ -892,40 +893,67 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
 
       <ThemeDistribution rows={withEval} />
 
-      {/* Sub-tab bar + filters + export */}
+      {/* Controls bar: view toggle + sub-tabs (issue mode only) + filters + export */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
-          {([
-            { id: 'below'   as const, label: `Below Threshold (${belowBar.length})` },
-            { id: 'passing' as const, label: `Passing (${passing.length})` },
-          ]).map(t => (
-            <button key={t.id} onClick={() => setSubTab(t.id)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
-              padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-              background: subTab === t.id ? '#fff' : 'transparent',
-              color: subTab === t.id ? '#000' : '#58595B',
-              boxShadow: subTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-            }}>{t.label}</button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* View mode toggle */}
+          <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+            {([
+              { id: 'issue'  as const, label: 'Issue Level' },
+              { id: 'ticket' as const, label: 'Ticket Level' },
+            ]).map(t => (
+              <button key={t.id} onClick={() => setViewMode(t.id)} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: viewMode === t.id ? 500 : 400,
+                padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                background: viewMode === t.id ? '#000' : 'transparent',
+                color: viewMode === t.id ? '#fff' : '#58595B',
+                boxShadow: viewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+              }}>{t.label}</button>
+            ))}
+          </div>
+
+          {/* Sub-tabs — issue mode only */}
+          {viewMode === 'issue' && (
+            <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+              {([
+                { id: 'below'   as const, label: `Below Threshold (${belowBar.length})` },
+                { id: 'passing' as const, label: `Passing (${passing.length})` },
+              ]).map(t => (
+                <button key={t.id} onClick={() => setSubTab(t.id)} style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
+                  padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                  background: subTab === t.id ? '#fff' : 'transparent',
+                  color: subTab === t.id ? '#000' : '#58595B',
+                  boxShadow: subTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                }}>{t.label}</button>
+              ))}
+            </div>
+          )}
         </div>
+
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {!agentFilter && (
             <DiagnosticFilters rows={withEval} categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
               agentFilter={agentFil} onAgentChange={setAgentFil} />
           )}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => exportJSONL(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
-              Export JSONL
-            </button>
-            <button onClick={() => exportCSV(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
-              Export CSV
-            </button>
-          </div>
+          {viewMode === 'issue' && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => exportJSONL(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+                Export JSONL
+              </button>
+              <button onClick={() => exportCSV(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+                Export CSV
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      {(subTab === 'below' ? belowBar : passing).length > 0 && (
+      {/* Ticket level view */}
+      {viewMode === 'ticket' && <TicketLevelView rows={withEval} />}
+
+      {/* Issue level table */}
+      {viewMode === 'issue' && (subTab === 'below' ? belowBar : passing).length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', alignItems: 'center', gap: 10 }}>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>
