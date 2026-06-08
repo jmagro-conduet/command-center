@@ -1,17 +1,9 @@
 // eval-quality (Eval 3 — Response Quality)
 // Scores each gameLM suggested response across 5 quality categories.
-//
-// Categories (weights):
-//   Intent Recognition   25%  — did it address what the player actually asked?
-//   Resolution Quality   25%  — correct resolution, policy, next step?
-//   Information Gathering 20% — right follow-up questions before resolving?
-//   Response Clarity     15%  — easy for the player to understand and act on?
-//   Brand Alignment      15%  — matches operator tone and terminology?
-//
-// Weighted average >= 3.5 = passing bar. FLAG = YES if any category scores 1.
+// Now uses full conversation thread for accurate context-aware scoring.
+// Also outputs THEME_TAG to surface recurring patterns.
 //
 // POST body: { ids: string[] }
-// ids — ticket_issue IDs to evaluate
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,23 +21,23 @@ const sbHeaders = {
   'Content-Type': 'application/json',
 }
 
-// ── System prompt (Eval 3 — Response Quality) ───────────────────────────────
+// ── System prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are a quality assurance evaluator for gameLM, an AI-powered customer service platform for sports betting and iGaming operators. Your job is to score a gameLM suggested response across five quality categories using the rubric below.
 
 You are scoring the suggested response only — not any edited version submitted by a human agent.
 
-You are provided with two inputs:
-- The conversation thread (player message or messages leading up to the current point)
+You are provided with:
+- The full conversation thread (all prior player messages and agent responses in this ticket, in order)
 - The gameLM suggested response to the player's most recent message
 
-The conversation thread is used only to score Category 3 (Information Gathering). For all other categories, score based on the player's most recent message and the suggested response alone.
+Use the full conversation thread only for Category 3 (Information Gathering) — to assess what context has already been established. For all other categories, score based on the player's most recent message and the suggested response alone.
 
 ---
 
 ### Scoring Rubric
 
-Score each category on a scale of 1 to 5. Scores of 2, 3, and 4 represent the range between the poor and good anchors.
+Score each category on a scale of 1 to 5.
 
 A score of 4 or above in every category is the target standard.
 
@@ -66,13 +58,13 @@ Does the response provide the correct resolution, policy, and next step?
 **Category 3 — Information Gathering (weight: 20%)**
 Did the response ask the right follow-up questions before attempting to resolve, where clarification was still needed at this point in the conversation?
 
-Use the full conversation thread to assess what information has already been established. If the player has already provided the necessary context earlier in the thread, do not penalise the response for not re-asking for it.
+Use the full conversation thread to assess what information has already been established. Do not penalise the response for not re-asking for information already provided earlier in the thread.
 
 - 1: No follow-up asked where clarification was clearly still needed
 - 3: Some follow-up attempted but incomplete, redundant given prior context, or asked in the wrong order
-- 5: Right questions, right order, given what has already been established in the conversation
+- 5: Right questions, right order, given what has already been established
 
-If no clarification was needed — either because the player's message was self-contained or because the required context was already present in the thread — score this category 5.
+If no clarification was needed — because the player's message was self-contained or required context was already present in the thread — score this category 5.
 
 **Category 4 — Response Clarity (weight: 15%)**
 Is the response easy for the player to understand and act on?
@@ -84,28 +76,27 @@ Is the response easy for the player to understand and act on?
 Does the response match the operator's tone, terminology, and communication standard?
 - 1: Off-brand — robotic, pushy, overly formal, or uses wrong terminology
 - 3: Mostly appropriate but tone is slightly off — too stiff, too casual, or missing expected warmth
-- 5: Friendly, confident, and conversational. Feels like a knowledgeable host — warm and approachable, clear without jargon, lightly upbeat but never pushy.
+- 5: Friendly, confident, and conversational. Warm and approachable, clear without jargon, lightly upbeat but never pushy.
 
 ---
 
-### Weighted Average Calculation
+### Weighted Average
 
-Apply the following weights to produce a single quality score:
+Apply the following weights:
 - Intent Recognition: 25%
 - Resolution Quality: 25%
 - Information Gathering: 20%
 - Response Clarity: 15%
 - Brand Alignment: 15%
 
-Weighted average = (Intent × 0.25) + (Resolution × 0.25) + (Info Gathering × 0.20) + (Clarity × 0.15) + (Brand × 0.15)
-
 ---
 
 ### Your Task
 
-1. Read the conversation thread and the gameLM suggested response.
+1. Read the full conversation thread and the gameLM suggested response.
 2. Score the response across all five categories.
-3. Return your scores strictly in the format below.
+3. Identify the primary topic of this conversation.
+4. Return your output strictly in the format below.
 
 ---
 
@@ -119,10 +110,34 @@ BRAND_ALIGNMENT: [1-5]
 WEIGHTED_AVERAGE: [calculated to 2 decimal places]
 FLAG: [YES / NO — flag YES if any single category scores 1]
 FLAG_REASON: [If flagged, state which category scored 1 and quote the relevant response text. Otherwise "None".]
+THEME_TAG: [choose the single most relevant: Account Access | Bet Dispute | Bet Placement | Bonus / Promotion | Deposit / Withdrawal | Game Dispute | KYC / Verification | Responsible Gaming | Settlement / Results | Technical Issue | Account Administration | General Query]
 
-Do not add commentary outside this format. Do not classify errors — that is handled by Eval 2. Do not suggest rewrites.`
+Do not add commentary outside this format. Do not classify accuracy errors — that is handled by Eval 2. Do not suggest rewrites.`
 
-// ── Parser ──────────────────────────────────────────────────────────────────
+// ── Conversation thread builder ───────────────────────────────────────────────
+
+interface TicketIssue {
+  id: string
+  customer_input: string | null
+  suggested_response: string | null
+}
+
+function buildConversationThread(
+  ticketIssues: TicketIssue[],
+  currentId: string,
+  currentInput: string
+): string {
+  const lines: string[] = []
+  for (const ti of ticketIssues) {
+    if (ti.id === currentId) break
+    if (ti.customer_input?.trim())     lines.push(`Player: "${ti.customer_input.trim()}"`)
+    if (ti.suggested_response?.trim()) lines.push(`Agent: "${ti.suggested_response.trim()}"`)
+  }
+  lines.push(`Player: "${currentInput}"`)
+  return lines.join('\n')
+}
+
+// ── Parser ───────────────────────────────────────────────────────────────────
 
 interface QualityResult {
   intent:        number | null
@@ -133,6 +148,7 @@ interface QualityResult {
   score:         number | null
   flag:          boolean | null
   flagReason:    string | null
+  themeTag:      string | null
 }
 
 function parseQualityOutput(text: string): QualityResult {
@@ -141,13 +157,12 @@ function parseQualityOutput(text: string): QualityResult {
     return m ? parseInt(m[1], 10) : null
   }
 
-  const intent       = num(/INTENT_RECOGNITION:\s*([1-5])/i)
-  const resolution   = num(/RESOLUTION_QUALITY:\s*([1-5])/i)
+  const intent        = num(/INTENT_RECOGNITION:\s*([1-5])/i)
+  const resolution    = num(/RESOLUTION_QUALITY:\s*([1-5])/i)
   const infoGathering = num(/INFORMATION_GATHERING:\s*([1-5])/i)
-  const clarity      = num(/RESPONSE_CLARITY:\s*([1-5])/i)
-  const brand        = num(/BRAND_ALIGNMENT:\s*([1-5])/i)
+  const clarity       = num(/RESPONSE_CLARITY:\s*([1-5])/i)
+  const brand         = num(/BRAND_ALIGNMENT:\s*([1-5])/i)
 
-  // Recalculate weighted average from parsed scores (more reliable than parsing the model's float)
   let score: number | null = null
   if (intent !== null && resolution !== null && infoGathering !== null && clarity !== null && brand !== null) {
     score = parseFloat(
@@ -155,16 +170,19 @@ function parseQualityOutput(text: string): QualityResult {
     )
   }
 
-  const flagMatch  = text.match(/FLAG:\s*(YES|NO)/i)
-  const flag       = flagMatch ? flagMatch[1].toUpperCase() === 'YES' : null
+  const flagMatch       = text.match(/^FLAG:\s*(YES|NO)/im)
+  const flag            = flagMatch ? flagMatch[1].toUpperCase() === 'YES' : null
 
-  const flagReasonMatch = text.match(/FLAG_REASON:\s*([\s\S]+?)(?=$|\n[A-Z_]+:)/i)
-  const flagReason = flagReasonMatch?.[1]?.trim() ?? null
+  const flagReasonMatch = text.match(/FLAG_REASON:\s*([\s\S]+?)(?=\nTHEME_TAG:|$)/i)
+  const flagReason      = flagReasonMatch?.[1]?.trim() ?? null
 
-  return { intent, resolution, infoGathering, clarity, brand, score, flag, flagReason }
+  const themeMatch = text.match(/THEME_TAG:\s*([^\n]+)/i)
+  const themeTag   = themeMatch?.[1]?.trim() ?? null
+
+  return { intent, resolution, infoGathering, clarity, brand, score, flag, flagReason, themeTag }
 }
 
-// ── Claude call ─────────────────────────────────────────────────────────────
+// ── Claude call ──────────────────────────────────────────────────────────────
 
 async function scoreQuality(
   conversationThread: string,
@@ -179,8 +197,8 @@ async function scoreQuality(
         'content-type':      'application/json',
       },
       body: JSON.stringify({
-        model:      'claude-haiku-4-5', // structured rubric scoring — haiku is sufficient
-        max_tokens: 256,
+        model:      'claude-haiku-4-5',
+        max_tokens: 320,
         system:     SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -197,7 +215,7 @@ async function scoreQuality(
   }
 }
 
-// ── Handler ─────────────────────────────────────────────────────────────────
+// ── Handler ──────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -210,9 +228,9 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // Fetch issue rows
+    // Fetch issue rows — include ticket_id for conversation context
     const fetchRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/ticket_issues?id=in.(${ids.join(',')})&select=id,customer_input,suggested_response`,
+      `${SUPABASE_URL}/rest/v1/ticket_issues?id=in.(${ids.join(',')})&select=id,ticket_id,customer_input,suggested_response`,
       { headers: sbHeaders }
     )
     const issues = await fetchRes.json()
@@ -225,16 +243,25 @@ Deno.serve(async (req: Request) => {
     let processed = 0, skipped = 0, errors = 0
 
     for (const issue of issues) {
-      const playerMsg  = (issue.customer_input    ?? '').trim()
-      const suggested  = (issue.suggested_response ?? '').trim()
+      const playerMsg = (issue.customer_input    ?? '').trim()
+      const suggested = (issue.suggested_response ?? '').trim()
 
       if (!playerMsg || !suggested) { skipped++; continue }
 
-      // Format as a single-turn thread. When full conversation history is available,
-      // this can be expanded to pass prior turns for accurate Category 3 scoring.
-      const thread = `Player: "${playerMsg}"`
+      // Build full conversation thread from all prior exchanges in this ticket
+      let conversationThread = `Player: "${playerMsg}"`
+      try {
+        const ctxRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/ticket_issues?ticket_id=eq.${issue.ticket_id}&select=id,customer_input,suggested_response&order=logged_at.asc`,
+          { headers: sbHeaders }
+        )
+        const ticketIssues: TicketIssue[] = await ctxRes.json()
+        if (Array.isArray(ticketIssues) && ticketIssues.length > 1) {
+          conversationThread = buildConversationThread(ticketIssues, issue.id, playerMsg)
+        }
+      } catch { /* fall back to single-turn if context fetch fails */ }
 
-      const result = await scoreQuality(thread, suggested)
+      const result = await scoreQuality(conversationThread, suggested)
       if (!result || result.score === null) { errors++; continue }
 
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/ticket_issues?id=eq.${issue.id}`, {
@@ -249,6 +276,7 @@ Deno.serve(async (req: Request) => {
           quality_score:          result.score,
           quality_flag:           result.flag,
           quality_flag_reason:    result.flagReason,
+          theme_tag:              result.themeTag,
           quality_ran_at:         new Date().toISOString(),
         }),
       })
