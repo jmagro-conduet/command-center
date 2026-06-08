@@ -5,7 +5,7 @@ import { useOperator } from '../context/OperatorContext'
 
 type TimeRange    = 'last7' | 'last14' | 'last30' | 'allTime'
 type Verdict      = 'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE'
-type TopTab       = 'evals' | 'accuracy' | 'quality' | 'tickets'
+type TopTab       = 'evals' | 'accuracy' | 'quality'
 type AccuracyClass = 'P1A' | 'P1B' | 'P2' | 'NONE'
 
 interface EvalRow {
@@ -965,15 +965,54 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
     return r
   })()
 
-  const withEval    = scoped.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
-  const total       = withEval.length
-  const avgScore    = avgOf(withEval, 'qualityScore')
-  const aboveBar    = withEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length
-  const flagged     = withEval.filter(r => r.qualityFlag === true).length
-  const belowBar    = withEval.filter(r => (r.qualityScore ?? 0) < 3.5)
-  const passing     = withEval.filter(r => (r.qualityScore ?? 0) >= 3.5)
+  const withEval = scoped.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
 
-  const exportRows  = subTab === 'below' ? belowBar : passing
+  // ── Issue-level aggregates ──────────────────────────────────────────────────
+  const iTotal    = withEval.length
+  const iAvgScore = avgOf(withEval, 'qualityScore')
+  const iAboveBar = withEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length
+  const iFlagged  = withEval.filter(r => r.qualityFlag === true).length
+  const belowBar  = withEval.filter(r => (r.qualityScore ?? 0) < 3.5)
+  const passing   = withEval.filter(r => (r.qualityScore ?? 0) >= 3.5)
+  const exportRows = subTab === 'below' ? belowBar : passing
+
+  // ── Ticket-level aggregates ─────────────────────────────────────────────────
+  const ticketGroups = useMemo(() => {
+    const map = new Map<string, EvalRow[]>()
+    for (const r of withEval) {
+      const key = r.ticketNumber ?? r.id
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(r)
+    }
+    return [...map.values()]
+  }, [withEval])
+
+  const tTotal    = ticketGroups.length
+  const tScored   = ticketGroups.filter(g => g.some(r => r.qualityScore !== null))
+  const tAvgScore = tScored.length
+    ? parseFloat((tScored.reduce((sum, g) => {
+        const scores = g.map(r => r.qualityScore).filter((s): s is number => s !== null)
+        return sum + scores.reduce((a, b) => a + b, 0) / scores.length
+      }, 0) / tScored.length).toFixed(2))
+    : null
+  const tAboveBar = ticketGroups.filter(g => {
+    const scores = g.map(r => r.qualityScore).filter((s): s is number => s !== null)
+    return scores.length > 0 && scores.reduce((a, b) => a + b, 0) / scores.length >= 3.5
+  }).length
+  const tFlagged  = ticketGroups.filter(g => g.some(r => r.qualityFlag === true)).length
+
+  // Deduplicated rows for ticket-level theme distribution (one entry per ticket×theme)
+  const themeRows = useMemo(() => {
+    if (viewMode === 'issue') return withEval
+    const seen = new Set<string>()
+    return withEval.filter(r => {
+      if (!r.themeTag) return false
+      const key = `${r.ticketNumber ?? r.id}__${r.themeTag}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [viewMode, withEval])
 
   if (withEval.length === 0) {
     return (
@@ -1047,16 +1086,50 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
     )
   }
 
+  // ── KPI values swap based on view mode ──────────────────────────────────────
+  const kpis = viewMode === 'issue'
+    ? [
+        { label: 'Responses scored', value: iTotal.toString(),                                color: '#9B59D0', note: 'individual responses' },
+        { label: 'Avg quality score', value: iAvgScore !== null ? iAvgScore.toFixed(2) : '—', color: scoreColor(iAvgScore), note: 'target ≥ 3.50' },
+        { label: 'Above bar (≥3.5)',  value: iTotal ? `${pct(iAboveBar, iTotal)}%` : '—',     color: '#166534', note: `${iAboveBar} / ${iTotal} responses` },
+        { label: 'Flagged (any cat=1)', value: iFlagged.toString(),                            color: iFlagged > 0 ? '#e53e3e' : '#166534', note: iFlagged > 0 ? 'Minimum quality fail' : 'None this period' },
+      ]
+    : [
+        { label: 'Tickets scored',   value: tTotal.toString(),                                color: '#9B59D0', note: 'unique tickets' },
+        { label: 'Avg ticket score', value: tAvgScore !== null ? tAvgScore.toFixed(2) : '—',  color: scoreColor(tAvgScore), note: 'avg of per-ticket averages' },
+        { label: 'Above bar (≥3.5)', value: tTotal ? `${pct(tAboveBar, tTotal)}%` : '—',      color: '#166534', note: `${tAboveBar} / ${tTotal} tickets` },
+        { label: 'Tickets flagged',  value: tFlagged.toString(),                               color: tFlagged > 0 ? '#e53e3e' : '#166534', note: tFlagged > 0 ? '≥1 flagged response' : 'None this period' },
+      ]
+
+  // ── Toggle pill ─────────────────────────────────────────────────────────────
+  const ViewToggle = () => (
+    <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+      {([
+        { id: 'issue'  as const, label: 'Issue Level' },
+        { id: 'ticket' as const, label: 'Ticket Level' },
+      ]).map(t => (
+        <button key={t.id} onClick={() => setViewMode(t.id)} style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: viewMode === t.id ? 500 : 400,
+          padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+          background: viewMode === t.id ? '#000' : 'transparent',
+          color: viewMode === t.id ? '#fff' : '#58595B',
+          boxShadow: viewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+        }}>{t.label}</button>
+      ))}
+    </div>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Top KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-        {[
-          { label: 'Evals run',          value: total.toString(),                          color: '#9B59D0', note: 'responses scored' },
-          { label: 'Avg quality score',  value: avgScore !== null ? avgScore.toFixed(2) : '—', color: scoreColor(avgScore), note: 'target ≥ 3.50' },
-          { label: 'Above bar (≥3.5)',   value: total ? `${pct(aboveBar, total)}%` : '—', color: '#166534', note: `${aboveBar} / ${total} responses` },
-          { label: 'Flagged (any cat=1)', value: flagged.toString(),                        color: flagged > 0 ? '#e53e3e' : '#166534', note: flagged > 0 ? 'Minimum quality fail' : 'None this period' },
-        ].map(k => (
+
+      {/* Toggle sits right-aligned above the KPI row, over the Flagged card */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <ViewToggle />
+      </div>
+
+      {/* KPI row — values swap with view mode */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: -4 }}>
+        {kpis.map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
@@ -1065,14 +1138,14 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
         ))}
       </div>
 
-      {/* Category averages */}
+      {/* Category averages — always response-level (same data regardless of view) */}
       <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px' }}>
         <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 14 }}>Category Averages</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
           {QUALITY_CATEGORIES.map(cat => {
             const avg = avgOf(withEval, cat.key)
             const color = scoreColor(avg)
-            const pctFill = avg !== null ? ((avg - 1) / 4) * 100 : 0
+            const fill = avg !== null ? ((avg - 1) / 4) * 100 : 0
             return (
               <div key={cat.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -1080,7 +1153,7 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.3)' }}>{cat.weight}</span>
                 </div>
                 <div style={{ height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
-                  <div style={{ width: `${pctFill}%`, height: '100%', borderRadius: 100, background: color, transition: 'width 0.3s' }} />
+                  <div style={{ width: `${fill}%`, height: '100%', borderRadius: 100, background: color, transition: 'width 0.3s' }} />
                 </div>
                 <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color }}>{avg !== null ? avg.toFixed(2) : '—'}</span>
               </div>
@@ -1089,52 +1162,31 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
         </div>
       </div>
 
-      <ThemeDistribution rows={withEval} />
+      {/* Theme distribution — deduplicated per-ticket in ticket mode */}
+      <ThemeDistribution rows={themeRows} />
 
-      {/* Controls bar: view toggle + sub-tabs (issue mode only) + filters + export */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* View mode toggle */}
+      {/* Issue mode controls: sub-tabs + filters + export */}
+      {viewMode === 'issue' && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
             {([
-              { id: 'issue'  as const, label: 'Issue Level' },
-              { id: 'ticket' as const, label: 'Ticket Level' },
+              { id: 'below'   as const, label: `Below Threshold (${belowBar.length})` },
+              { id: 'passing' as const, label: `Passing (${passing.length})` },
             ]).map(t => (
-              <button key={t.id} onClick={() => setViewMode(t.id)} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: viewMode === t.id ? 500 : 400,
+              <button key={t.id} onClick={() => setSubTab(t.id)} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
                 padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                background: viewMode === t.id ? '#000' : 'transparent',
-                color: viewMode === t.id ? '#fff' : '#58595B',
-                boxShadow: viewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+                background: subTab === t.id ? '#fff' : 'transparent',
+                color: subTab === t.id ? '#000' : '#58595B',
+                boxShadow: subTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
               }}>{t.label}</button>
             ))}
           </div>
-
-          {/* Sub-tabs — issue mode only */}
-          {viewMode === 'issue' && (
-            <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
-              {([
-                { id: 'below'   as const, label: `Below Threshold (${belowBar.length})` },
-                { id: 'passing' as const, label: `Passing (${passing.length})` },
-              ]).map(t => (
-                <button key={t.id} onClick={() => setSubTab(t.id)} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
-                  padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                  background: subTab === t.id ? '#fff' : 'transparent',
-                  color: subTab === t.id ? '#000' : '#58595B',
-                  boxShadow: subTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-                }}>{t.label}</button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {!agentFilter && (
-            <DiagnosticFilters rows={withEval} categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
-              agentFilter={agentFil} onAgentChange={setAgentFil} />
-          )}
-          {viewMode === 'issue' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {!agentFilter && (
+              <DiagnosticFilters rows={withEval} categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
+                agentFilter={agentFil} onAgentChange={setAgentFil} />
+            )}
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => exportJSONL(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
                 Export JSONL
@@ -1143,9 +1195,9 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
                 Export CSV
               </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Ticket level view */}
       {viewMode === 'ticket' && <TicketLevelView rows={withEval} />}
@@ -1840,7 +1892,6 @@ export default function ReportCard() {
           { id: 'evals'    as TopTab, label: 'Edit Evaluations' },
           { id: 'accuracy' as TopTab, label: 'Response Accuracy' },
           { id: 'quality'  as TopTab, label: 'Response Quality'  },
-          { id: 'tickets'  as TopTab, label: 'Ticket View'        },
         ]).map(t => (
           <button key={t.id} onClick={() => setTopTab(t.id)} style={{
             fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -1860,9 +1911,6 @@ export default function ReportCard() {
 
       {/* ── Response Quality tab ── */}
       {topTab === 'quality' && <ResponseQualityView rows={scoredRows} />}
-
-      {/* ── Ticket View tab ── */}
-      {topTab === 'tickets' && <TicketLevelView rows={scoredRows} />}
 
       {/* ── Edit Evaluations tab ── */}
       {topTab === 'evals' && <>
