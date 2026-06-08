@@ -244,7 +244,7 @@ async function fetchAllEvals(): Promise<EvalRow[]> {
   while (true) {
     const { data, error } = await supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .not('eval_verdict', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -512,6 +512,204 @@ function ReviewActions({ row, onUpdate }: {
             Saved · use Export to download training data
           </span>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ── Verdict Theme Modal ──────────────────────────────────────────────────────
+
+const VERDICT_META: Record<Verdict, { label: string; color: string; bg: string; desc: string }> = {
+  CORRECTION:   { label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.06)',    desc: 'Cases where the agent identified an error in the gameLM response' },
+  ENHANCEMENT:  { label: 'Enhancements', color: '#854d0e', bg: 'rgba(133,77,14,0.06)',    desc: 'Cases where the agent meaningfully improved or expanded the response' },
+  PREFERENCE:   { label: 'Preferences',  color: '#58595B', bg: 'rgba(88,89,91,0.06)',     desc: 'Stylistic changes — the original response was also acceptable' },
+}
+
+function VerdictThemeModal({ verdict, rows, onClose }: {
+  verdict: Verdict
+  rows: EvalRow[]
+  onClose: () => void
+}) {
+  const [expandedTheme, setExpandedTheme] = useState<string | null>(null)
+  const meta = VERDICT_META[verdict]
+
+  const filtered = rows.filter(r => r.evalVerdict === verdict)
+
+  // Build theme map
+  const themeMap = new Map<string, EvalRow[]>()
+  for (const r of filtered) {
+    const key = r.themeTag ?? 'Uncategorized'
+    if (!themeMap.has(key)) themeMap.set(key, [])
+    themeMap.get(key)!.push(r)
+  }
+  const themes = [...themeMap.entries()]
+    .map(([theme, items]) => ({ theme, count: items.length, items }))
+    .sort((a, b) => b.count - a.count)
+
+  const maxCount = themes[0]?.count ?? 1
+  const themed   = filtered.filter(r => r.themeTag).length
+  const unthemed = filtered.length - themed
+
+  // Keyboard close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 20,
+          border: '1.5px solid rgba(0,0,0,0.09)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.18)',
+          width: '100%', maxWidth: 600,
+          maxHeight: '80vh', overflow: 'hidden',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid rgba(0,0,0,0.07)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <span style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                  padding: '3px 10px', borderRadius: 100,
+                  background: meta.bg, color: meta.color,
+                }}>
+                  {meta.label}
+                </span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                  {filtered.length} response{filtered.length !== 1 ? 's' : ''} in period
+                </span>
+              </div>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 4 }}>
+                Theme Breakdown
+              </h2>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{meta.desc}</p>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 18, lineHeight: 1,
+                color: 'rgba(0,0,0,0.3)', background: 'none', border: 'none',
+                cursor: 'pointer', padding: '2px 6px', borderRadius: 6,
+                transition: 'all 0.15s', flexShrink: 0,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#000')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.3)')}
+            >×</button>
+          </div>
+          {unthemed > 0 && themed > 0 && (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 8 }}>
+              {themed} of {filtered.length} responses have theme data · {unthemed} not yet scored
+            </p>
+          )}
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {themes.length === 0 && (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '24px 0' }}>
+              No theme data yet — run the quality backfill to populate themes.
+            </p>
+          )}
+          {themes.map(({ theme, count, items }) => {
+            const barWidth = Math.round((count / maxCount) * 100)
+            const isExp    = expandedTheme === theme
+            const isUncat  = theme === 'Uncategorized'
+            return (
+              <div key={theme}>
+                {/* Theme row */}
+                <div
+                  onClick={() => setExpandedTheme(isExp ? null : theme)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                    background: isExp ? meta.bg : 'transparent', transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isExp ? meta.bg : 'transparent' }}
+                >
+                  {/* Theme name */}
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    color: isUncat ? 'rgba(0,0,0,0.3)' : '#000',
+                    minWidth: 160, flexShrink: 0,
+                  }}>
+                    {isUncat ? 'Not yet themed' : theme}
+                  </span>
+                  {/* Bar */}
+                  <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                    <div style={{
+                      width: `${barWidth}%`, height: '100%', borderRadius: 100,
+                      background: isUncat ? 'rgba(0,0,0,0.15)' : meta.color,
+                      opacity: isUncat ? 0.4 : 1,
+                      transition: 'width 0.4s ease',
+                    }} />
+                  </div>
+                  {/* Count */}
+                  <span style={{
+                    fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600,
+                    color: isUncat ? 'rgba(0,0,0,0.25)' : meta.color,
+                    minWidth: 28, textAlign: 'right', flexShrink: 0,
+                  }}>{count}</span>
+                  {/* Chevron */}
+                  {!isUncat && (
+                    <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.25)', flexShrink: 0, transition: 'transform 0.15s', transform: isExp ? 'rotate(180deg)' : 'none' }}>▼</span>
+                  )}
+                </div>
+
+                {/* Expanded examples */}
+                {isExp && !isUncat && (
+                  <div style={{ marginLeft: 12, marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {items.slice(0, 4).map(r => (
+                      <div key={r.id} style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.07)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{r.agentName}</span>
+                          {r.evalVerdict && (
+                            <span style={{
+                              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
+                              padding: '1px 7px', borderRadius: 100,
+                              background: meta.bg, color: meta.color,
+                            }}>{r.evalVerdict}</span>
+                          )}
+                        </div>
+                        {r.customerInput && (
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 4, fontStyle: 'italic' }}>
+                            "{r.customerInput.length > 120 ? r.customerInput.slice(0, 120) + '…' : r.customerInput}"
+                          </p>
+                        )}
+                        {r.evalReasoning && (
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.45)', lineHeight: 1.5 }}>
+                            {r.evalReasoning.length > 160 ? r.evalReasoning.slice(0, 160) + '…' : r.evalReasoning}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                    {items.length > 4 && (
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', paddingLeft: 12 }}>
+                        +{items.length - 4} more in this theme
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -1448,6 +1646,7 @@ export default function ReportCard() {
   const [selected, setSelected]           = useState<string | null>(null)
   const [showWins, setShowWins]           = useState(false)
   const [topTab, setTopTab]               = useState<TopTab>('evals')
+  const [verdictModal, setVerdictModal]   = useState<Verdict | null>(null)
 
   // Update local state when a review action is saved
   const handleReviewUpdate = (id: string, status: 'confirmed' | 'dismissed', notes: string) => {
@@ -1691,15 +1890,34 @@ export default function ReportCard() {
           </div>
         </div>
 
-        {[
-          { label: 'Corrections',  value: `${pct(teamCorrection, teamTotal)}%`,  color: '#e53e3e', note: 'gameLM had an error' },
-          { label: 'Enhancements', value: `${pct(teamEnhancement, teamTotal)}%`, color: '#854d0e', note: 'Agent added value' },
-          { label: 'Preferences',  value: `${pct(teamPreference, teamTotal)}%`,  color: '#58595B', note: 'Stylistic only' },
-        ].map(k => (
-          <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+        {([
+          { label: 'Corrections',  value: `${pct(teamCorrection, teamTotal)}%`,  color: '#e53e3e', note: 'gameLM had an error',  verdict: 'CORRECTION'  as Verdict },
+          { label: 'Enhancements', value: `${pct(teamEnhancement, teamTotal)}%`, color: '#854d0e', note: 'Agent added value',    verdict: 'ENHANCEMENT' as Verdict },
+          { label: 'Preferences',  value: `${pct(teamPreference, teamTotal)}%`,  color: '#58595B', note: 'Stylistic only',       verdict: 'PREFERENCE'  as Verdict },
+        ] as const).map(k => (
+          <div
+            key={k.label}
+            onClick={() => setVerdictModal(k.verdict)}
+            style={{
+              background: '#fff', borderRadius: 14, padding: '16px 18px', cursor: 'pointer',
+              border: '1.5px solid rgba(0,0,0,0.09)', transition: 'all 0.15s',
+              position: 'relative',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.border = `1.5px solid ${k.color}40`
+              e.currentTarget.style.boxShadow = `0 4px 16px rgba(0,0,0,0.07)`
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.border = '1.5px solid rgba(0,0,0,0.09)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
-            {k.note && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>{k.note}</p>}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{k.note}</p>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: k.color, opacity: 0.6 }}>View themes →</span>
+            </div>
           </div>
         ))}
       </div>
@@ -1809,6 +2027,15 @@ export default function ReportCard() {
       <div style={{ height: 8 }} />
 
       </> /* end topTab === 'evals' */}
+
+      {/* Verdict theme modal */}
+      {verdictModal && (
+        <VerdictThemeModal
+          verdict={verdictModal}
+          rows={rows}
+          onClose={() => setVerdictModal(null)}
+        />
+      )}
     </div>
   )
 }
