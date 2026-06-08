@@ -80,6 +80,7 @@ export default function LogTicket() {
   const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [closePending, setClosePending] = useState<number | null>(null)
 
   const active = allTabs.find(t => t.id === activeTabId) ?? allTabs[0]
 
@@ -150,9 +151,18 @@ export default function LogTicket() {
   function closeTab(id: number, e: React.MouseEvent) {
     e.stopPropagation()
     if (allTabs.length === 1) return
+    // If the tab has any data, ask for confirmation first
+    const tab = allTabs.find(t => t.id === id)
+    const hasData = tab && (tab.ticketNumber.trim() || tab.responses.length > 0)
+    if (hasData) { setClosePending(id); return }
+    doCloseTab(id)
+  }
+
+  function doCloseTab(id: number) {
     const remaining = allTabs.filter(t => t.id !== id)
     setAllTabs(remaining)
     if (activeTabId === id) setActiveTabId(remaining[remaining.length - 1].id)
+    setClosePending(null)
   }
 
   async function handleSubmit() {
@@ -633,6 +643,69 @@ export default function LogTicket() {
 
       <div style={{ height: 8 }} />
     </div>
+
+    {/* ── Close-tab confirmation modal ─────────────────────────────────────── */}
+    {closePending !== null && (() => {
+      const pendingTab = allTabs.find(t => t.id === closePending)
+      const label = pendingTab?.ticketNumber?.trim() ? `#${pendingTab.ticketNumber.trim()}` : 'this ticket'
+      return (
+        <div
+          onClick={() => setClosePending(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 16,
+              border: '1.5px solid rgba(0,0,0,0.09)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+              width: '100%', maxWidth: 380,
+              padding: '24px 24px 20px',
+            }}
+          >
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 8 }}>
+              Close {label}?
+            </p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.5, marginBottom: 20 }}>
+              Any unsaved work on this ticket will be lost. Make sure you've submitted before closing.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setClosePending(null)}
+                style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '8px 18px', borderRadius: 10,
+                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
+                  color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+              >
+                Keep open
+              </button>
+              <button
+                onClick={() => doCloseTab(closePending)}
+                style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '8px 18px', borderRadius: 10,
+                  border: 'none', background: '#e53e3e',
+                  color: '#fff', cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.opacity = '0.85' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+              >
+                Close ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    })()}
   )
 }
 
