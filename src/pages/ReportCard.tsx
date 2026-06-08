@@ -1206,7 +1206,11 @@ function avgOf(rows: EvalRow[], key: keyof EvalRow): number | null {
   return vals.length ? parseFloat((vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(2)) : null
 }
 
-function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilter?: string }) {
+function ResponseQualityView({ rows, agentFilter, onReviewUpdate }: {
+  rows: EvalRow[]
+  agentFilter?: string
+  onReviewUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void
+}) {
   const [expanded,       setExpanded]       = useState<string | null>(null)
   const [viewMode,       setViewMode]       = useState<'issue' | 'ticket'>('issue')
   const [subTab,         setSubTab]         = useState<'below' | 'passing'>('below')
@@ -1339,6 +1343,7 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
                 </div>
               ))}
             </div>
+            <ReviewActions row={r} onUpdate={onReviewUpdate} />
           </div>
         )}
       </div>
@@ -1491,7 +1496,7 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
 
 // ── Agent Drilldown ────────────────────────────────────────────────────────────
 
-function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void }) {
+function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void; onReviewUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void }) {
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'evals' | 'accuracy' | 'quality' | 'completeness' | 'wins'>('evals')
 
@@ -1676,12 +1681,12 @@ function AgentDrilldown({ rows, tickets, agentName, onBack }: { rows: EvalRow[];
 
       {/* Response Accuracy tab */}
       {activeTab === 'accuracy' && (
-        <ResponseAccuracyView rows={rows} agentFilter={agentName} />
+        <ResponseAccuracyView rows={rows} agentFilter={agentName} onReviewUpdate={onReviewUpdate} />
       )}
 
       {/* Response Quality tab */}
       {activeTab === 'quality' && (
-        <ResponseQualityView rows={rows} agentFilter={agentName} />
+        <ResponseQualityView rows={rows} agentFilter={agentName} onReviewUpdate={onReviewUpdate} />
       )}
 
       {/* Logging Completeness tab */}
@@ -2055,7 +2060,7 @@ export default function ReportCard() {
           <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600 }}>Report Card</h1>
           <TimeRangeFilter value={range} onChange={setRange} />
         </div>
-        <AgentDrilldown rows={agentRows} tickets={agentTickets} agentName={selected} onBack={() => setSelected(null)} />
+        <AgentDrilldown rows={agentRows} tickets={agentTickets} agentName={selected} onBack={() => setSelected(null)} onReviewUpdate={handleReviewUpdate} />
       </div>
     )
   }
@@ -2174,7 +2179,7 @@ export default function ReportCard() {
       {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Response Quality tab ── */}
-      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} />}
+      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Edit Evaluations tab ── */}
       {topTab === 'evals' && <>
