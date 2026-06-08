@@ -43,6 +43,7 @@ interface EvalRow {
   qualityRanAt:         string | null
   // Theme & checklist review
   themeTag:             string | null
+  themeDetail:          string | null
   reviewStatus:         'pending' | 'confirmed' | 'dismissed' | null
   reviewNotes:          string | null
   reviewedBy:           string | null
@@ -244,7 +245,7 @@ async function fetchAllEvals(): Promise<EvalRow[]> {
   while (true) {
     const { data, error } = await supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .not('eval_verdict', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -265,7 +266,7 @@ async function fetchAllScoredIssues(): Promise<EvalRow[]> {
   while (true) {
     const { data, error } = await supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .or('accuracy_ran_at.not.is.null,quality_ran_at.not.is.null')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -312,6 +313,7 @@ function mapEvalRow(r: any): EvalRow {
     qualityFlagReason:    r.quality_flag_reason    ?? null,
     qualityRanAt:         r.quality_ran_at         ?? null,
     themeTag:             r.theme_tag              ?? null,
+    themeDetail:          r.theme_detail           ?? null,
     reviewStatus:         r.review_status          ?? null,
     reviewNotes:          r.review_notes           ?? null,
     reviewedBy:           r.reviewed_by            ?? null,
@@ -428,28 +430,143 @@ function DiagnosticFilters({
 }
 
 function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
+  const [view,      setView]      = useState<'categories' | 'context'>('categories')
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
   const tagged = rows.filter(r => r.themeTag)
   if (tagged.length === 0) return null
-  const counts = tagged.reduce((acc, r) => {
+
+  // ── Categories view ───────────────────────────────────────────────────────
+  const catCounts = tagged.reduce((acc, r) => {
     acc[r.themeTag!] = (acc[r.themeTag!] ?? 0) + 1
     return acc
   }, {} as Record<string, number>)
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
-  const max    = sorted[0]?.[1] ?? 1
+  const catSorted = Object.entries(catCounts).sort((a, b) => b[1] - a[1])
+  const catMax    = catSorted[0]?.[1] ?? 1
+
+  // ── Context Themes view ───────────────────────────────────────────────────
+  // Group themeDetail values within each category
+  const contextMap = new Map<string, Map<string, number>>()
+  for (const r of tagged) {
+    if (!contextMap.has(r.themeTag!)) contextMap.set(r.themeTag!, new Map())
+    if (r.themeDetail) {
+      const m = contextMap.get(r.themeTag!)!
+      m.set(r.themeDetail, (m.get(r.themeDetail) ?? 0) + 1)
+    }
+  }
+  const contextGroups = catSorted.map(([cat, total]) => ({
+    cat,
+    total,
+    details: [...(contextMap.get(cat) ?? new Map()).entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10),
+  }))
+  const hasDetails     = tagged.some(r => r.themeDetail)
+  const withDetails    = contextGroups.filter(g => g.details.length > 0)
+  const pendingCount   = contextGroups.filter(g => g.details.length === 0).length
+
+  const toggleCollapse = (cat: string) =>
+    setCollapsed(prev => { const n = new Set(prev); n.has(cat) ? n.delete(cat) : n.add(cat); return n })
+
   return (
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px' }}>
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 14 }}>Conversation Themes</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-        {sorted.map(([theme, count]) => (
-          <div key={theme} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 170, flexShrink: 0 }}>{theme}</span>
-            <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
-              <div style={{ width: `${(count / max) * 100}%`, height: '100%', borderRadius: 100, background: '#9B59D0', transition: 'width 0.3s' }} />
-            </div>
-            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
-          </div>
-        ))}
+      {/* Header + toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>
+          {view === 'categories' ? 'Conversation Themes' : 'Context Themes'}
+        </p>
+        <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+          {([
+            { id: 'categories' as const, label: 'Categories' },
+            { id: 'context'    as const, label: 'Context'    },
+          ]).map(t => (
+            <button key={t.id} onClick={() => setView(t.id)} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: view === t.id ? 500 : 400,
+              padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+              background: view === t.id ? '#000' : 'transparent',
+              color:      view === t.id ? '#fff' : '#58595B',
+              boxShadow:  view === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+            }}>{t.label}</button>
+          ))}
+        </div>
       </div>
+
+      {/* ── Categories view ─────────────────────────────────────────────────── */}
+      {view === 'categories' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {catSorted.map(([theme, count]) => (
+            <div key={theme} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 170, flexShrink: 0 }}>{theme}</span>
+              <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                <div style={{ width: `${(count / catMax) * 100}%`, height: '100%', borderRadius: 100, background: '#9B59D0', transition: 'width 0.3s' }} />
+              </div>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Context Themes view ─────────────────────────────────────────────── */}
+      {view === 'context' && !hasDetails && (
+        <div style={{ padding: '28px 0', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', marginBottom: 4 }}>
+            Context themes populate as new issues are scored
+          </p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.22)' }}>
+            Run a backfill to generate themes for existing issues
+          </p>
+        </div>
+      )}
+
+      {view === 'context' && hasDetails && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {withDetails.map(group => {
+            const isOpen   = !collapsed.has(group.cat)
+            const detailMax = group.details[0]?.[1] ?? 1
+            return (
+              <div key={group.cat} style={{ borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                {/* Category header row */}
+                <button
+                  onClick={() => toggleCollapse(group.cat)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '9px 14px', background: isOpen ? 'rgba(155,89,208,0.04)' : 'rgba(0,0,0,0.015)',
+                    border: 'none', cursor: 'pointer', transition: 'background 0.15s', textAlign: 'left',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#000' }}>{group.cat}</span>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 100, background: 'rgba(155,89,208,0.1)', color: '#9B59D0' }}>{group.total}</span>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)' }}>{group.details.length} situation{group.details.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.3)', transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
+                </button>
+
+                {/* Sub-theme bars */}
+                {isOpen && (
+                  <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                    {group.details.map(([detail, count]) => (
+                      <div key={detail} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', flex: 1, minWidth: 0, lineHeight: 1.3 }}>{detail}</span>
+                        <div style={{ width: 72, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)', flexShrink: 0 }}>
+                          <div style={{ width: `${(count / detailMax) * 100}%`, height: '100%', borderRadius: 100, background: '#CEA4FF', transition: 'width 0.3s' }} />
+                        </div>
+                        <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 600, color: '#000', width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {pendingCount > 0 && (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.28)', textAlign: 'center', marginTop: 4 }}>
+              +{pendingCount} categor{pendingCount > 1 ? 'ies' : 'y'} awaiting backfill
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

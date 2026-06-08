@@ -96,7 +96,8 @@ Apply the following weights:
 1. Read the full conversation thread and the gameLM suggested response.
 2. Score the response across all five categories.
 3. Identify the primary topic of this conversation.
-4. Return your output strictly in the format below.
+4. Write a specific, concise label for the exact situation the player is experiencing.
+5. Return your output strictly in the format below.
 
 ---
 
@@ -111,6 +112,7 @@ WEIGHTED_AVERAGE: [calculated to 2 decimal places]
 FLAG: [YES / NO — flag YES if any single category scores 1]
 FLAG_REASON: [If flagged, state which category scored 1 and quote the relevant response text. Otherwise "None".]
 THEME_TAG: [choose the single most relevant: Account Access | Bet Dispute | Bet Placement | Bonus / Promotion | Deposit / Withdrawal | Game Dispute | KYC / Verification | Responsible Gaming | Settlement / Results | Technical Issue | Account Administration | General Query]
+THEME_DETAIL: [4-8 word lowercase noun phrase describing the specific situation — what the player is actually experiencing within the category. Do not repeat the category name. Be specific and consistent so similar situations produce the same label. Examples: "free bet not credited after qualifying deposit", "rollover requirement unclear for reload bonus", "withdrawal declined without stated reason", "unable to log in after password reset", "bet voided without explanation provided"]
 
 Do not add commentary outside this format. Do not classify accuracy errors — that is handled by Eval 2. Do not suggest rewrites.`
 
@@ -149,6 +151,7 @@ interface QualityResult {
   flag:          boolean | null
   flagReason:    string | null
   themeTag:      string | null
+  themeDetail:   string | null
 }
 
 function parseQualityOutput(text: string): QualityResult {
@@ -176,10 +179,13 @@ function parseQualityOutput(text: string): QualityResult {
   const flagReasonMatch = text.match(/FLAG_REASON:\s*([\s\S]+?)(?=\nTHEME_TAG:|$)/i)
   const flagReason      = flagReasonMatch?.[1]?.trim() ?? null
 
-  const themeMatch = text.match(/THEME_TAG:\s*([^\n]+)/i)
-  const themeTag   = themeMatch?.[1]?.trim() ?? null
+  const themeMatch       = text.match(/THEME_TAG:\s*([^\n]+)/i)
+  const themeTag         = themeMatch?.[1]?.trim() ?? null
 
-  return { intent, resolution, infoGathering, clarity, brand, score, flag, flagReason, themeTag }
+  const themeDetailMatch = text.match(/THEME_DETAIL:\s*([^\n]+)/i)
+  const themeDetail      = themeDetailMatch?.[1]?.trim() ?? null
+
+  return { intent, resolution, infoGathering, clarity, brand, score, flag, flagReason, themeTag, themeDetail }
 }
 
 // ── Claude call ──────────────────────────────────────────────────────────────
@@ -198,7 +204,7 @@ async function scoreQuality(
       },
       body: JSON.stringify({
         model:      'claude-haiku-4-5',
-        max_tokens: 320,
+        max_tokens: 400,
         system:     SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -277,6 +283,7 @@ Deno.serve(async (req: Request) => {
           quality_flag:           result.flag,
           quality_flag_reason:    result.flagReason,
           theme_tag:              result.themeTag,
+          theme_detail:           result.themeDetail,
           quality_ran_at:         new Date().toISOString(),
         }),
       })
