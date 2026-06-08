@@ -746,6 +746,59 @@ function QualityScore({ score, small }: { score: number; small?: boolean }) {
   )
 }
 
+// ── Shared pagination ───────────────────────────────────────────────────────
+
+const PAGE_SIZE = 25
+
+function Paginator({ page, total, onPage }: { page: number; total: number; onPage: (p: number) => void }) {
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  if (totalPages <= 1) return null
+  const from = (page - 1) * PAGE_SIZE + 1
+  const to   = Math.min(page * PAGE_SIZE, total)
+
+  // Build page list with ellipsis markers (-1)
+  const allPages: number[] = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const visible = allPages.filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+  const withEllipsis: (number | -1)[] = []
+  for (let i = 0; i < visible.length; i++) {
+    if (i > 0 && visible[i] - visible[i - 1] > 1) withEllipsis.push(-1)
+    withEllipsis.push(visible[i])
+  }
+
+  const btnBase: React.CSSProperties = {
+    fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 400,
+    width: 30, height: 30, borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
+    background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+        Showing {from}–{to} of <strong style={{ fontWeight: 500, color: '#000' }}>{total}</strong>
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button onClick={() => onPage(page - 1)} disabled={page === 1} style={{ ...btnBase, opacity: page === 1 ? 0.35 : 1, cursor: page === 1 ? 'default' : 'pointer' }}>←</button>
+        {withEllipsis.map((p, i) =>
+          p === -1 ? (
+            <span key={`ell-${i}`} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.3)', width: 20, textAlign: 'center' }}>…</span>
+          ) : (
+            <button key={p} onClick={() => onPage(p)} style={{
+              ...btnBase,
+              background: page === p ? '#000' : '#fff',
+              color:      page === p ? '#fff' : '#58595B',
+              border:     page === p ? 'none' : '1.5px solid rgba(0,0,0,0.12)',
+              fontWeight: page === p ? 500 : 400,
+              boxShadow:  page === p ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+            }}>{p}</button>
+          )
+        )}
+        <button onClick={() => onPage(page + 1)} disabled={page === totalPages} style={{ ...btnBase, opacity: page === totalPages ? 0.35 : 1, cursor: page === totalPages ? 'default' : 'pointer' }}>→</button>
+      </div>
+    </div>
+  )
+}
+
 // ── Response Accuracy tab ───────────────────────────────────────────────────
 
 function ResponseAccuracyView({ rows, agentFilter, onReviewUpdate }: {
@@ -757,6 +810,10 @@ function ResponseAccuracyView({ rows, agentFilter, onReviewUpdate }: {
   const [subTab,         setSubTab]         = useState<'queue' | 'all'>('queue')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [agentFil,       setAgentFil]       = useState('')
+  const [page,           setPage]           = useState(1)
+
+  // Reset page when the active list changes
+  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil])
 
   const scoped = (() => {
     let r = agentFilter ? rows.filter(x => x.agentName === agentFilter) : rows
@@ -915,7 +972,8 @@ function ResponseAccuracyView({ rows, agentFilter, onReviewUpdate }: {
               <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
                 {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
               </div>
-              {reviewQueue.map(r => <TableRow key={r.id} r={r} />)}
+              {reviewQueue.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => <TableRow key={r.id} r={r} />)}
+              <Paginator page={page} total={reviewQueue.length} onPage={p => { setPage(p); setExpanded(null) }} />
             </>
           )}
         </div>
@@ -929,7 +987,8 @@ function ResponseAccuracyView({ rows, agentFilter, onReviewUpdate }: {
           <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
             {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
           </div>
-          {allResults.slice(0, 50).map(r => <TableRow key={r.id} r={r} />)}
+          {allResults.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => <TableRow key={r.id} r={r} />)}
+          <Paginator page={page} total={allResults.length} onPage={p => { setPage(p); setExpanded(null) }} />
         </div>
       )}
     </div>
@@ -957,6 +1016,10 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
   const [subTab,         setSubTab]         = useState<'below' | 'passing'>('below')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [agentFil,       setAgentFil]       = useState('')
+  const [page,           setPage]           = useState(1)
+
+  // Reset page when the active list changes
+  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, viewMode])
 
   const scoped = (() => {
     let r = agentFilter ? rows.filter(x => x.agentName === agentFilter) : rows
@@ -1203,24 +1266,29 @@ function ResponseQualityView({ rows, agentFilter }: { rows: EvalRow[]; agentFilt
       {viewMode === 'ticket' && <TicketLevelView rows={withEval} />}
 
       {/* Issue level table */}
-      {viewMode === 'issue' && (subTab === 'below' ? belowBar : passing).length > 0 && (
-        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>
-              {subTab === 'below' ? 'Below Threshold' : 'Passing Responses'}
-            </p>
-            {subTab === 'below' && belowBar.length > 0 && (
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>
-                {belowBar.length} below 3.5
-              </span>
-            )}
+      {viewMode === 'issue' && (() => {
+        const displayRows = subTab === 'below' ? belowBar : passing
+        if (displayRows.length === 0) return null
+        return (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>
+                {subTab === 'below' ? 'Below Threshold' : 'Passing Responses'}
+              </p>
+              {subTab === 'below' && belowBar.length > 0 && (
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>
+                  {belowBar.length} below 3.5
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)', gap: 8 }}>
+              {colHeaders.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
+            </div>
+            {displayRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => <QualityTableRow key={r.id} r={r} />)}
+            <Paginator page={page} total={displayRows.length} onPage={p => { setPage(p); setExpanded(null) }} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)', gap: 8 }}>
-            {colHeaders.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
-          </div>
-          {(subTab === 'below' ? belowBar : passing).slice(0, 50).map(r => <QualityTableRow key={r.id} r={r} />)}
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
