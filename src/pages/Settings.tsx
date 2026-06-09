@@ -131,7 +131,7 @@ export default function Settings() {
     const { count } = await supabase
       .from('users').select('id', { count: 'exact', head: true }).eq('operator_id', id)
     if ((count ?? 0) > 0) {
-      if (!confirm(`${count} user(s) are assigned to this operator and will be unassigned. Continue?`)) return
+      if (!confirm(`${count} user(s) are assigned to "${name}" and will be unassigned. Continue?`)) return
       await supabase.from('users').update({ operator_id: null, operator_team: null }).eq('operator_id', id)
     }
     await supabase.from('operators').delete().eq('id', id)
