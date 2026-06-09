@@ -130,6 +130,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [backfillProgress, setBackfillProgress] = useState({ done: 0, total: 0, accDone: 0, accTotal: 0, quaDone: 0, quaTotal: 0, errors: 0 })
   const [backfillError,    setBackfillError]    = useState('')
   const [backfillOperator, setBackfillOperator] = useState('')
+  const [backfillSince,    setBackfillSince]    = useState('30d')
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -370,13 +371,22 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   }
 
   // ── Backfill helpers ────────────────────────────────────────────────────────
+  function sinceIso(val: string): string | undefined {
+    if (val === 'all') return undefined
+    const days = parseInt(val)
+    const d = new Date()
+    d.setDate(d.getDate() - days)
+    d.setHours(0, 0, 0, 0)
+    return d.toISOString()
+  }
+
   async function loadBackfillCounts() {
     setBackfillStatus('loading')
     setBackfillError('')
     setBackfillCounts(null)
     try {
       const { data, error } = await supabase.functions.invoke('backfill-evals', {
-        body: { operator_id: backfillOperator || undefined },
+        body: { operator_id: backfillOperator || undefined, since: sinceIso(backfillSince) },
       })
       if (error) throw error
       setBackfillCounts(data as BackfillCounts)
@@ -620,10 +630,24 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             title="Backfill Evaluations"
             subtitle="Run accuracy (Sonnet) and quality (Haiku) evals on all historical issues not yet scored. Keep this tab open while running."
           >
-            {/* Operator filter */}
+            {/* Filters row */}
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16, flexWrap: 'wrap' }}>
-              <div style={{ flex: '0 0 220px' }}>
-                <label style={labelStyle}>Scope to operator (optional)</label>
+              <div style={{ flex: '0 0 180px' }}>
+                <label style={labelStyle}>Date range</label>
+                <select
+                  value={backfillSince}
+                  onChange={e => { setBackfillSince(e.target.value); setBackfillStatus('idle'); setBackfillCounts(null) }}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="60">Last 60 days</option>
+                  <option value="90">Last 90 days</option>
+                  <option value="all">All time</option>
+                </select>
+              </div>
+              <div style={{ flex: '0 0 200px' }}>
+                <label style={labelStyle}>Operator (optional)</label>
                 <select
                   value={backfillOperator}
                   onChange={e => { setBackfillOperator(e.target.value); setBackfillStatus('idle'); setBackfillCounts(null) }}

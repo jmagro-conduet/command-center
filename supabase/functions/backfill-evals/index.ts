@@ -3,7 +3,7 @@
 // Separate ID lists are returned so the caller can fan out to eval-accuracy and
 // eval-quality independently in chunks sized for each model's throughput.
 //
-// POST body: { operator_id?: string }
+// POST body: { operator_id?: string, since?: string }  ← since = ISO date string (inclusive)
 // Returns:   { accuracyIds: string[], qualityIds: string[], totalUnique: number }
 
 const corsHeaders = {
@@ -22,7 +22,7 @@ const sbHeaders = {
 }
 
 // Paginate through ticket_issues and collect all matching IDs.
-async function queryIds(missingField: string, operatorId?: string): Promise<string[]> {
+async function queryIds(missingField: string, operatorId?: string, since?: string): Promise<string[]> {
   const PAGE   = 1000
   const ids: string[] = []
   let   offset = 0
@@ -37,6 +37,7 @@ async function queryIds(missingField: string, operatorId?: string): Promise<stri
       `&limit=${PAGE}&offset=${offset}`
 
     if (operatorId) url += `&operator_id=eq.${encodeURIComponent(operatorId)}`
+    if (since)      url += `&created_at=gte.${encodeURIComponent(since)}`
 
     const res  = await fetch(url, { headers: sbHeaders })
     const data = await res.json() as { id: string }[] | { message: string }
@@ -56,12 +57,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body     = await req.json().catch(() => ({})) as { operator_id?: string }
-    const opId     = body.operator_id
+    const body  = await req.json().catch(() => ({})) as { operator_id?: string; since?: string }
+    const opId  = body.operator_id
+    const since = body.since   // ISO string, e.g. "2025-05-01T00:00:00.000Z"
 
     const [accuracyIds, qualityIds] = await Promise.all([
-      queryIds('accuracy_ran_at', opId),
-      queryIds('quality_ran_at',  opId),
+      queryIds('accuracy_ran_at', opId, since),
+      queryIds('quality_ran_at',  opId, since),
     ])
 
     const totalUnique = new Set([...accuracyIds, ...qualityIds]).size
