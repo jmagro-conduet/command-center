@@ -2107,6 +2107,15 @@ export default function ReportCard() {
     return allRows.filter(r => { const d = rowDate(r); return d >= cutStart && d < cutEnd })
   }, [allRows, range])
 
+  // Prior window for scored rows (accuracy + quality tabs — separate dataset from allRows)
+  const priorScoredRows = useMemo(() => {
+    if (range === 'allTime') return []
+    const days = rangeDays(range)
+    const cutEnd   = new Date(); cutEnd.setDate(cutEnd.getDate() - days)
+    const cutStart = new Date(); cutStart.setDate(cutStart.getDate() - days * 2)
+    return allScoredRows.filter(r => { const d = rowDate(r); return d >= cutStart && d < cutEnd })
+  }, [allScoredRows, range])
+
   const priorTickets = useMemo(() => {
     if (range === 'allTime') return []
     const days = rangeDays(range)
@@ -2284,10 +2293,10 @@ export default function ReportCard() {
       </div>
 
       {/* ── Response Accuracy tab ── */}
-      {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} priorRows={range !== 'allTime' ? priorRows : undefined} onReviewUpdate={handleReviewUpdate} />}
+      {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} priorRows={range !== 'allTime' ? priorScoredRows : undefined} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Response Quality tab ── */}
-      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} priorRows={range !== 'allTime' ? priorRows : undefined} onReviewUpdate={handleReviewUpdate} />}
+      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} priorRows={range !== 'allTime' ? priorScoredRows : undefined} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Edit Evaluations tab ── */}
       {topTab === 'evals' && <>
