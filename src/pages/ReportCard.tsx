@@ -428,6 +428,46 @@ function exportCSV(rows: EvalRow[], filename = 'qa_export.csv') {
   downloadBlob([header, ...body].join('\n'), filename, 'text/csv')
 }
 
+function exportEditEvalJSONL(rows: EvalRow[], filename = 'edit_eval_qa.jsonl') {
+  const esc = (s: string | null | undefined) => (s ?? '').replace(/"/g, '\\"')
+  const lines = rows.filter(r => r.evalVerdict).map(r => JSON.stringify({
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Player: "${esc(r.customerInput)}"\n\n` +
+          `gameLM suggested: "${esc(r.suggestedResponse)}"\n\n` +
+          `Agent final: "${esc(r.finalEdits)}"\n\n` +
+          `Agent reason: "${esc(r.reasoning)}"`,
+      },
+      {
+        role: 'assistant',
+        content: `VERDICT: ${r.evalVerdict}\nCONFIDENCE: ${r.evalConfidence}\nREASONING: ${r.evalReasoning ?? ''}`,
+      },
+    ],
+    claude_verdict: r.evalVerdict,
+    human_review:   r.reviewStatus,
+    notes:          r.reviewNotes,
+    ticket:         r.ticketNumber,
+    agent:          r.agentName,
+    category:       r.category,
+    issue_type:     r.issueType,
+  }))
+  downloadBlob(lines.join('\n'), filename, 'application/x-jsonlines')
+}
+
+function exportEditEvalCSV(rows: EvalRow[], filename = 'edit_eval_qa.csv') {
+  const q = (v: string | null | undefined) => `"${(v ?? '').replace(/"/g, '""')}"`
+  const header = 'ticket_number,agent,category,issue_type,claude_verdict,confidence,eval_reasoning,review_status,review_notes,player_message,suggested_response,final_edits,agent_reason'
+  const body = rows.filter(r => r.evalVerdict).map(r => [
+    r.ticketNumber, q(r.agentName), q(r.category), q(r.issueType),
+    r.evalVerdict ?? '', r.evalConfidence,
+    q(r.evalReasoning), r.reviewStatus ?? '', q(r.reviewNotes),
+    q(r.customerInput), q(r.suggestedResponse), q(r.finalEdits), q(r.reasoning),
+  ].join(','))
+  downloadBlob([header, ...body].join('\n'), filename, 'text/csv')
+}
+
 // ── Shared UI helpers ────────────────────────────────────────────────────────
 
 const filterSelectStyle: React.CSSProperties = {
@@ -609,9 +649,11 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
   )
 }
 
-function ReviewActions({ row, onUpdate }: {
+function ReviewActions({ row, onUpdate, confirmLabel = 'Confirm error', dismissLabel = 'False positive' }: {
   row: EvalRow
   onUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void
+  confirmLabel?: string
+  dismissLabel?: string
 }) {
   const [notes,   setNotes]   = useState(row.reviewNotes ?? '')
   const [status,  setStatus]  = useState<string>(row.reviewStatus ?? 'pending')
@@ -650,7 +692,7 @@ function ReviewActions({ row, onUpdate }: {
           background: status === 'confirmed' ? '#166534' : '#000', color: '#fff',
           opacity: saving ? 0.6 : 1, transition: 'all 0.15s', border: 'none',
         }}>
-          {status === 'confirmed' ? '✓ Confirmed' : 'Confirm error'}
+          {status === 'confirmed' ? '✓ Confirmed' : confirmLabel}
         </button>
         <button onClick={() => submit('dismissed')} disabled={saving} style={{
           fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
@@ -660,7 +702,7 @@ function ReviewActions({ row, onUpdate }: {
           border: '1.5px solid rgba(0,0,0,0.12)',
           opacity: saving ? 0.6 : 1, transition: 'all 0.15s',
         }}>
-          {status === 'dismissed' ? 'Dismissed' : 'False positive'}
+          {status === 'dismissed' ? 'Dismissed' : dismissLabel}
         </button>
         {status !== 'pending' && (
           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
@@ -1684,9 +1726,25 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
       {/* Edit Evaluations tab */}
       {activeTab === 'evals' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Edit Evaluations</p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Click any row to see full context</p>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Edit Evaluations</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Click any row to review — QA feedback exports to JSONL / CSV</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => exportEditEvalCSV(rows, `edit_evals_${agentName.replace(/\s+/g, '_')}.csv`)}
+              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#CEA4FF'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'}
+            >Export CSV</button>
+            <button
+              onClick={() => exportEditEvalJSONL(rows, `edit_evals_${agentName.replace(/\s+/g, '_')}.jsonl`)}
+              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            >Export JSONL</button>
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 120px 100px 80px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
           {['Ticket', 'Category', 'Verdict', 'Issue type', 'Confidence'].map(h => (
@@ -1741,6 +1799,12 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
                       </p>
                     </div>
                   )}
+                  <ReviewActions
+                    row={r}
+                    onUpdate={onReviewUpdate}
+                    confirmLabel="Confirm verdict"
+                    dismissLabel="Override verdict"
+                  />
                 </div>
               )}
             </div>
@@ -2579,8 +2643,22 @@ export default function ReportCard() {
 
       {/* Per-agent table */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Agent Breakdown</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => exportEditEvalCSV(rows, 'edit_evals_all.csv')}
+              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#CEA4FF'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'}
+            >Export CSV</button>
+            <button
+              onClick={() => exportEditEvalJSONL(rows, 'edit_evals_all.jsonl')}
+              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            >Export JSONL</button>
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 110px 120px 110px 100px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
           {['Agent', 'Evals', 'Corrections', 'Enhancements', 'Preferences', 'Avg confidence'].map(h => (
