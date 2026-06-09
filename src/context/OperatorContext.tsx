@@ -29,11 +29,11 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) { setLoading(false); return }
 
-    supabase
-      .from('operators')
-      .select('id, name, slug, logo_url')
-      .order('name')
-      .then(({ data }) => {
+    const query = user.role === 'admin'
+      ? supabase.from('operators').select('id, name, slug, logo_url').order('name')
+      : supabase.from('operators').select('id, name, slug, logo_url').eq('id', user.operatorId ?? '')
+
+    query.then(({ data }) => {
         const ops: Operator[] = (data ?? []).map((o: any) => ({
           id:      o.id,
           name:    o.name,
@@ -50,7 +50,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
           const savedOp = savedId ? ops.find(o => o.id === savedId) : null
           setSelected(savedOp ?? ops[0])
         } else {
-          // Agents default to first operator until operator_id is on users table
+          // Agents are scoped to their assigned operator only
           setSelected(ops[0])
         }
 

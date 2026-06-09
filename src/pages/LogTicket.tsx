@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOperator } from '../context/OperatorContext'
 
 const TICKET_MAX = 20
 const draftKey = (email: string) => `logticket_draft_v2_${email}`
@@ -72,6 +73,7 @@ function newTab(id: number): TabState {
 
 export default function LogTicket() {
   const { user } = useAuth()
+  const { selectedOperator } = useOperator()
 
   const nextId = useRef(2)
   const [allTabs, setAllTabs]       = useState<TabState[]>([newTab(1)])
@@ -183,6 +185,7 @@ export default function LogTicket() {
         agent_email:            user?.email ?? '',
         agent_team:             user?.operatorTeam ?? null,
         notes:                  active.notes.trim(),
+        operator_id:            selectedOperator?.id ?? null,
       })
       .select('id')
       .single()
@@ -196,13 +199,14 @@ export default function LogTicket() {
     const issues = active.responses.map(r => {
       const type = ISSUE_TYPES.find(t => t.value === r.issueType)
       return {
-        ticket_id:         ticket.id,
-        issue_type:        type?.dbLabel ?? r.issueType,
-        customer_input:    r.customerInput,
+        ticket_id:          ticket.id,
+        issue_type:         type?.dbLabel ?? r.issueType,
+        customer_input:     r.customerInput,
         suggested_response: r.suggestedResponse || null,
-        reasoning:         r.reasoning || null,
-        final_edits:       r.finalEdits || null,
-        logged_at:         r.loggedAt,
+        reasoning:          r.reasoning || null,
+        final_edits:        r.finalEdits || null,
+        logged_at:          r.loggedAt,
+        operator_id:        selectedOperator?.id ?? null,
       }
     })
 

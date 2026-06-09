@@ -190,18 +190,20 @@ function ConfidencePip({ value }: { value: number }) {
   )
 }
 
-async function fetchTicketCompleteness(): Promise<TicketRow[]> {
+async function fetchTicketCompleteness(operatorId: string | null): Promise<TicketRow[]> {
   // Fetch all tickets with zd_message_count populated
   const PAGE = 1000
   const allTickets: any[] = []
   let from = 0
   while (true) {
-    const { data, error } = await supabase
+    let q = supabase
       .from('tickets')
       .select('id,ticket_number,agent_name,agent_email,zd_message_count,zd_resolution_minutes,zd_fcr,zd_last_player_message,zd_player_sentiment,zd_sentiment_confidence,created_at')
       .not('zd_message_count', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
+    if (operatorId) q = q.eq('operator_id', operatorId)
+    const { data, error } = await q
     if (error || !data || data.length === 0) break
     allTickets.push(...data)
     if (data.length < PAGE) break
@@ -238,17 +240,19 @@ async function fetchTicketCompleteness(): Promise<TicketRow[]> {
   }))
 }
 
-async function fetchAllEvals(): Promise<EvalRow[]> {
+async function fetchAllEvals(operatorId: string | null): Promise<EvalRow[]> {
   const PAGE = 1000
   const all: any[] = []
   let from = 0
   while (true) {
-    const { data, error } = await supabase
+    let q = supabase
       .from('ticket_issues')
       .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .not('eval_verdict', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
+    if (operatorId) q = q.eq('operator_id', operatorId)
+    const { data, error } = await q
     if (error || !data || data.length === 0) break
     all.push(...data)
     if (data.length < PAGE) break
@@ -259,17 +263,19 @@ async function fetchAllEvals(): Promise<EvalRow[]> {
 
 // Fetches all issues that have been scored by eval-accuracy or eval-quality,
 // regardless of whether eval_verdict (edit eval) has been run.
-async function fetchAllScoredIssues(): Promise<EvalRow[]> {
+async function fetchAllScoredIssues(operatorId: string | null): Promise<EvalRow[]> {
   const PAGE = 1000
   const all: any[] = []
   let from = 0
   while (true) {
-    const { data, error } = await supabase
+    let q = supabase
       .from('ticket_issues')
       .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .or('accuracy_ran_at.not.is.null,quality_ran_at.not.is.null')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
+    if (operatorId) q = q.eq('operator_id', operatorId)
+    const { data, error } = await q
     if (error || !data || data.length === 0) break
     all.push(...data)
     if (data.length < PAGE) break
@@ -1978,13 +1984,14 @@ export default function ReportCard() {
   }
 
   useEffect(() => {
-    Promise.all([fetchAllEvals(), fetchTicketCompleteness(), fetchAllScoredIssues()]).then(([evals, tickets, scored]) => {
+    const opId = operator?.id ?? null
+    Promise.all([fetchAllEvals(opId), fetchTicketCompleteness(opId), fetchAllScoredIssues(opId)]).then(([evals, tickets, scored]) => {
       setAllRows(evals)
       setTicketRows(tickets)
       setAllScoredRows(scored)
       setLoading(false)
     })
-  }, [])
+  }, [operator?.id])
 
   const rows        = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const scoredRows  = useMemo(() => filterByRange(allScoredRows, range), [allScoredRows, range])

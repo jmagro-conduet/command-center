@@ -8,6 +8,7 @@ interface DBUser {
   email: string
   role: 'admin' | 'agent'
   operator_team: string | null
+  operator_id: string | null
   created_at: string
 }
 
@@ -15,6 +16,11 @@ interface OperatorTeam {
   id: string
   name: string
   active: boolean
+}
+
+interface Operator {
+  id: string
+  name: string
 }
 
 const AVATAR_COLORS = ['#9B59D0', '#0891b2', '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#be185d']
@@ -42,6 +48,7 @@ const inputStyle: React.CSSProperties = {
 export default function Users() {
   const [users, setUsers]           = useState<DBUser[]>([])
   const [teams, setTeams]           = useState<OperatorTeam[]>([])
+  const [operators, setOperators]   = useState<Operator[]>([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
 
@@ -58,23 +65,29 @@ export default function Users() {
   const [deleting, setDeleting]     = useState(false)
 
   // Add user modal
-  const [addOpen, setAddOpen]       = useState(false)
-  const [addName, setAddName]       = useState('')
-  const [addEmail, setAddEmail]     = useState('')
+  const [addOpen, setAddOpen]         = useState(false)
+  const [addName, setAddName]         = useState('')
+  const [addEmail, setAddEmail]       = useState('')
   const [addPassword, setAddPassword] = useState('')
-  const [addRole, setAddRole]       = useState<'admin' | 'agent'>('agent')
-  const [addTeam, setAddTeam]       = useState('')
-  const [addSaving, setAddSaving]   = useState(false)
-  const [addError, setAddError]     = useState<string | null>(null)
+  const [addRole, setAddRole]         = useState<'admin' | 'agent'>('agent')
+  const [addTeam, setAddTeam]         = useState('')
+  const [addOperatorId, setAddOperatorId] = useState('')
+  const [addSaving, setAddSaving]     = useState(false)
+  const [addError, setAddError]       = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([loadUsers(), loadTeams()])
+    Promise.all([loadUsers(), loadTeams(), loadOperators()])
   }, [])
+
+  async function loadOperators() {
+    const { data } = await supabase.from('operators').select('id, name').order('name')
+    setOperators((data ?? []).map((o: any) => ({ id: o.id, name: o.name })))
+  }
 
   async function loadUsers() {
     const [{ data: { users: authUsers } = { users: [] } }, { data: profiles }] = await Promise.all([
       supabase.auth.admin.listUsers({ perPage: 1000 }),
-      supabase.from('users').select('id, name, email, role, operator_team, created_at, auth_id'),
+      supabase.from('users').select('id, name, email, role, operator_team, operator_id, created_at, auth_id'),
     ])
 
     const profileByEmail = new Map((profiles ?? []).map((p: any) => [p.email, p]))
@@ -89,6 +102,7 @@ export default function Users() {
         email:         au.email,
         role:          profile?.role ?? 'agent',
         operator_team: profile?.operator_team ?? null,
+        operator_id:   profile?.operator_id ?? null,
         created_at:    au.created_at,
       }
     })
@@ -118,10 +132,19 @@ export default function Users() {
   async function handleTeamChange(u: DBUser, newTeam: string) {
     const val = newTeam === '' ? null : newTeam
     await supabase.from('users').upsert(
-      { email: u.email, name: u.name, role: u.role, operator_team: val, auth_id: u.authId },
+      { email: u.email, name: u.name, role: u.role, operator_team: val, operator_id: u.operator_id, auth_id: u.authId },
       { onConflict: 'email' }
     )
     setUsers(us => us.map(x => x.authId === u.authId ? { ...x, operator_team: val } : x))
+  }
+
+  async function handleOperatorChange(u: DBUser, newOperatorId: string) {
+    const val = newOperatorId === '' ? null : newOperatorId
+    await supabase.from('users').upsert(
+      { email: u.email, name: u.name, role: u.role, operator_team: u.operator_team, operator_id: val, auth_id: u.authId },
+      { onConflict: 'email' }
+    )
+    setUsers(us => us.map(x => x.authId === u.authId ? { ...x, operator_id: val } : x))
   }
 
   function openEdit(u: DBUser) {
@@ -184,7 +207,7 @@ export default function Users() {
 
   function openAdd() {
     setAddName(''); setAddEmail(''); setAddPassword('')
-    setAddRole('agent'); setAddTeam('')
+    setAddRole('agent'); setAddTeam(''); setAddOperatorId('')
     setAddError(null)
     setAddOpen(true)
   }
@@ -214,6 +237,7 @@ export default function Users() {
         name:          addName.trim(),
         role:          addRole,
         operator_team: addTeam || null,
+        operator_id:   addOperatorId || null,
         auth_id:       data.user.id,
       },
       { onConflict: 'email' }
@@ -226,6 +250,7 @@ export default function Users() {
       email:         addEmail.trim(),
       role:          addRole,
       operator_team: addTeam || null,
+      operator_id:   addOperatorId || null,
       created_at:    data.user.created_at,
     }
 
@@ -291,7 +316,7 @@ export default function Users() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              {['Member', 'Role', 'Team', 'Joined', ''].map(h => (
+              {['Member', 'Role', 'Operator', 'Team', 'Joined', ''].map(h => (
                 <th key={h} style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
                   color: '#58595B', textAlign: 'left', padding: '12px 16px',
@@ -333,6 +358,21 @@ export default function Users() {
                   >
                     <option value="agent">Agent</option>
                     <option value="admin">Admin</option>
+                  </select>
+                </td>
+
+                <td style={{ padding: '14px 16px' }}>
+                  <select
+                    value={u.operator_id ?? ''}
+                    onChange={e => handleOperatorChange(u, e.target.value)}
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 12,
+                      padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
+                      border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none', background: '#fff', color: '#000',
+                    }}
+                  >
+                    <option value="">No operator</option>
+                    {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </td>
 
@@ -426,14 +466,23 @@ export default function Users() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Team</label>
-                  <select value={addTeam} onChange={e => setAddTeam(e.target.value)} style={inputStyle}
+                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Operator</label>
+                  <select value={addOperatorId} onChange={e => setAddOperatorId(e.target.value)} style={inputStyle}
                     onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
-                    <option value="">No team</option>
-                    {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    <option value="">No operator</option>
+                    {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Team</label>
+                <select value={addTeam} onChange={e => setAddTeam(e.target.value)} style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
+                  <option value="">No team</option>
+                  {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                </select>
               </div>
 
               {addError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{addError}</p>}

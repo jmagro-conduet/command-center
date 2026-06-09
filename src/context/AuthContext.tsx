@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function loadUser(email: string) {
     const { data } = await supabase
       .from('users')
-      .select('id, name, email, role, operator_team')
+      .select('id, name, email, role, operator_team, operator_id')
       .eq('email', email)
       .single()
     return data
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user?.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: null })
+          setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: profile.operator_id ?? null })
         }
       }
       setLoading(false)
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session.user.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: null })
+          setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: profile.operator_id ?? null })
         }
       }
     })
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.user?.email) {
       const profile = await loadUser(session.user.email)
       if (profile) {
-        setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: null })
+        setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: profile.operator_id ?? null })
       }
     }
     return { error: null }
