@@ -130,7 +130,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [backfillProgress, setBackfillProgress] = useState({ done: 0, total: 0, accDone: 0, accTotal: 0, quaDone: 0, quaTotal: 0, errors: 0 })
   const [backfillError,    setBackfillError]    = useState('')
   const [backfillOperator, setBackfillOperator] = useState('')
-  const [backfillSince,    setBackfillSince]    = useState('30d')
+  const [backfillSince,    setBackfillSince]    = useState('14')
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -640,6 +640,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   style={{ ...inputStyle, cursor: 'pointer' }}
                 >
                   <option value="7">Last 7 days</option>
+                  <option value="14">Last 14 days</option>
                   <option value="30">Last 30 days</option>
                   <option value="60">Last 60 days</option>
                   <option value="90">Last 90 days</option>
