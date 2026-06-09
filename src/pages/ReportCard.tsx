@@ -190,6 +190,38 @@ function ConfidencePip({ value }: { value: number }) {
   )
 }
 
+// Trend indicator — shows ↑/↓ delta vs prior period
+// isPositiveGood: true  = up is green (FCR, compliments, evals)
+//                 false = up is red  (corrections, resolution time)
+function TrendPip({ curr, prev, isPositiveGood = true, fmt }: {
+  curr: number
+  prev: number | null
+  isPositiveGood?: boolean
+  fmt: (delta: number) => string
+}) {
+  if (prev === null || (curr === 0 && prev === 0)) return null
+  const delta = curr - prev
+  if (delta === 0) return (
+    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.28)', marginTop: 2, display: 'block' }}>
+      — same as prior period
+    </span>
+  )
+  const up   = delta > 0
+  const good = isPositiveGood ? up : !up
+  const color = good ? '#166534' : '#e53e3e'
+  const bg    = good ? 'rgba(22,101,52,0.08)' : 'rgba(229,62,62,0.08)'
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 2,
+      fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
+      padding: '2px 7px', borderRadius: 100, marginTop: 3,
+      background: bg, color,
+    }}>
+      {up ? '↑' : '↓'} {fmt(Math.abs(delta))} vs prior
+    </span>
+  )
+}
+
 async function fetchTicketCompleteness(operatorId: string | null): Promise<TicketRow[]> {
   // Fetch all tickets with zd_message_count populated
   const PAGE = 1000
@@ -2029,6 +2061,38 @@ export default function ReportCard() {
   const todayStr   = new Date().toISOString().slice(0, 10)
   const addedToday = allRows.filter(r => (r.evalRanAt ?? '').slice(0, 10) === todayStr).length
 
+  // ── Prior period (same duration, immediately before current window) ──────────
+  const priorRows = useMemo(() => {
+    if (range === 'allTime') return []
+    const days = rangeDays(range)
+    const cutEnd   = new Date(); cutEnd.setDate(cutEnd.getDate() - days)
+    const cutStart = new Date(); cutStart.setDate(cutStart.getDate() - days * 2)
+    return allRows.filter(r => { const d = rowDate(r); return d >= cutStart && d < cutEnd })
+  }, [allRows, range])
+
+  const priorTickets = useMemo(() => {
+    if (range === 'allTime') return []
+    const days = rangeDays(range)
+    const cutEnd   = new Date(); cutEnd.setDate(cutEnd.getDate() - days)
+    const cutStart = new Date(); cutStart.setDate(cutStart.getDate() - days * 2)
+    return ticketRows.filter(t => { const d = new Date(t.createdAt); return d >= cutStart && d < cutEnd })
+  }, [ticketRows, range])
+
+  const priorTotal       = priorRows.length
+  const priorCorrection  = priorRows.filter(r => r.evalVerdict === 'CORRECTION').length
+  const priorEnhancement = priorRows.filter(r => r.evalVerdict === 'ENHANCEMENT').length
+  const priorPreference  = priorRows.filter(r => r.evalVerdict === 'PREFERENCE').length
+
+  const priorTicketsWithRes = priorTickets.filter(t => t.zdResolutionMinutes !== null)
+  const priorAvgResolutionMins = priorTicketsWithRes.length
+    ? Math.round(priorTicketsWithRes.reduce((s, t) => s + (t.zdResolutionMinutes ?? 0), 0) / priorTicketsWithRes.length)
+    : null
+  const priorTicketsWithFcr = priorTickets.filter(t => t.zdFcr !== null)
+  const priorFcrPct = priorTicketsWithFcr.length
+    ? pct(priorTicketsWithFcr.filter(t => t.zdFcr).length, priorTicketsWithFcr.length)
+    : null
+  const priorCompliments = priorTickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT').length
+
   // Ticket-level ops metrics — filtered by selected time range
   const filteredTickets = useMemo(() => {
     if (range === 'allTime') return ticketRows
@@ -2212,13 +2276,18 @@ export default function ReportCard() {
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>today</p>
             </div>
           </div>
+          {range !== 'allTime' && (
+            <div style={{ marginTop: 8 }}>
+              <TrendPip curr={teamTotal} prev={priorTotal} isPositiveGood fmt={n => `${n}`} />
+            </div>
+          )}
         </div>
 
-        {([
-          { label: 'Corrections',  value: `${pct(teamCorrection, teamTotal)}%`,  color: '#e53e3e', note: 'gameLM had an error',  verdict: 'CORRECTION'  as Verdict },
-          { label: 'Enhancements', value: `${pct(teamEnhancement, teamTotal)}%`, color: '#854d0e', note: 'Agent added value',    verdict: 'ENHANCEMENT' as Verdict },
-          { label: 'Preferences',  value: `${pct(teamPreference, teamTotal)}%`,  color: '#58595B', note: 'Stylistic only',       verdict: 'PREFERENCE'  as Verdict },
-        ] as const).map(k => (
+        {[
+          { label: 'Corrections',  currPct: pct(teamCorrection, teamTotal),  priorPct: pct(priorCorrection, priorTotal),  isPositiveGood: false, color: '#e53e3e', note: 'gameLM had an error',  verdict: 'CORRECTION'  as Verdict },
+          { label: 'Enhancements', currPct: pct(teamEnhancement, teamTotal), priorPct: pct(priorEnhancement, priorTotal), isPositiveGood: true,  color: '#854d0e', note: 'Agent added value',    verdict: 'ENHANCEMENT' as Verdict },
+          { label: 'Preferences',  currPct: pct(teamPreference, teamTotal),  priorPct: pct(priorPreference, priorTotal),  isPositiveGood: false, color: '#58595B', note: 'Stylistic only',       verdict: 'PREFERENCE'  as Verdict },
+        ].map(k => (
           <div
             key={k.label}
             onClick={() => setVerdictModal(k.verdict)}
@@ -2237,7 +2306,12 @@ export default function ReportCard() {
             }}
           >
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.currPct}%</p>
+            {range !== 'allTime' && (
+              <div style={{ marginBottom: 4 }}>
+                <TrendPip curr={k.currPct} prev={k.priorPct} isPositiveGood={k.isPositiveGood} fmt={n => `${n}pp`} />
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{k.note}</p>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: k.color, opacity: 0.6 }}>View themes →</span>
@@ -2248,26 +2322,33 @@ export default function ReportCard() {
 
       {/* Operations KPIs row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {[
-          {
-            label: 'Avg resolution time',
-            value: fmtMinutes(avgResolutionMins),
-            color: '#000',
-            note: ticketsWithRes.length ? `across ${ticketsWithRes.length} resolved tickets` : 'Run ZD backfill to populate',
-          },
-          {
-            label: 'FCR rate',
-            value: teamFcrPct !== null ? `${teamFcrPct}%` : '—',
-            color: teamFcrPct === null ? '#aaa' : teamFcrPct >= 80 ? '#166534' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e',
-            note: 'First contact resolution — no reopens',
-          },
-        ].map(k => (
-          <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>{k.note}</p>
-          </div>
-        ))}
+        {/* Avg resolution time */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Avg resolution time</p>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#000' }}>{fmtMinutes(avgResolutionMins)}</p>
+          {range !== 'allTime' && avgResolutionMins !== null && (
+            <div style={{ marginTop: 3, marginBottom: 2 }}>
+              <TrendPip curr={avgResolutionMins} prev={priorAvgResolutionMins} isPositiveGood={false} fmt={n => fmtMinutes(n)} />
+            </div>
+          )}
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>
+            {ticketsWithRes.length ? `across ${ticketsWithRes.length} resolved tickets` : 'Run ZD backfill to populate'}
+          </p>
+        </div>
+
+        {/* FCR rate */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>FCR rate</p>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: teamFcrPct === null ? '#aaa' : teamFcrPct >= 80 ? '#166534' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e' }}>
+            {teamFcrPct !== null ? `${teamFcrPct}%` : '—'}
+          </p>
+          {range !== 'allTime' && teamFcrPct !== null && (
+            <div style={{ marginTop: 3, marginBottom: 2 }}>
+              <TrendPip curr={teamFcrPct} prev={priorFcrPct} isPositiveGood fmt={n => `${n}pp`} />
+            </div>
+          )}
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>First contact resolution — no reopens</p>
+        </div>
 
         {/* Player compliments — clickable card */}
         <div
@@ -2285,6 +2366,11 @@ export default function ReportCard() {
           <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
             {teamCompliments > 0 ? `+${teamCompliments}` : '—'}
           </p>
+          {range !== 'allTime' && (
+            <div style={{ marginTop: 3, marginBottom: 2 }}>
+              <TrendPip curr={teamCompliments} prev={priorCompliments} isPositiveGood fmt={n => `${n}`} />
+            </div>
+          )}
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.3)', marginTop: 3 }}>
             {teamCompliments > 0 ? 'Click to view all →' : 'Genuine positive feedback detected'}
           </p>
