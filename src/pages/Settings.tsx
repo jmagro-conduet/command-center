@@ -69,6 +69,7 @@ interface ImportPreview {
 }
 
 interface BackfillCounts {
+  editIds:     string[]
   accuracyIds: string[]
   qualityIds:  string[]
   totalUnique: number
@@ -81,9 +82,11 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-function estimateMinutes(accCount: number, quaCount: number): number {
-  // Accuracy ~3 s/issue (Sonnet), Quality ~0.5 s/issue (Haiku)
-  return Math.max(1, Math.ceil((accCount * 3 + quaCount * 0.5) / 60))
+function estimateMinutes(editCount: number, accCount: number, quaCount: number): number {
+  // Edit ~0.4 s/issue effective (Sonnet, concurrency 5)
+  // Accuracy ~3 s/issue (Sonnet, sequential)
+  // Quality ~0.5 s/issue (Haiku, sequential)
+  return Math.max(1, Math.ceil((editCount * 0.4 + accCount * 3 + quaCount * 0.5) / 60))
 }
 
 interface SettingsProps {
@@ -127,11 +130,14 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   type BackfillStatus = 'idle' | 'loading' | 'ready' | 'running' | 'done' | 'error'
   const [backfillStatus,   setBackfillStatus]   = useState<BackfillStatus>('idle')
   const [backfillCounts,   setBackfillCounts]   = useState<BackfillCounts | null>(null)
-  const [backfillProgress, setBackfillProgress] = useState({ done: 0, total: 0, accDone: 0, accTotal: 0, quaDone: 0, quaTotal: 0, errors: 0 })
+  const [backfillProgress, setBackfillProgress] = useState({ done: 0, total: 0, editDone: 0, editTotal: 0, accDone: 0, accTotal: 0, quaDone: 0, quaTotal: 0, errors: 0 })
   const [backfillError,    setBackfillError]    = useState('')
   const [backfillOperator, setBackfillOperator] = useState('')
   const [backfillSince,    setBackfillSince]    = useState('14')
   const [backfillForce,    setBackfillForce]    = useState(false)
+  const [backfillEdit,     setBackfillEdit]     = useState(true)
+  const [backfillAccuracy, setBackfillAccuracy] = useState(true)
+  const [backfillQuality,  setBackfillQuality]  = useState(true)
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -387,7 +393,14 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
     setBackfillCounts(null)
     try {
       const { data, error } = await supabase.functions.invoke('backfill-evals', {
-        body: { operator_id: backfillOperator || undefined, since: sinceIso(backfillSince), force: backfillForce },
+        body: {
+          operator_id:     backfillOperator || undefined,
+          since:           sinceIso(backfillSince),
+          force:           backfillForce,
+          includeEdit:     backfillEdit,
+          includeAccuracy: backfillAccuracy,
+          includeQuality:  backfillQuality,
+        },
       })
       if (error) throw error
       setBackfillCounts(data as BackfillCounts)
@@ -403,31 +416,41 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
     if (!backfillCounts) return
     setBackfillStatus('running')
 
-    const ACC_CHUNK = 25   // Sonnet — deeper eval, smaller batches
-    const QUA_CHUNK = 50   // Haiku  — faster, larger batches
+    const EDIT_CHUNK = 25   // Sonnet, concurrency 5 internally — ~10s per chunk
+    const ACC_CHUNK  = 25   // Sonnet, sequential — ~75s per chunk
+    const QUA_CHUNK  = 50   // Haiku,  sequential — ~25s per chunk
 
-    const accChunks = chunkArray(backfillCounts.accuracyIds, ACC_CHUNK)
-    const quaChunks = chunkArray(backfillCounts.qualityIds,  QUA_CHUNK)
-    const total     = accChunks.length + quaChunks.length
+    const editChunks = chunkArray(backfillCounts.editIds,     EDIT_CHUNK)
+    const accChunks  = chunkArray(backfillCounts.accuracyIds, ACC_CHUNK)
+    const quaChunks  = chunkArray(backfillCounts.qualityIds,  QUA_CHUNK)
 
-    let done = 0, accDone = 0, quaDone = 0, errors = 0
-    const accTotal = accChunks.length
-    const quaTotal = quaChunks.length
+    const editTotal = editChunks.length
+    const accTotal  = accChunks.length
+    const quaTotal  = quaChunks.length
+    const total     = editTotal + accTotal + quaTotal
 
-    setBackfillProgress({ done, total, accDone, accTotal, quaDone, quaTotal, errors })
+    let done = 0, editDone = 0, accDone = 0, quaDone = 0, errors = 0
+    setBackfillProgress({ done, total, editDone, editTotal, accDone, accTotal, quaDone, quaTotal, errors })
+
+    for (const ch of editChunks) {
+      const { error } = await supabase.functions.invoke('eval-issue-v2', { body: { ids: ch } })
+      if (error) errors++
+      done++; editDone++
+      setBackfillProgress({ done, total, editDone, editTotal, accDone, accTotal, quaDone, quaTotal, errors })
+    }
 
     for (const ch of accChunks) {
       const { error } = await supabase.functions.invoke('eval-accuracy', { body: { ids: ch } })
       if (error) errors++
       done++; accDone++
-      setBackfillProgress({ done, total, accDone, accTotal, quaDone, quaTotal, errors })
+      setBackfillProgress({ done, total, editDone, editTotal, accDone, accTotal, quaDone, quaTotal, errors })
     }
 
     for (const ch of quaChunks) {
       const { error } = await supabase.functions.invoke('eval-quality', { body: { ids: ch } })
       if (error) errors++
       done++; quaDone++
-      setBackfillProgress({ done, total, accDone, accTotal, quaDone, quaTotal, errors })
+      setBackfillProgress({ done, total, editDone, editTotal, accDone, accTotal, quaDone, quaTotal, errors })
     }
 
     setBackfillStatus('done')
@@ -677,6 +700,32 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
               </button>
             </div>
 
+            {/* Eval type selector */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ ...labelStyle, marginBottom: 8 }}>Evals to run</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {([
+                  { key: 'edit',     label: 'Edit evals',     val: backfillEdit,     set: setBackfillEdit },
+                  { key: 'accuracy', label: 'Accuracy',       val: backfillAccuracy, set: setBackfillAccuracy },
+                  { key: 'quality',  label: 'Quality',        val: backfillQuality,  set: setBackfillQuality },
+                ] as { key: string; label: string; val: boolean; set: (v: boolean) => void }[]).map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => { if (backfillStatus !== 'running') { opt.set(!opt.val); setBackfillStatus('idle'); setBackfillCounts(null) } }}
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '7px 16px', borderRadius: 100, border: 'none', cursor: backfillStatus === 'running' ? 'not-allowed' : 'pointer',
+                      background: opt.val ? '#000' : 'rgba(0,0,0,0.06)',
+                      color: opt.val ? '#fff' : '#58595B',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {opt.val ? '✓ ' : ''}{opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Force re-score toggle */}
             <div
               onClick={() => { if (backfillStatus !== 'running') { setBackfillForce(f => !f); setBackfillStatus('idle'); setBackfillCounts(null) } }}
@@ -714,11 +763,12 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
             {/* Counts */}
             {(backfillStatus === 'ready' || backfillStatus === 'running' || backfillStatus === 'done') && backfillCounts && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${[backfillEdit, backfillAccuracy, backfillQuality].filter(Boolean).length + 1}, 1fr)`, gap: 10, marginBottom: 16 }}>
                 {[
-                  { label: backfillForce ? 'Will re-score accuracy' : 'Needs accuracy eval', value: backfillCounts.accuracyIds.length, accent: backfillCounts.accuracyIds.length > 0 },
-                  { label: backfillForce ? 'Will re-score quality'  : 'Needs quality eval',  value: backfillCounts.qualityIds.length,  accent: backfillCounts.qualityIds.length > 0 },
-                  { label: 'Total unique issues',                                             value: backfillCounts.totalUnique,        accent: false },
+                  ...(backfillEdit     ? [{ label: backfillForce ? 'Will re-score edits'    : 'Needs edit eval',    value: backfillCounts.editIds.length,     accent: backfillCounts.editIds.length > 0 }]     : []),
+                  ...(backfillAccuracy ? [{ label: backfillForce ? 'Will re-score accuracy' : 'Needs accuracy eval', value: backfillCounts.accuracyIds.length, accent: backfillCounts.accuracyIds.length > 0 }] : []),
+                  ...(backfillQuality  ? [{ label: backfillForce ? 'Will re-score quality'  : 'Needs quality eval',  value: backfillCounts.qualityIds.length,  accent: backfillCounts.qualityIds.length > 0 }]  : []),
+                  { label: 'Total unique issues', value: backfillCounts.totalUnique, accent: false },
                 ].map(s => (
                   <div key={s.label} style={{
                     background: s.accent ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
@@ -753,7 +803,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   {backfillForce ? '♻ Re-score all' : '▶ Run backfill'}
                 </button>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
-                  Est. ~{estimateMinutes(backfillCounts.accuracyIds.length, backfillCounts.qualityIds.length)} min — keep this tab open
+                  Est. ~{estimateMinutes(backfillCounts.editIds.length, backfillCounts.accuracyIds.length, backfillCounts.qualityIds.length)} min — keep this tab open
                 </span>
               </div>
             )}
@@ -769,8 +819,9 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                    Accuracy: {backfillProgress.accDone}/{backfillProgress.accTotal} batches &nbsp;·&nbsp;
-                    Quality: {backfillProgress.quaDone}/{backfillProgress.quaTotal} batches
+                    {backfillProgress.editTotal > 0 && `Edit: ${backfillProgress.editDone}/${backfillProgress.editTotal} · `}
+                    {backfillProgress.accTotal  > 0 && `Accuracy: ${backfillProgress.accDone}/${backfillProgress.accTotal} · `}
+                    {backfillProgress.quaTotal  > 0 && `Quality: ${backfillProgress.quaDone}/${backfillProgress.quaTotal}`}
                     {backfillProgress.errors > 0 && (
                       <span style={{ color: '#e53e3e', marginLeft: 8 }}>
                         · {backfillProgress.errors} error{backfillProgress.errors !== 1 ? 's' : ''}
@@ -801,7 +852,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   borderRadius: 10, padding: 14,
                   fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
                 }}>
-                  ✅ Backfill complete — {backfillProgress.accTotal} accuracy batches &amp; {backfillProgress.quaTotal} quality batches processed
+                  ✅ Backfill complete —{backfillProgress.editTotal > 0 ? ` ${backfillProgress.editTotal} edit,` : ''}{backfillProgress.accTotal > 0 ? ` ${backfillProgress.accTotal} accuracy,` : ''}{backfillProgress.quaTotal > 0 ? ` ${backfillProgress.quaTotal} quality` : ''} batches processed
                   {backfillProgress.errors > 0 && (
                     <span style={{ color: '#c05621' }}>
                       &nbsp;({backfillProgress.errors} batch error{backfillProgress.errors !== 1 ? 's' : ''} — re-scan to retry)
