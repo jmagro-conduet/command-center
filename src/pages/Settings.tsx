@@ -68,6 +68,24 @@ interface ImportPreview {
   totalIssues: number
 }
 
+interface BackfillCounts {
+  accuracyIds: string[]
+  qualityIds:  string[]
+  totalUnique: number
+}
+
+// ── Module-level helpers ──────────────────────────────────────────────────────
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+function estimateMinutes(accCount: number, quaCount: number): number {
+  // Accuracy ~3 s/issue (Sonnet), Quality ~0.5 s/issue (Haiku)
+  return Math.max(1, Math.ceil((accCount * 3 + quaCount * 0.5) / 60))
+}
+
 interface SettingsProps {
   initialTab?: SettingsTab
 }
@@ -104,6 +122,14 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [importLog,       setImportLog]       = useState<string[]>([])
   const [importError,     setImportError]     = useState('')
   const [repairMode,      setRepairMode]      = useState(false)
+
+  // ── Backfill Evaluations (admin) ──────────────────────────────────────────
+  type BackfillStatus = 'idle' | 'loading' | 'ready' | 'running' | 'done' | 'error'
+  const [backfillStatus,   setBackfillStatus]   = useState<BackfillStatus>('idle')
+  const [backfillCounts,   setBackfillCounts]   = useState<BackfillCounts | null>(null)
+  const [backfillProgress, setBackfillProgress] = useState({ done: 0, total: 0, accDone: 0, accTotal: 0, quaDone: 0, quaTotal: 0, errors: 0 })
+  const [backfillError,    setBackfillError]    = useState('')
+  const [backfillOperator, setBackfillOperator] = useState('')
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -343,6 +369,59 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
     setTimeout(() => setNameSaved(false), 2500)
   }
 
+  // ── Backfill helpers ────────────────────────────────────────────────────────
+  async function loadBackfillCounts() {
+    setBackfillStatus('loading')
+    setBackfillError('')
+    setBackfillCounts(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('backfill-evals', {
+        body: { operator_id: backfillOperator || undefined },
+      })
+      if (error) throw error
+      setBackfillCounts(data as BackfillCounts)
+      setBackfillStatus('ready')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to scan issues'
+      setBackfillError(msg)
+      setBackfillStatus('error')
+    }
+  }
+
+  async function runBackfill() {
+    if (!backfillCounts) return
+    setBackfillStatus('running')
+
+    const ACC_CHUNK = 25   // Sonnet — deeper eval, smaller batches
+    const QUA_CHUNK = 50   // Haiku  — faster, larger batches
+
+    const accChunks = chunkArray(backfillCounts.accuracyIds, ACC_CHUNK)
+    const quaChunks = chunkArray(backfillCounts.qualityIds,  QUA_CHUNK)
+    const total     = accChunks.length + quaChunks.length
+
+    let done = 0, accDone = 0, quaDone = 0, errors = 0
+    const accTotal = accChunks.length
+    const quaTotal = quaChunks.length
+
+    setBackfillProgress({ done, total, accDone, accTotal, quaDone, quaTotal, errors })
+
+    for (const ch of accChunks) {
+      const { error } = await supabase.functions.invoke('eval-accuracy', { body: { ids: ch } })
+      if (error) errors++
+      done++; accDone++
+      setBackfillProgress({ done, total, accDone, accTotal, quaDone, quaTotal, errors })
+    }
+
+    for (const ch of quaChunks) {
+      const { error } = await supabase.functions.invoke('eval-quality', { body: { ids: ch } })
+      if (error) errors++
+      done++; quaDone++
+      setBackfillProgress({ done, total, accDone, accTotal, quaDone, quaTotal, errors })
+    }
+
+    setBackfillStatus('done')
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Page header */}
@@ -534,6 +613,155 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
               Currently: <strong>{tgt.min}–{tgt.max}</strong> tickets/agent/day
               {targetSaved && <span style={{ color: '#166534', marginLeft: 10 }}>✓ Updated — reload Analytics to see changes</span>}
             </p>
+          </SectionCard>
+
+          {/* Backfill Evaluations */}
+          <SectionCard
+            title="Backfill Evaluations"
+            subtitle="Run accuracy (Sonnet) and quality (Haiku) evals on all historical issues not yet scored. Keep this tab open while running."
+          >
+            {/* Operator filter */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 16, flexWrap: 'wrap' }}>
+              <div style={{ flex: '0 0 220px' }}>
+                <label style={labelStyle}>Scope to operator (optional)</label>
+                <select
+                  value={backfillOperator}
+                  onChange={e => { setBackfillOperator(e.target.value); setBackfillStatus('idle'); setBackfillCounts(null) }}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                >
+                  <option value="">All operators</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <button
+                onClick={loadBackfillCounts}
+                disabled={backfillStatus === 'loading' || backfillStatus === 'running'}
+                style={{
+                  background: (backfillStatus === 'loading' || backfillStatus === 'running') ? 'rgba(0,0,0,0.1)' : '#000',
+                  color:      (backfillStatus === 'loading' || backfillStatus === 'running') ? 'rgba(0,0,0,0.35)' : '#fff',
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '9px 18px', borderRadius: 10, border: 'none',
+                  cursor: (backfillStatus === 'loading' || backfillStatus === 'running') ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s', whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={e => { if (backfillStatus === 'idle' || backfillStatus === 'ready' || backfillStatus === 'done' || backfillStatus === 'error') e.currentTarget.style.opacity = '0.8' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+              >
+                {backfillStatus === 'loading' ? 'Scanning…' : '🔍 Scan for unscored issues'}
+              </button>
+            </div>
+
+            {/* Error */}
+            {backfillStatus === 'error' && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginBottom: 12 }}>
+                ❌ {backfillError}
+              </p>
+            )}
+
+            {/* Counts */}
+            {(backfillStatus === 'ready' || backfillStatus === 'running' || backfillStatus === 'done') && backfillCounts && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: 'Needs accuracy eval', value: backfillCounts.accuracyIds.length, accent: backfillCounts.accuracyIds.length > 0 },
+                  { label: 'Needs quality eval',  value: backfillCounts.qualityIds.length,  accent: backfillCounts.qualityIds.length > 0 },
+                  { label: 'Total unique issues',  value: backfillCounts.totalUnique,        accent: false },
+                ].map(s => (
+                  <div key={s.label} style={{
+                    background: s.accent ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
+                    border: `1.5px solid ${s.accent ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
+                    borderRadius: 10, padding: '12px 16px',
+                  }}>
+                    <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: s.accent ? '#9B59D0' : '#000' }}>
+                      {s.value}
+                    </div>
+                    <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 2 }}>
+                      {s.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Run button */}
+            {backfillStatus === 'ready' && backfillCounts && backfillCounts.totalUnique > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={runBackfill}
+                  style={{
+                    background: '#000', color: '#fff',
+                    fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    padding: '9px 20px', borderRadius: 10, border: 'none',
+                    cursor: 'pointer', transition: 'opacity 0.15s', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                >
+                  ▶ Run backfill
+                </button>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                  Est. ~{estimateMinutes(backfillCounts.accuracyIds.length, backfillCounts.qualityIds.length)} min — keep this tab open
+                </span>
+              </div>
+            )}
+
+            {backfillStatus === 'ready' && backfillCounts && backfillCounts.totalUnique === 0 && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534' }}>
+                ✅ All issues are already scored — nothing to backfill.
+              </p>
+            )}
+
+            {/* Progress */}
+            {backfillStatus === 'running' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                    Accuracy: {backfillProgress.accDone}/{backfillProgress.accTotal} batches &nbsp;·&nbsp;
+                    Quality: {backfillProgress.quaDone}/{backfillProgress.quaTotal} batches
+                    {backfillProgress.errors > 0 && (
+                      <span style={{ color: '#e53e3e', marginLeft: 8 }}>
+                        · {backfillProgress.errors} error{backfillProgress.errors !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0' }}>
+                    {backfillProgress.total > 0 ? Math.round((backfillProgress.done / backfillProgress.total) * 100) : 0}%
+                  </span>
+                </div>
+                <div style={{ height: 8, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${backfillProgress.total > 0 ? (backfillProgress.done / backfillProgress.total) * 100 : 0}%`,
+                    background: '#CEA4FF',
+                    borderRadius: 100,
+                    transition: 'width 0.4s ease',
+                  }} />
+                </div>
+              </div>
+            )}
+
+            {/* Done */}
+            {backfillStatus === 'done' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{
+                  background: 'rgba(22,101,52,0.06)', border: '1.5px solid rgba(22,101,52,0.2)',
+                  borderRadius: 10, padding: 14,
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
+                }}>
+                  ✅ Backfill complete — {backfillProgress.accTotal} accuracy batches &amp; {backfillProgress.quaTotal} quality batches processed
+                  {backfillProgress.errors > 0 && (
+                    <span style={{ color: '#c05621' }}>
+                      &nbsp;({backfillProgress.errors} batch error{backfillProgress.errors !== 1 ? 's' : ''} — re-scan to retry)
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setBackfillStatus('idle'); setBackfillCounts(null) }}
+                  style={resetBtnStyle}
+                >
+                  Scan again
+                </button>
+              </div>
+            )}
           </SectionCard>
 
           {/* Import Data */}
