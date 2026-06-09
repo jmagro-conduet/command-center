@@ -1914,8 +1914,6 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
   const passingTickets = allTickets.filter(t => t.avgQuality !== null && t.avgQuality >= 3.5)
   const displayTickets = subTab === 'below' ? belowTickets : passingTickets
 
-  const scoreColor = (s: number | null) => s === null ? '#aaa' : s >= 4 ? '#166534' : s >= 3.5 ? '#854d0e' : '#e53e3e'
-
   // Export helpers — flatten ticket groups to issue rows
   const exportRows = displayTickets.flatMap(t => t.issues)
 
