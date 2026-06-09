@@ -5,6 +5,10 @@ import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
 
 interface Team { id: string; name: string }
 
+function toSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 function parseCSVLine(line: string): string[] {
   const result: string[] = []
@@ -96,7 +100,7 @@ export default function Settings() {
 
   async function loadTeams() {
     setTeamsLoading(true)
-    const { data } = await supabase.from('operator_teams').select('*').order('name')
+    const { data } = await supabase.from('operators').select('id, name').order('name')
     setTeams(data ?? [])
     setTeamsLoading(false)
   }
@@ -105,7 +109,8 @@ export default function Settings() {
     const name = newTeamName.trim()
     if (!name) return
     setAddingTeam(true)
-    await supabase.from('operator_teams').insert([{ name }])
+    const slug = toSlug(name)
+    await supabase.from('operators').insert([{ name, slug }])
     setNewTeamName('')
     setAddingTeam(false)
     loadTeams()
@@ -114,8 +119,9 @@ export default function Settings() {
   async function saveRename(id: string, oldName: string) {
     const name = renameVal.trim()
     if (!name || name === oldName) { setRenamingId(null); return }
-    await supabase.from('operator_teams').update({ name }).eq('id', id)
-    // Keep users' operator_team in sync
+    const slug = toSlug(name)
+    await supabase.from('operators').update({ name, slug }).eq('id', id)
+    // Keep users' operator_team display string in sync
     await supabase.from('users').update({ operator_team: name }).eq('operator_team', oldName)
     setRenamingId(null)
     loadTeams()
@@ -123,12 +129,12 @@ export default function Settings() {
 
   async function deleteTeam(id: string, name: string) {
     const { count } = await supabase
-      .from('users').select('id', { count: 'exact', head: true }).eq('operator_team', name)
+      .from('users').select('id', { count: 'exact', head: true }).eq('operator_id', id)
     if ((count ?? 0) > 0) {
-      if (!confirm(`${count} user(s) are on this team and will be unassigned. Continue?`)) return
-      await supabase.from('users').update({ operator_team: null }).eq('operator_team', name)
+      if (!confirm(`${count} user(s) are assigned to this operator and will be unassigned. Continue?`)) return
+      await supabase.from('users').update({ operator_id: null, operator_team: null }).eq('operator_id', id)
     }
-    await supabase.from('operator_teams').delete().eq('id', id)
+    await supabase.from('operators').delete().eq('id', id)
     loadTeams()
   }
 
@@ -363,10 +369,10 @@ export default function Settings() {
       {/* ── Admin-only ──────────────────────────────────────────────────────── */}
       {isAdmin && (
         <>
-          {/* Operator Teams */}
+          {/* Operators */}
           <SectionCard
-            title="Operator Teams"
-            subtitle="Teams available when assigning users. Renaming a team updates all existing users."
+            title="Operators"
+            subtitle="Client operators you support. Each entry appears in the sidebar switcher and can be assigned to agents."
           >
             {teamsLoading ? (
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
@@ -374,7 +380,7 @@ export default function Settings() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {teams.length === 0 && (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '8px 0' }}>
-                    No teams yet. Add one below.
+                    No operators yet. Add one below.
                   </p>
                 )}
 
@@ -426,7 +432,7 @@ export default function Settings() {
                     value={newTeamName}
                     onChange={e => setNewTeamName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') addTeam() }}
-                    placeholder="New team name…"
+                    placeholder="New operator name…"
                     style={{ ...inputStyle, flex: 1 }}
                     onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
                     onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
@@ -445,7 +451,7 @@ export default function Settings() {
                     onMouseEnter={e => { if (newTeamName.trim() && !addingTeam) e.currentTarget.style.opacity = '0.8' }}
                     onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
                   >
-                    {addingTeam ? 'Adding…' : '+ Add team'}
+                    {addingTeam ? 'Adding…' : '+ Add operator'}
                   </button>
                 </div>
               </div>
