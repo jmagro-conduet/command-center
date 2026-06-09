@@ -5,7 +5,7 @@ import { useOperator } from '../context/OperatorContext'
 
 type TimeRange    = 'last7' | 'last14' | 'last30' | 'allTime'
 type Verdict      = 'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE'
-type TopTab       = 'evals' | 'accuracy' | 'quality'
+type TopTab       = 'dashboard' | 'evals' | 'accuracy' | 'quality'
 type AccuracyClass = 'P1A' | 'P1B' | 'P2' | 'NONE'
 
 interface EvalRow {
@@ -2091,7 +2091,7 @@ export default function ReportCard() {
   const [range, setRange]                 = useState<TimeRange>('last30')
   const [selected, setSelected]           = useState<string | null>(null)
   const [showWins, setShowWins]           = useState(false)
-  const [topTab, setTopTab]               = useState<TopTab>('evals')
+  const [topTab, setTopTab]               = useState<TopTab>('dashboard')
   const [verdictModal, setVerdictModal]   = useState<Verdict | null>(null)
 
   // Update local state when a review action is saved
@@ -2325,9 +2325,10 @@ export default function ReportCard() {
       {/* Top-level tab switcher */}
       <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3, alignSelf: 'flex-start' }}>
         {([
-          { id: 'evals'    as TopTab, label: 'Edit Evaluations' },
-          { id: 'accuracy' as TopTab, label: 'Response Accuracy' },
-          { id: 'quality'  as TopTab, label: 'Response Quality'  },
+          { id: 'dashboard' as TopTab, label: 'Dashboard'         },
+          { id: 'evals'     as TopTab, label: 'Edit Evaluations'  },
+          { id: 'accuracy'  as TopTab, label: 'Response Accuracy' },
+          { id: 'quality'   as TopTab, label: 'Response Quality'  },
         ]).map(t => (
           <button key={t.id} onClick={() => setTopTab(t.id)} style={{
             fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -2341,6 +2342,123 @@ export default function ReportCard() {
           </button>
         ))}
       </div>
+
+      {/* ── Dashboard tab ── */}
+      {topTab === 'dashboard' && (() => {
+        // Accuracy metrics from scoredRows
+        const accWithEval   = scoredRows.filter(r => r.accuracyRanAt !== null)
+        const accTotal      = accWithEval.length
+        const accP1a        = accWithEval.filter(r => r.accuracyErrorClass === 'P1A').length
+        const accP1b        = accWithEval.filter(r => r.accuracyErrorClass === 'P1B').length
+        const accP2         = accWithEval.filter(r => r.accuracyErrorClass === 'P2').length
+        const accErrorRate  = accTotal ? Math.round(((accP1a + accP1b + accP2) / accTotal) * 100) : 0
+        const accRatioDenom = accErrorRate > 0 ? Math.round(100 / accErrorRate) : null
+
+        // Prior accuracy
+        const priorAccWithEval  = priorScoredRows.filter(r => r.accuracyRanAt !== null)
+        const priorAccTotal     = priorAccWithEval.length || null
+        const priorAccP1a       = priorAccWithEval.length ? priorAccWithEval.filter(r => r.accuracyErrorClass === 'P1A').length : null
+        const priorAccP1b       = priorAccWithEval.length ? priorAccWithEval.filter(r => r.accuracyErrorClass === 'P1B').length : null
+        const priorAccP2        = priorAccWithEval.length ? priorAccWithEval.filter(r => r.accuracyErrorClass === 'P2').length : null
+        const priorAccErrorRate = (priorAccTotal && priorAccP1a !== null && priorAccP1b !== null && priorAccP2 !== null)
+          ? Math.round(((priorAccP1a + priorAccP1b + priorAccP2) / priorAccTotal) * 100)
+          : null
+
+        // Quality metrics from scoredRows
+        const qualWithEval  = scoredRows.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
+        const qualTotal     = qualWithEval.length
+        const qualAvgScore  = qualTotal ? avgOf(qualWithEval, 'qualityScore') : null
+        const qualAboveBar  = qualWithEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length
+        const qualAbovePct  = qualTotal ? pct(qualAboveBar, qualTotal) : null
+
+        // Prior quality
+        const priorQualWithEval = priorScoredRows.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
+        const priorQualAvgScore = priorQualWithEval.length ? avgOf(priorQualWithEval, 'qualityScore') : null
+        const priorQualAbovePct = priorQualWithEval.length ? pct(priorQualWithEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length, priorQualWithEval.length) : null
+
+        // Edit eval rates
+        const corrPct  = teamTotal ? pct(teamCorrection,  teamTotal) : 0
+        const enhPct   = teamTotal ? pct(teamEnhancement, teamTotal) : 0
+        const prefPct  = teamTotal ? pct(teamPreference,  teamTotal) : 0
+        const priorCorrPct  = priorTotal ? pct(priorCorrection,  priorTotal) : null
+        const priorEnhPct   = priorTotal ? pct(priorEnhancement, priorTotal) : null
+        const priorPrefPct  = priorTotal ? pct(priorPreference,  priorTotal) : null
+
+        const qualScoreColor = (s: number | null) => s === null ? '#aaa' : s >= 4 ? '#166534' : s >= 3.5 ? '#854d0e' : '#e53e3e'
+
+        const SectionHeader = ({ label }: { label: string }) => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{label}</p>
+            <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.07)' }} />
+          </div>
+        )
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* ── Edit Evaluations ── */}
+            <SectionHeader label="Edit Evaluations" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {[
+                { label: 'Corrections',  value: `${corrPct}%`, color: '#e53e3e',  note: 'Response needed rewriting',    curr: corrPct, prev: priorCorrPct,  good: false },
+                { label: 'Enhancements', value: `${enhPct}%`,  color: '#854d0e',  note: 'Response improved upon',       curr: enhPct,  prev: priorEnhPct,   good: true  },
+                { label: 'Preferences',  value: `${prefPct}%`, color: '#58595B',  note: 'Agent chose own wording',      curr: prefPct, prev: priorPrefPct,  good: false },
+              ].map(k => (
+                <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{k.label}</p>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, color: k.color, lineHeight: 1 }}>{k.value}</p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>{k.note}</p>
+                  {range !== 'allTime' && <TrendPip curr={k.curr} prev={k.prev} isPositiveGood={k.good} fmt={n => `${n}pp`} />}
+                </div>
+              ))}
+            </div>
+
+            {/* ── Response Accuracy ── */}
+            <SectionHeader label="Response Accuracy" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Error Rate</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: accErrorRate > 10 ? '#e53e3e' : accErrorRate > 5 ? '#854d0e' : '#166534' }}>
+                  {accTotal ? `${accErrorRate}%` : '—'}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>P1A + P1B + P2 errors</p>
+                {range !== 'allTime' && <TrendPip curr={accErrorRate} prev={priorAccErrorRate} isPositiveGood={false} fmt={n => `${n}pp`} />}
+              </div>
+              <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Error Ratio</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: accErrorRate > 10 ? '#e53e3e' : accErrorRate > 5 ? '#854d0e' : '#166534' }}>
+                  {accTotal && accRatioDenom !== null ? `1:${accRatioDenom}` : accTotal && accErrorRate === 0 ? 'None' : '—'}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>
+                  {accRatioDenom !== null ? `1 error per ${accRatioDenom} responses` : accErrorRate === 0 ? 'No errors this period' : 'No data yet'}
+                </p>
+              </div>
+            </div>
+
+            {/* ── Response Quality ── */}
+            <SectionHeader label="Response Quality" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+              <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Avg Quality Score</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: qualScoreColor(qualAvgScore) }}>
+                  {qualAvgScore !== null ? qualAvgScore.toFixed(2) : '—'}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>target ≥ 3.50 · out of 5</p>
+                {range !== 'allTime' && qualAvgScore !== null && <TrendPip curr={qualAvgScore} prev={priorQualAvgScore} isPositiveGood fmt={n => `${n.toFixed(2)}`} />}
+              </div>
+              <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Passing Score Rate</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: '#166534' }}>
+                  {qualAbovePct !== null ? `${qualAbovePct}%` : '—'}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>{qualAboveBar} / {qualTotal} responses ≥ 3.5</p>
+                {range !== 'allTime' && <TrendPip curr={qualAbovePct ?? 0} prev={priorQualAbovePct} isPositiveGood fmt={n => `${n}pp`} />}
+              </div>
+            </div>
+
+          </div>
+        )
+      })()}
 
       {/* ── Response Accuracy tab ── */}
       {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} priorRows={range !== 'allTime' ? priorScoredRows : undefined} onReviewUpdate={handleReviewUpdate} />}
