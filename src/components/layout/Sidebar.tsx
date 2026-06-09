@@ -152,16 +152,18 @@ const AGENT_NAV: NavItem[] = [
   { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
 ]
 
+// Feature-flagged pages (not shown in nav but Page type kept for routing)
+// 'report' — hidden until reporting feature is ready
+// 'users'  — moved to bottom section (under Settings)
+
 const ADMIN_NAV: NavItem[] = [
   { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
   { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
   { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
   { id: 'events',      label: 'Events',      icon: <EventsIcon /> },
   { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
-  { id: 'report',       label: 'Report',       icon: <ReportIcon /> },
   { id: 'analytics',   label: 'Analytics',   icon: <AnalyticsIcon /> },
   { id: 'report-card', label: 'Report Card', icon: <ReportCardIcon /> },
-  { id: 'users',       label: 'Users',       icon: <UsersIcon /> },
   { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
 ]
 
@@ -413,7 +415,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
 
         <button
           onClick={() => onNavigate('settings')}
-          title={collapsed ? 'Settings' : undefined}
+          title={collapsed ? (isAdmin ? 'Admin settings' : 'Settings') : undefined}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -421,29 +423,29 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             padding: collapsed ? '9px 0' : '9px 10px',
             borderRadius: 10,
             justifyContent: collapsed ? 'center' : 'flex-start',
-            background: activePage === 'settings' ? '#CEA4FF' : 'transparent',
-            color: activePage === 'settings' ? '#000' : '#58595B',
+            background: (activePage === 'settings' || activePage === 'users') ? '#CEA4FF' : 'transparent',
+            color: (activePage === 'settings' || activePage === 'users') ? '#000' : '#58595B',
             fontFamily: 'Inter, sans-serif',
             fontSize: 14,
-            fontWeight: activePage === 'settings' ? 500 : 400,
+            fontWeight: (activePage === 'settings' || activePage === 'users') ? 500 : 400,
             transition: 'all 0.15s',
           }}
           onMouseEnter={e => {
-            if (activePage !== 'settings') e.currentTarget.style.background = 'rgba(0,0,0,0.05)'
+            if (activePage !== 'settings' && activePage !== 'users') e.currentTarget.style.background = 'rgba(0,0,0,0.05)'
           }}
           onMouseLeave={e => {
-            if (activePage !== 'settings') e.currentTarget.style.background = 'transparent'
+            if (activePage !== 'settings' && activePage !== 'users') e.currentTarget.style.background = 'transparent'
           }}
         >
           <span style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, borderRadius: 8,
-            background: activePage === 'settings' ? '#fff' : 'transparent',
+            background: (activePage === 'settings' || activePage === 'users') ? '#fff' : 'transparent',
             flexShrink: 0,
           }}>
             <SettingsIcon />
           </span>
-          {!collapsed && 'Settings'}
+          {!collapsed && (isAdmin ? 'Admin settings' : 'Settings')}
         </button>
 
         <button

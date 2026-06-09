@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
+import Users from './Users'
+
+type SettingsTab = 'general' | 'users'
 
 interface Team { id: string; name: string }
 
@@ -65,9 +68,15 @@ interface ImportPreview {
   totalIssues: number
 }
 
-export default function Settings() {
+interface SettingsProps {
+  initialTab?: SettingsTab
+}
+
+export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>(isAdmin ? initialTab : 'general')
 
   // ── My Account ────────────────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(user?.name ?? '')
@@ -336,14 +345,49 @@ export default function Settings() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
-          Settings
-        </h1>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
-          Configure your Command Center preferences
-        </p>
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+            {isAdmin ? 'Admin settings' : 'Settings'}
+          </h1>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+            {activeTab === 'users' ? 'Manage team members and their operator access' : 'Configure your Command Center preferences'}
+          </p>
+        </div>
+
+        {/* Tab strip — admin only */}
+        {isAdmin && (
+          <div style={{
+            display: 'flex', gap: 2, padding: 4,
+            background: 'rgba(0,0,0,0.05)', borderRadius: 12,
+            alignSelf: 'flex-start',
+          }}>
+            {(['general', 'users'] as SettingsTab[]).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '7px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                  background: activeTab === tab ? '#fff' : 'transparent',
+                  color: activeTab === tab ? '#000' : '#58595B',
+                  boxShadow: activeTab === tab ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {tab === 'general' ? 'General' : 'Users'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* ── Users tab ───────────────────────────────────────────────────────── */}
+      {isAdmin && activeTab === 'users' && <Users />}
+
+      {/* ── General tab ─────────────────────────────────────────────────────── */}
+      {activeTab === 'general' && <>
 
       {/* ── My Account ─────────────────────────────────────────────────────── */}
       <SectionCard title="My Account" subtitle="Update your display name shown across the app">
@@ -634,6 +678,8 @@ export default function Settings() {
           </SectionCard>
         </>
       )}
+
+      </> /* end General tab */}
     </div>
   )
 }

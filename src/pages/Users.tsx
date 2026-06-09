@@ -51,6 +51,7 @@ export default function Users() {
   const [operators, setOperators]   = useState<Operator[]>([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
+  const [filterOpId, setFilterOpId] = useState('')
 
   // Edit modal
   const [editTarget, setEditTarget] = useState<DBUser | null>(null)
@@ -261,11 +262,12 @@ export default function Users() {
 
   const filtered = useMemo(() =>
     users.filter(u => {
+      if (filterOpId && u.operator_id !== filterOpId) return false
       if (!search) return true
       const q = search.toLowerCase()
       return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
     }),
-  [users, search])
+  [users, search, filterOpId])
 
   if (loading) {
     return (
@@ -291,10 +293,20 @@ export default function Users() {
             placeholder="Search users…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ ...inputStyle, width: 220 }}
+            style={{ ...inputStyle, width: 200 }}
             onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
             onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           />
+          <select
+            value={filterOpId}
+            onChange={e => setFilterOpId(e.target.value)}
+            style={{ ...inputStyle, width: 170 }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+          >
+            <option value="">All operators</option>
+            {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
           <button
             onClick={openAdd}
             style={{

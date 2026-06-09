@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOperator } from '../context/OperatorContext'
 
 interface KBArticle {
   id: string
@@ -83,6 +84,7 @@ const secondaryBtn: React.CSSProperties = {
 export default function Learn() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const { selectedOperator } = useOperator()
 
   const [articles, setArticles] = useState<KBArticle[]>([])
   const [loading, setLoading]   = useState(true)
@@ -107,14 +109,16 @@ export default function Learn() {
   const [uploadPct,    setUploadPct]    = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { loadArticles() }, [])
+  useEffect(() => { loadArticles() }, [selectedOperator?.id, isAdmin])
 
   async function loadArticles() {
     setLoading(true)
+    const opId = selectedOperator?.id ?? null
     let q = supabase
       .from('kb_articles')
       .select('id, title, content, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type')
       .order('updated_at', { ascending: false })
+    if (opId) q = (q as any).eq('operator_id', opId)
     if (!isAdmin) q = (q as any).eq('is_published', true)
     const { data } = await q
     setArticles(data ?? [])
@@ -187,6 +191,7 @@ export default function Learn() {
       file_url:     formFileUrl  || null,
       file_name:    formFileName || null,
       file_type:    formFileType || null,
+      operator_id:  selectedOperator?.id ?? null,
     }
     if (editTarget) {
       const { error } = await supabase.from('kb_articles').update(payload).eq('id', editTarget.id)

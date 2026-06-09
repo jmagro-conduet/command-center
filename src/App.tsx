@@ -74,9 +74,9 @@ function AppShell() {
       case 'report':      return isAdmin ? <Report      key={pageKey} /> : <LogTicket key={pageKey} />
       case 'analytics':    return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
       case 'report-card': return isAdmin ? <ReportCard  key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'users':       return isAdmin ? <Users       key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'users':       return isAdmin ? <Settings key={pageKey} initialTab="users" /> : <LogTicket key={pageKey} />
       case 'learn':       return <Learn       key={pageKey} />
-      case 'settings':    return <Settings    key={pageKey} />
+      case 'settings':    return isAdmin ? <Settings key={pageKey} /> : <Settings key={pageKey} />
     }
   }
 
