@@ -46,6 +46,8 @@ interface EvalRow {
   themeDetail:          string | null
   reviewStatus:         'pending' | 'confirmed' | 'dismissed' | null
   reviewNotes:          string | null
+  reviewCorrectVerdict: string | null
+  reviewContext:        string | null
   reviewedBy:           string | null
   reviewedAt:           string | null
 }
@@ -279,7 +281,7 @@ async function fetchAllEvals(operatorId: string | null): Promise<EvalRow[]> {
   while (true) {
     let q = supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .not('eval_verdict', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -302,7 +304,7 @@ async function fetchAllScoredIssues(operatorId: string | null): Promise<EvalRow[
   while (true) {
     let q = supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .or('accuracy_ran_at.not.is.null,quality_ran_at.not.is.null')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -352,10 +354,12 @@ function mapEvalRow(r: any): EvalRow {
     qualityRanAt:         r.quality_ran_at         ?? null,
     themeTag:             r.theme_tag              ?? null,
     themeDetail:          r.theme_detail           ?? null,
-    reviewStatus:         r.review_status          ?? null,
-    reviewNotes:          r.review_notes           ?? null,
-    reviewedBy:           r.reviewed_by            ?? null,
-    reviewedAt:           r.reviewed_at            ?? null,
+    reviewStatus:         r.review_status           ?? null,
+    reviewNotes:          r.review_notes            ?? null,
+    reviewCorrectVerdict: r.review_correct_verdict  ?? null,
+    reviewContext:        r.review_context          ?? null,
+    reviewedBy:           r.reviewed_by             ?? null,
+    reviewedAt:           r.reviewed_at             ?? null,
   }
 }
 
@@ -406,24 +410,26 @@ function exportJSONL(rows: EvalRow[], filename = 'training_data.jsonl') {
         ].filter(Boolean).join('\n') || '(no eval output)',
       },
     ],
-    human_verdict: r.reviewStatus,
-    theme:         r.themeTag,
-    notes:         r.reviewNotes,
-    ticket:        r.ticketNumber,
-    agent:         r.agentName,
-    category:      r.category,
+    human_verdict:    r.reviewStatus,
+    correct_verdict:  r.reviewCorrectVerdict,
+    override_context: r.reviewContext,
+    theme:            r.themeTag,
+    notes:            r.reviewNotes,
+    ticket:           r.ticketNumber,
+    agent:            r.agentName,
+    category:         r.category,
   }))
   downloadBlob(lines.join('\n'), filename, 'application/x-jsonlines')
 }
 
 function exportCSV(rows: EvalRow[], filename = 'qa_export.csv') {
   const q = (v: string | null | undefined) => `"${(v ?? '').replace(/"/g, '""')}"`
-  const header = 'ticket_number,agent,category,theme,player_message,suggested_response,accuracy_class,quality_score,review_status,notes'
+  const header = 'ticket_number,agent,category,theme,player_message,suggested_response,accuracy_class,quality_score,review_status,correct_verdict,override_context,notes'
   const body   = rows.map(r => [
     r.ticketNumber, r.agentName, r.category, r.themeTag ?? '',
     q(r.customerInput), q(r.suggestedResponse),
     r.accuracyErrorClass ?? '', r.qualityScore?.toFixed(2) ?? '',
-    r.reviewStatus ?? '', q(r.reviewNotes),
+    r.reviewStatus ?? '', r.reviewCorrectVerdict ?? '', q(r.reviewContext), q(r.reviewNotes),
   ].join(','))
   downloadBlob([header, ...body].join('\n'), filename, 'text/csv')
 }
@@ -445,24 +451,27 @@ function exportEditEvalJSONL(rows: EvalRow[], filename = 'edit_eval_qa.jsonl') {
         content: `VERDICT: ${r.evalVerdict}\nCONFIDENCE: ${r.evalConfidence}\nREASONING: ${r.evalReasoning ?? ''}`,
       },
     ],
-    claude_verdict: r.evalVerdict,
-    human_review:   r.reviewStatus,
-    notes:          r.reviewNotes,
-    ticket:         r.ticketNumber,
-    agent:          r.agentName,
-    category:       r.category,
-    issue_type:     r.issueType,
+    claude_verdict:   r.evalVerdict,
+    human_review:     r.reviewStatus,
+    correct_verdict:  r.reviewCorrectVerdict,
+    override_context: r.reviewContext,
+    notes:            r.reviewNotes,
+    ticket:           r.ticketNumber,
+    agent:            r.agentName,
+    category:         r.category,
+    issue_type:       r.issueType,
   }))
   downloadBlob(lines.join('\n'), filename, 'application/x-jsonlines')
 }
 
 function exportEditEvalCSV(rows: EvalRow[], filename = 'edit_eval_qa.csv') {
   const q = (v: string | null | undefined) => `"${(v ?? '').replace(/"/g, '""')}"`
-  const header = 'ticket_number,agent,category,issue_type,claude_verdict,confidence,eval_reasoning,review_status,review_notes,player_message,suggested_response,final_edits,agent_reason'
+  const header = 'ticket_number,agent,category,issue_type,claude_verdict,confidence,eval_reasoning,review_status,correct_verdict,override_context,review_notes,player_message,suggested_response,final_edits,agent_reason'
   const body = rows.filter(r => r.evalVerdict).map(r => [
     r.ticketNumber, q(r.agentName), q(r.category), q(r.issueType),
     r.evalVerdict ?? '', r.evalConfidence,
-    q(r.evalReasoning), r.reviewStatus ?? '', q(r.reviewNotes),
+    q(r.evalReasoning), r.reviewStatus ?? '',
+    r.reviewCorrectVerdict ?? '', q(r.reviewContext), q(r.reviewNotes),
     q(r.customerInput), q(r.suggestedResponse), q(r.finalEdits), q(r.reasoning),
   ].join(','))
   downloadBlob([header, ...body].join('\n'), filename, 'text/csv')
@@ -649,28 +658,70 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
   )
 }
 
-function ReviewActions({ row, onUpdate, confirmLabel = 'Confirm error', dismissLabel = 'False positive' }: {
+interface ReviewUpdate {
+  status:         'confirmed' | 'dismissed'
+  notes:          string
+  correctVerdict: string | null
+  context:        string | null
+}
+
+function ReviewActions({
+  row, onUpdate,
+  confirmLabel = 'Confirm', dismissLabel = 'Override',
+  verdictOptions,
+}: {
   row: EvalRow
-  onUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void
+  onUpdate?: (id: string, update: ReviewUpdate) => void
   confirmLabel?: string
   dismissLabel?: string
+  verdictOptions?: string[]
 }) {
-  const [notes,   setNotes]   = useState(row.reviewNotes ?? '')
-  const [status,  setStatus]  = useState<string>(row.reviewStatus ?? 'pending')
-  const [saving,  setSaving]  = useState(false)
+  const [notes,           setNotes]           = useState(row.reviewNotes         ?? '')
+  const [correctVerdict,  setCorrectVerdict]  = useState(row.reviewCorrectVerdict ?? '')
+  const [context,         setContext]         = useState(row.reviewContext        ?? '')
+  const [status,          setStatus]          = useState<'pending' | 'confirmed' | 'dismissed'>(
+    (row.reviewStatus as 'pending' | 'confirmed' | 'dismissed') ?? 'pending'
+  )
+  const [showOverride, setShowOverride] = useState(row.reviewStatus === 'dismissed')
+  const [saving,       setSaving]       = useState(false)
 
-  async function submit(newStatus: 'confirmed' | 'dismissed') {
+  async function saveConfirm() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('ticket_issues').update({
-      review_status: newStatus,
-      review_notes:  notes || null,
-      reviewed_by:   user?.email ?? null,
-      reviewed_at:   new Date().toISOString(),
+      review_status:          'confirmed',
+      review_notes:           notes || null,
+      review_correct_verdict: null,
+      review_context:         null,
+      reviewed_by:            user?.email ?? null,
+      reviewed_at:            new Date().toISOString(),
     }).eq('id', row.id)
-    setStatus(newStatus)
-    onUpdate?.(row.id, newStatus, notes)
+    setStatus('confirmed')
+    setShowOverride(false)
+    onUpdate?.(row.id, { status: 'confirmed', notes, correctVerdict: null, context: null })
     setSaving(false)
+  }
+
+  async function saveOverride() {
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('ticket_issues').update({
+      review_status:          'dismissed',
+      review_notes:           notes || null,
+      review_correct_verdict: correctVerdict || null,
+      review_context:         context || null,
+      reviewed_by:            user?.email ?? null,
+      reviewed_at:            new Date().toISOString(),
+    }).eq('id', row.id)
+    setStatus('dismissed')
+    onUpdate?.(row.id, { status: 'dismissed', notes, correctVerdict: correctVerdict || null, context: context || null })
+    setSaving(false)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 12,
+    padding: '8px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
+    resize: 'vertical' as const, boxSizing: 'border-box', outline: 'none',
   }
 
   return (
@@ -678,33 +729,105 @@ function ReviewActions({ row, onUpdate, confirmLabel = 'Confirm error', dismissL
       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
         QA Review — adds to training dataset
       </p>
+
+      {/* General QA notes — always visible */}
       <textarea
         value={notes}
         onChange={e => setNotes(e.target.value)}
-        placeholder="Add context or notes (e.g. why this was a real error, what the correct response should have been)…"
+        placeholder="General QA observations (optional)…"
         rows={2}
-        style={{ width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '8px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', resize: 'vertical', marginBottom: 8, boxSizing: 'border-box', outline: 'none' }}
+        style={{ ...inputStyle, marginBottom: 8 }}
       />
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={() => submit('confirmed')} disabled={saving} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-          padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
-          background: status === 'confirmed' ? '#166534' : '#000', color: '#fff',
-          opacity: saving ? 0.6 : 1, transition: 'all 0.15s', border: 'none',
-        }}>
-          {status === 'confirmed' ? '✓ Confirmed' : confirmLabel}
-        </button>
-        <button onClick={() => submit('dismissed')} disabled={saving} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-          padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
-          background: status === 'dismissed' ? 'rgba(0,0,0,0.5)' : 'transparent',
-          color: status === 'dismissed' ? '#fff' : '#58595B',
-          border: '1.5px solid rgba(0,0,0,0.12)',
-          opacity: saving ? 0.6 : 1, transition: 'all 0.15s',
-        }}>
-          {status === 'dismissed' ? 'Dismissed' : dismissLabel}
-        </button>
-        {status !== 'pending' && (
+
+      {/* Override expanded section */}
+      {showOverride && (
+        <div style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 8, border: '1.5px solid rgba(229,62,62,0.2)', background: 'rgba(229,62,62,0.03)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {verdictOptions && verdictOptions.length > 0 && (
+            <div>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 4 }}>
+                Correct verdict
+              </p>
+              <select
+                value={correctVerdict}
+                onChange={e => setCorrectVerdict(e.target.value)}
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '7px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none', cursor: 'pointer', width: '100%' }}
+              >
+                <option value="">— select correct verdict —</option>
+                {verdictOptions.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+          )}
+          <div>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 4 }}>
+              Override context <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)' }}>— edge case or missing nuance</span>
+            </p>
+            <textarea
+              value={context}
+              onChange={e => setContext(e.target.value)}
+              placeholder="Explain why the LLM verdict is wrong — edge case, missing context, player history, etc."
+              rows={3}
+              style={inputStyle}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* Confirm path */}
+        {!showOverride && (
+          <button onClick={saveConfirm} disabled={saving} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
+            background: status === 'confirmed' ? '#166534' : '#000', color: '#fff',
+            opacity: saving ? 0.6 : 1, transition: 'all 0.15s', border: 'none',
+          }}>
+            {status === 'confirmed' ? `✓ ${confirmLabel}ed` : confirmLabel}
+          </button>
+        )}
+
+        {/* Override path */}
+        {!showOverride ? (
+          <button onClick={() => setShowOverride(true)} disabled={saving} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
+            background: 'transparent', color: '#58595B',
+            border: '1.5px solid rgba(0,0,0,0.12)',
+            opacity: saving ? 0.6 : 1, transition: 'all 0.15s',
+          }}>
+            {status === 'dismissed' ? `✕ Edit Override` : dismissLabel}
+          </button>
+        ) : (
+          <>
+            <button onClick={saveOverride} disabled={saving} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+              padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
+              background: '#e53e3e', color: '#fff',
+              opacity: saving ? 0.6 : 1, transition: 'all 0.15s', border: 'none',
+            }}>
+              {status === 'dismissed' ? '✓ Update Override' : 'Save Override'}
+            </button>
+            <button onClick={saveConfirm} disabled={saving} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+              padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
+              background: 'transparent', color: '#58595B',
+              border: '1.5px solid rgba(0,0,0,0.12)',
+              opacity: saving ? 0.6 : 1, transition: 'all 0.15s',
+            }}>
+              {confirmLabel} instead
+            </button>
+            {status !== 'dismissed' && (
+              <button onClick={() => setShowOverride(false)} disabled={saving} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)',
+                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 4px',
+              }}>
+                Cancel
+              </button>
+            )}
+          </>
+        )}
+
+        {(status === 'confirmed' || status === 'dismissed') && !saving && (
           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
             Saved · use Export to download training data
           </span>
@@ -1081,7 +1204,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   rows: EvalRow[]
   agentFilter?: string
   priorRows?: EvalRow[]
-  onReviewUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void
+  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
   const [expanded,       setExpanded]       = useState<string | null>(null)
   const [subTab,         setSubTab]         = useState<'queue' | 'all'>('queue')
@@ -1157,7 +1280,15 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
           </p>
         </div>
       )}
-      {r.accuracyHumanReview && <ReviewActions row={r} onUpdate={onReviewUpdate} />}
+      {r.accuracyHumanReview && (
+        <ReviewActions
+          row={r}
+          onUpdate={onReviewUpdate}
+          confirmLabel="Confirm error"
+          dismissLabel="Override error"
+          verdictOptions={['P1A', 'P1B', 'P2', 'NONE']}
+        />
+      )}
     </div>
   )
 
@@ -1309,7 +1440,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   rows: EvalRow[]
   agentFilter?: string
   priorRows?: EvalRow[]
-  onReviewUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void
+  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
   const [expanded,       setExpanded]       = useState<string | null>(null)
   const [viewMode,       setViewMode]       = useState<'issue' | 'ticket'>('issue')
@@ -1613,7 +1744,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
 
 // ── Agent Drilldown ────────────────────────────────────────────────────────────
 
-function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void; onReviewUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void }) {
+function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void; onReviewUpdate?: (id: string, update: ReviewUpdate) => void }) {
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'evals' | 'accuracy' | 'quality' | 'completeness' | 'wins'>('evals')
 
@@ -1804,6 +1935,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
                     onUpdate={onReviewUpdate}
                     confirmLabel="Confirm verdict"
                     dismissLabel="Override verdict"
+                    verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE']}
                   />
                 </div>
               )}
@@ -2159,11 +2291,19 @@ export default function ReportCard() {
   const [verdictModal, setVerdictModal]   = useState<Verdict | null>(null)
 
   // Update local state when a review action is saved
-  const handleReviewUpdate = (id: string, status: 'confirmed' | 'dismissed', notes: string) => {
-    setAllScoredRows(prev => prev.map(r => r.id === id
-      ? { ...r, reviewStatus: status, reviewNotes: notes, reviewedBy: user?.email ?? null, reviewedAt: new Date().toISOString() }
+  const handleReviewUpdate = (id: string, update: ReviewUpdate) => {
+    const patch = (r: EvalRow) => r.id === id
+      ? { ...r,
+          reviewStatus:         update.status,
+          reviewNotes:          update.notes || null,
+          reviewCorrectVerdict: update.correctVerdict,
+          reviewContext:        update.context,
+          reviewedBy:           user?.email ?? null,
+          reviewedAt:           new Date().toISOString(),
+        }
       : r
-    ))
+    setAllRows(prev       => prev.map(patch))
+    setAllScoredRows(prev => prev.map(patch))
   }
 
   useEffect(() => {
