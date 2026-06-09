@@ -61,30 +61,11 @@ function SubmissionsIcon() {
   )
 }
 
-function ReportIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="4" y="2" width="16" height="20" rx="3" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M8 7h8M8 11h8M8 15h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
 function AnalyticsIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
       <path d="M3 17l4-5 4 3 4-6 4 4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M3 21h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function UsersIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M3 21c0-4 2.7-7 6-7s6 3 6 7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-      <path d="M16 3c2.2.6 4 2.7 4 5M19 21c0-3-1.3-5.5-3.5-6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   )
 }
