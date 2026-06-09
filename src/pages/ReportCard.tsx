@@ -2396,6 +2396,49 @@ export default function ReportCard() {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+            {/* ── Ops ── */}
+            <SectionHeader label="Operations" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {/* Avg resolution time */}
+              <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Avg Resolution Time</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: '#000' }}>{fmtMinutes(avgResolutionMins)}</p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>
+                  {ticketsWithRes.length ? `across ${ticketsWithRes.length} resolved tickets` : 'Run ZD backfill to populate'}
+                </p>
+                {range !== 'allTime' && avgResolutionMins !== null && <TrendPip curr={avgResolutionMins} prev={priorAvgResolutionMins} isPositiveGood={false} fmt={n => fmtMinutes(n)} />}
+              </div>
+              {/* FCR rate */}
+              <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>FCR Rate</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: teamFcrPct === null ? '#aaa' : teamFcrPct >= 80 ? '#166534' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e' }}>
+                  {teamFcrPct !== null ? `${teamFcrPct}%` : '—'}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>First contact resolution — no reopens</p>
+                {range !== 'allTime' && teamFcrPct !== null && <TrendPip curr={teamFcrPct} prev={priorFcrPct} isPositiveGood fmt={n => `${n}pp`} />}
+              </div>
+              {/* Player compliments — clickable */}
+              <div
+                onClick={() => teamCompliments > 0 && setShowWins(true)}
+                style={{
+                  background: '#fff', borderRadius: 14, padding: '16px 18px',
+                  border: teamCompliments > 0 ? '1.5px solid rgba(22,101,52,0.25)' : '1.5px solid rgba(0,0,0,0.09)',
+                  cursor: teamCompliments > 0 ? 'pointer' : 'default', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (teamCompliments > 0) e.currentTarget.style.background = 'rgba(22,101,52,0.03)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
+              >
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Player Compliments</p>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
+                  {teamCompliments > 0 ? `+${teamCompliments}` : '—'}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.3)', marginTop: 4 }}>
+                  {teamCompliments > 0 ? 'Click to view all →' : 'Genuine positive feedback detected'}
+                </p>
+                {range !== 'allTime' && <TrendPip curr={teamCompliments} prev={priorCompliments} isPositiveGood fmt={n => `${n}`} />}
+              </div>
+            </div>
+
             {/* ── Edit Evaluations ── */}
             <SectionHeader label="Edit Evaluations" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
@@ -2532,63 +2575,6 @@ export default function ReportCard() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Operations KPIs row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {/* Avg resolution time */}
-        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Avg resolution time</p>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#000' }}>{fmtMinutes(avgResolutionMins)}</p>
-          {range !== 'allTime' && avgResolutionMins !== null && (
-            <div style={{ marginTop: 3, marginBottom: 2 }}>
-              <TrendPip curr={avgResolutionMins} prev={priorAvgResolutionMins} isPositiveGood={false} fmt={n => fmtMinutes(n)} />
-            </div>
-          )}
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>
-            {ticketsWithRes.length ? `across ${ticketsWithRes.length} resolved tickets` : 'Run ZD backfill to populate'}
-          </p>
-        </div>
-
-        {/* FCR rate */}
-        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>FCR rate</p>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: teamFcrPct === null ? '#aaa' : teamFcrPct >= 80 ? '#166534' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e' }}>
-            {teamFcrPct !== null ? `${teamFcrPct}%` : '—'}
-          </p>
-          {range !== 'allTime' && teamFcrPct !== null && (
-            <div style={{ marginTop: 3, marginBottom: 2 }}>
-              <TrendPip curr={teamFcrPct} prev={priorFcrPct} isPositiveGood fmt={n => `${n}pp`} />
-            </div>
-          )}
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 3 }}>First contact resolution — no reopens</p>
-        </div>
-
-        {/* Player compliments — clickable card */}
-        <div
-          onClick={() => teamCompliments > 0 && setShowWins(true)}
-          style={{
-            background: '#fff', borderRadius: 14, padding: '16px 18px',
-            border: teamCompliments > 0 ? '1.5px solid rgba(22,101,52,0.25)' : '1.5px solid rgba(0,0,0,0.09)',
-            cursor: teamCompliments > 0 ? 'pointer' : 'default',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { if (teamCompliments > 0) e.currentTarget.style.background = 'rgba(22,101,52,0.03)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
-        >
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Player compliments</p>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
-            {teamCompliments > 0 ? `+${teamCompliments}` : '—'}
-          </p>
-          {range !== 'allTime' && (
-            <div style={{ marginTop: 3, marginBottom: 2 }}>
-              <TrendPip curr={teamCompliments} prev={priorCompliments} isPositiveGood fmt={n => `${n}`} />
-            </div>
-          )}
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.3)', marginTop: 3 }}>
-            {teamCompliments > 0 ? 'Click to view all →' : 'Genuine positive feedback detected'}
-          </p>
-        </div>
       </div>
 
       {/* Per-agent table */}
