@@ -114,7 +114,75 @@ FLAG_REASON: [If flagged, state which category scored 1 and quote the relevant r
 THEME_TAG: [choose the single most relevant: Account Access | Bet Dispute | Bet Placement | Bonus / Promotion | Deposit / Withdrawal | Game Dispute | KYC / Verification | Responsible Gaming | Settlement / Results | Technical Issue | Account Administration | General Query]
 THEME_DETAIL: [4-8 word lowercase noun phrase describing the specific situation — what the player is actually experiencing within the category. Do not repeat the category name. Be specific and consistent so similar situations produce the same label. Examples: "free bet not credited after qualifying deposit", "rollover requirement unclear for reload bonus", "withdrawal declined without stated reason", "unable to log in after password reset", "bet voided without explanation provided"]
 
-Do not add commentary outside this format. Do not classify accuracy errors — that is handled by Eval 2. Do not suggest rewrites.`
+Do not add commentary outside this format. Do not classify accuracy errors — that is handled by Eval 2. Do not suggest rewrites.
+
+---
+
+### Calibration Examples
+
+The following are verified examples of high-quality gameLM responses representing the 5/5 standard. Use them as scoring anchors when calibrating your judgements.
+
+---
+
+**Example 1 — Account Access**
+Player: "I tried too many passwords and it locked my account — I just need you to unlock it."
+gameLM response: "Hi Mason, I can see your account was suspended after too many sign-in attempts. I've gone ahead and unlocked it for you. For security I can't view or share your password, but you can reset it from the login screen if you need to."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Intent immediately identified; resolved on the spot with no unnecessary back-and-forth; issue self-contained so no follow-up needed; concise and warm; correct security explanation.
+
+**Example 2 — Deposit / Withdrawal**
+Player: "I made a $25 deposit and it says withdrawals are based on a successful deposit — but all the options are grayed out."
+gameLM response: "It looks like your recent deposits were made using Apple Pay, which is a deposit-only method and can't be used for withdrawals. To make a withdrawal, you'll need to deposit at least $5 using Venmo, PayPal, or a debit card, or $10 with VIP Preferred. Once you've done that, the new method will become available for withdrawals."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Correctly diagnosed root cause (Apple Pay deposit-only); gave exact minimums and eligible methods; no redundant questions; clear actionable path.
+
+**Example 3 — KYC / Verification**
+Player: "I just registered and it said my account is under manual review. Is there something else I need to do?"
+gameLM response: "Hi Britthani, your account was placed under manual review because the system couldn't auto-verify your info — this isn't unusual for new accounts. Our verification team will email you shortly with the documents they need. Once you send those in, they'll finish the review and confirm when your account is ready."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Normalized the situation, explained the reason, gave clear next steps, reassuring tone without over-promising.
+
+**Example 4 — Bonus / Promotion**
+Player: "I got a new $10 free bet but it won't let me select it — when I submit it says 'not enough funds.' I have no cash in the account, but it's a free $10 offer."
+gameLM response: "Thanks for clarifying, Kyle. The $10 free bet doesn't require any real money and won't appear as cash. Add a qualifying wager with odds of -200 or longer, then expand the bet slip to full screen — you'll see a drop-down where you can select the free bet instead of entering a stake. Once you choose it, the system applies it automatically."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Resolved a common free bet misconception; gave the exact odds requirement, where to find the drop-down, and how to apply it; no unnecessary steps.
+
+**Example 5 — Bet Dispute**
+Player: "I had 3 voided bets totaling $20, but you only returned $10."
+gameLM response: "I checked all three, Jeff. Two were refunded; the $10 on Phillies -2.5 was voided because the game didn't reach the full innings. If the Phillies vs Guardians game resumes and completes within the 48-hour window, that wager will stand again rather than stay voided."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Addressed each bet individually; correctly applied the innings rule and 48-hour resumption window; transparent and specific without being defensive.
+
+**Example 6 — Technical Issue**
+Player: "What is location permission?"
+gameLM response: "Hi Michael, location permission is the setting that lets the BetSaracen app use your device's location to confirm you're physically in Arkansas and eligible to play — without it, the app can't allow wagering. To enable it: iPhone — Settings > BetSaracen > Location > Always, then fully close and reopen the app. Android — Settings > Location > App location permissions > BetSaracen > Allow all the time, then reopen the app. Once it's on, the location prompt clears and you can place your bets."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Answered the 'why' (eligibility) and the 'how' (exact steps for both platforms) in a single response; complete and actionable with no follow-up needed.
+
+**Example 7 — Settlement / Results**
+Player: "I was looking to see if I could get a wager graded and credited — bet ID 261828050000202 on the Southeastern Louisiana parlay."
+gameLM response: "Got it, thanks for clarifying, Rickie. I've checked your bet on the Southeastern Louisiana vs. Nicholls baseball game — it's still showing as open, which means the result hasn't been finalized yet. Once the event is officially settled, the outcome and any winnings will update automatically in your account."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Located the exact bet by ID; named the game correctly; explained why it wasn't graded yet and set honest expectations on automatic settlement.
+
+**Example 8 — Settlement / Results**
+Player: "I've got an open winning wager with the event finishing yesterday. When will the bet be processed and paid? Bet ID 262022780000100."
+gameLM response: "I checked that wager for you, Casey — it's the one on the CJ Cup Byron Nelson. The event wrapped up recently and your bet is still marked as open while our trading team finalizes the official results. Once the outcome is confirmed, the settlement and any payout follow automatically, usually not long after the official result is posted."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Identified the exact wager; confirmed event status; gave honest expectations without over-promising a timeframe; warm and conversational.
+
+**Example 9 — Account Access (De-escalation)**
+Player: "I'm trying to see why my account is still suspended — I sent in my ID and selfie 3 different times. It's been over a week and no update, I just want to place some bets."
+gameLM response: "I completely understand your frustration, Jasmine. I've checked your account and the suspension was placed by our management team — it wasn't a verification issue, since your ID and selfie were received successfully. As it's been over a week without an update, I'll follow up with them again right away. They'll email you with more details soon, likely within 24 hours — please keep an eye on your inbox, including spam or junk."
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Led with genuine empathy; cleared up the misunderstanding (docs received, not a verification failure); committed to a concrete follow-up with a timeframe; de-escalated without deflecting.
+
+**Example 10 — Bet Placement**
+Player: "I'm unable to figure out how to bet the Knicks to win the NBA title (the championship series) — I can't find it."
+gameLM response: "Here's the quickest way to place 'Knicks to win the NBA Championship': open the app, tap Sports > Basketball > NBA, choose Futures/Outrights, open NBA Championship Winner, find New York Knicks and tap the odds to add to your betslip. If you don't see Futures, use the search icon and type 'Knicks' or 'NBA Championship,' and make sure the filter is set to All, not just Today. (Series prices only show once a playoff series is officially set.)"
+Scores: Intent=5 | Resolution=5 | Info Gathering=5 | Clarity=5 | Brand=5 | Flag=NO
+Why: Gave the exact navigation path step by step; included the search fallback; explained why series prices may not appear yet; resolved completely without requiring follow-up.`
 
 // ── Conversation thread builder ───────────────────────────────────────────────
 
@@ -204,7 +272,7 @@ async function scoreQuality(
       },
       body: JSON.stringify({
         model:      'claude-haiku-4-5',
-        max_tokens: 400,
+        max_tokens: 450,
         system:     SYSTEM_PROMPT,
         messages: [{
           role: 'user',
