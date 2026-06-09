@@ -272,92 +272,6 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
         )}
       </div>
 
-      {/* Operator switcher — admins only, expanded sidebar only */}
-      {isAdmin && !collapsed && operators.length > 0 && (
-        <div style={{ position: 'relative', marginBottom: 16 }}>
-          <button
-            onClick={() => setOperatorDropOpen(o => !o)}
-            style={{
-              width: '100%',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '8px 10px', borderRadius: 10,
-              border: '1.5px solid rgba(0,0,0,0.09)',
-              background: operatorDropOpen ? 'rgba(206,164,255,0.08)' : 'rgba(0,0,0,0.02)',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { if (!operatorDropOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
-            onMouseLeave={e => { if (!operatorDropOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <div style={{
-                width: 20, height: 20, borderRadius: 6,
-                background: '#9B59D0',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-                fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700, color: '#fff',
-              }}>
-                {selectedOperator?.name?.[0]?.toUpperCase() ?? 'O'}
-              </div>
-              <span style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {selectedOperator?.name ?? 'Select operator'}
-              </span>
-            </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#58595B', transform: operatorDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-
-          {operatorDropOpen && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-              background: '#fff', borderRadius: 10,
-              border: '1.5px solid rgba(0,0,0,0.09)',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-              zIndex: 100, overflow: 'hidden',
-            }}>
-              {operators.map(op => (
-                <button
-                  key={op.id}
-                  onClick={() => { setSelectedOperator(op); setOperatorDropOpen(false) }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '9px 12px',
-                    background: selectedOperator?.id === op.id ? 'rgba(206,164,255,0.1)' : 'transparent',
-                    borderBottom: '1px solid rgba(0,0,0,0.05)',
-                    cursor: 'pointer', transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => { if (selectedOperator?.id !== op.id) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
-                  onMouseLeave={e => { if (selectedOperator?.id !== op.id) e.currentTarget.style.background = 'transparent' }}
-                >
-                  <div style={{
-                    width: 20, height: 20, borderRadius: 6, background: selectedOperator?.id === op.id ? '#9B59D0' : 'rgba(0,0,0,0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700,
-                    color: selectedOperator?.id === op.id ? '#fff' : '#58595B',
-                  }}>
-                    {op.name[0].toUpperCase()}
-                  </div>
-                  <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: selectedOperator?.id === op.id ? 500 : 400,
-                    color: selectedOperator?.id === op.id ? '#9B59D0' : '#000',
-                  }}>
-                    {op.name}
-                  </span>
-                  {selectedOperator?.id === op.id && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', color: '#9B59D0' }}>
-                      <path d="M5 12l5 5L20 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Nav items */}
       <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {navItems.map(item => {
@@ -408,8 +322,95 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
         })}
       </nav>
 
-      {/* Bottom: settings + sign out */}
+      {/* Bottom: operator switcher + settings + sign out */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12 }}>
+
+        {/* Operator switcher — admins only, expanded sidebar only */}
+        {isAdmin && !collapsed && operators.length > 0 && (
+          <div style={{ position: 'relative', marginBottom: 6 }}>
+            <button
+              onClick={() => setOperatorDropOpen(o => !o)}
+              style={{
+                width: '100%',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 10px', borderRadius: 10,
+                border: '1.5px solid rgba(0,0,0,0.09)',
+                background: operatorDropOpen ? 'rgba(206,164,255,0.08)' : 'rgba(0,0,0,0.02)',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!operatorDropOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+              onMouseLeave={e => { if (!operatorDropOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: 6,
+                  background: '#9B59D0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700, color: '#fff',
+                }}>
+                  {selectedOperator?.name?.[0]?.toUpperCase() ?? 'O'}
+                </div>
+                <span style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {selectedOperator?.name ?? 'Select operator'}
+                </span>
+              </div>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#58595B', transform: operatorDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {operatorDropOpen && (
+              <div style={{
+                position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0,
+                background: '#fff', borderRadius: 10,
+                border: '1.5px solid rgba(0,0,0,0.09)',
+                boxShadow: '0 -4px 16px rgba(0,0,0,0.1)',
+                zIndex: 100, overflow: 'hidden',
+              }}>
+                {operators.map(op => (
+                  <button
+                    key={op.id}
+                    onClick={() => { setSelectedOperator(op); setOperatorDropOpen(false) }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '9px 12px',
+                      background: selectedOperator?.id === op.id ? 'rgba(206,164,255,0.1)' : 'transparent',
+                      borderBottom: '1px solid rgba(0,0,0,0.05)',
+                      cursor: 'pointer', transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => { if (selectedOperator?.id !== op.id) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                    onMouseLeave={e => { if (selectedOperator?.id !== op.id) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <div style={{
+                      width: 20, height: 20, borderRadius: 6, background: selectedOperator?.id === op.id ? '#9B59D0' : 'rgba(0,0,0,0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700,
+                      color: selectedOperator?.id === op.id ? '#fff' : '#58595B',
+                    }}>
+                      {op.name[0].toUpperCase()}
+                    </div>
+                    <span style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: selectedOperator?.id === op.id ? 500 : 400,
+                      color: selectedOperator?.id === op.id ? '#9B59D0' : '#000',
+                    }}>
+                      {op.name}
+                    </span>
+                    {selectedOperator?.id === op.id && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', color: '#9B59D0' }}>
+                        <path d="M5 12l5 5L20 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           onClick={() => onNavigate('settings')}
           title={collapsed ? 'Settings' : undefined}
