@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOperator } from '../context/OperatorContext'
 
 const ISSUE_CONFIG: Record<string, { bg: string; color: string }> = {
   'Perfect':       { bg: 'rgba(22,101,52,0.09)',  color: '#166534' },
@@ -98,6 +99,8 @@ function TrashIcon() {
 
 export default function Submissions() {
   const { user } = useAuth()
+  const { selectedOperator } = useOperator()
+  const opId = selectedOperator?.id ?? null
   const isAdmin = user?.role === 'admin'
 
   const [rows,        setRows]        = useState<Row[]>([])
@@ -118,14 +121,16 @@ export default function Submissions() {
   const [selected,    setSelected]    = useState<Row | null>(null)
   const [hoveredId,   setHoveredId]   = useState<string | null>(null)
 
-  // Load distinct filter options once — paginate to avoid Supabase's 1000-row default cap
+  // Load distinct filter options — re-runs when operator changes
   useEffect(() => {
     async function paginate(col: string) {
       const PAGE = 1000
       const all: any[] = []
       let from = 0
       while (true) {
-        const { data } = await supabase.from('tickets').select(col).range(from, from + PAGE - 1)
+        let q = supabase.from('tickets').select(col).range(from, from + PAGE - 1)
+        if (opId) q = q.eq('operator_id', opId)
+        const { data } = await q
         if (!data || data.length === 0) break
         all.push(...data)
         if (data.length < PAGE) break
@@ -142,7 +147,7 @@ export default function Submissions() {
       setCategoryOptions(['All categories', ...cats])
     }
     loadFilters()
-  }, [])
+  }, [opId])
 
   const buildQuery = useCallback((paginate: boolean) => {
     let q = supabase
@@ -153,6 +158,7 @@ export default function Submissions() {
         { count: 'exact' }
       )
 
+    if (opId)     q = q.eq('operator_id', opId)
     if (issueType !== 'All issue types') q = q.eq('issue_type', issueType)
     if (agent     !== 'All agents')      q = (q as any).eq('tickets.agent_name', agent)
     if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)
@@ -166,7 +172,7 @@ export default function Submissions() {
     }
 
     return q
-  }, [page, search, agent, category, issueType])
+  }, [page, search, agent, category, issueType, opId])
 
   useEffect(() => {
     let cancelled = false
@@ -176,6 +182,7 @@ export default function Submissions() {
       .from('ticket_issues')
       .select('tickets!inner(ticket_number, agent_name, ticket_category)')
 
+    if (opId)     tcQ = tcQ.eq('operator_id', opId)
     if (issueType !== 'All issue types') tcQ = tcQ.eq('issue_type', issueType)
     if (agent     !== 'All agents')      tcQ = (tcQ as any).eq('tickets.agent_name', agent)
     if (category  !== 'All categories')  tcQ = (tcQ as any).eq('tickets.ticket_category', category)
@@ -213,7 +220,7 @@ export default function Submissions() {
     return () => { cancelled = true }
   }, [buildQuery, refreshKey])
 
-  useEffect(() => { setPage(1) }, [search, agent, category, issueType])
+  useEffect(() => { setPage(1) }, [search, agent, category, issueType, opId])
 
   const hasFilters = agent !== 'All agents' || category !== 'All categories' ||
                      issueType !== 'All issue types' || search.trim()
@@ -248,6 +255,7 @@ export default function Submissions() {
           issue_type, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
           tickets!inner ( ticket_number, agent_name, agent_email, agent_team, ticket_category )
         `)
+      if (opId)     q = q.eq('operator_id', opId)
       if (issueType !== 'All issue types') q = q.eq('issue_type', issueType)
       if (agent     !== 'All agents')      q = (q as any).eq('tickets.agent_name', agent)
       if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)

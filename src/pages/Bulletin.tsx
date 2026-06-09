@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOperator } from '../context/OperatorContext'
 
 interface DBBulletin {
   id: string
@@ -46,6 +47,7 @@ const inputStyle: React.CSSProperties = {
 
 export default function Bulletin() {
   const { user } = useAuth()
+  const { selectedOperator } = useOperator()
   const isAdmin = user?.role === 'admin'
 
   const [bulletins, setBulletins] = useState<DBBulletin[]>([])
@@ -100,19 +102,25 @@ export default function Bulletin() {
     const now   = new Date()
     const since = new Date(now); since.setDate(since.getDate() - 7)
     const prevStart = new Date(since); prevStart.setDate(prevStart.getDate() - 7)
+    const opId = selectedOperator?.id ?? null
 
-    const [{ data: curr }, { data: prev }, { count: agentCount }] = await Promise.all([
-      supabase
-        .from('ticket_issues')
-        .select('issue_type, tickets!inner(ticket_number)')
-        .gte('logged_at', since.toISOString()),
-      supabase
-        .from('ticket_issues')
-        .select('tickets!inner(ticket_number)')
-        .gte('logged_at', prevStart.toISOString())
-        .lt('logged_at', since.toISOString()),
-      supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'agent'),
-    ])
+    let currQ = supabase
+      .from('ticket_issues')
+      .select('issue_type, tickets!inner(ticket_number)')
+      .gte('logged_at', since.toISOString())
+    if (opId) currQ = currQ.eq('operator_id', opId)
+
+    let prevQ = supabase
+      .from('ticket_issues')
+      .select('tickets!inner(ticket_number)')
+      .gte('logged_at', prevStart.toISOString())
+      .lt('logged_at', since.toISOString())
+    if (opId) prevQ = prevQ.eq('operator_id', opId)
+
+    let agentQ = supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'agent')
+    if (opId) agentQ = agentQ.eq('operator_id', opId)
+
+    const [{ data: curr }, { data: prev }, { count: agentCount }] = await Promise.all([currQ, prevQ, agentQ])
 
     const currRows = curr ?? []
     const tickets  = new Set(currRows.map((r: any) => r.tickets?.ticket_number).filter(Boolean))

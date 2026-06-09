@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase, authClient } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOperator } from '../context/OperatorContext'
 import { getDailyTarget } from '../lib/settings'
 
 const PERIODS = ['Last 7 days', 'Last 30 days', 'Last quarter', 'All time']
@@ -32,6 +33,7 @@ interface DBReport {
 
 export default function Report() {
   const { user } = useAuth()
+  const { selectedOperator } = useOperator()
   const isAdmin = user?.role === 'admin'
 
   const [period,       setPeriod]       = useState(PERIODS[0])
@@ -77,11 +79,13 @@ export default function Report() {
     const dailyTarget = getDailyTarget()
 
     // ── Fetch raw data ────────────────────────────────────────────────────
-    const { data: issues } = await supabase
+    let issueQ = supabase
       .from('ticket_issues')
       .select('issue_type, logged_at, tickets!inner(ticket_number, agent_name, ticket_category, created_at)')
       .gte('logged_at', since.toISOString())
       .order('logged_at', { ascending: false })
+    if (selectedOperator?.id) issueQ = issueQ.eq('operator_id', selectedOperator.id)
+    const { data: issues } = await issueQ
 
     const rows = issues ?? []
     const total    = rows.length

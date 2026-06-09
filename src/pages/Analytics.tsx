@@ -6,6 +6,7 @@ import {
 import { PieChart, Pie, Cell } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { getDailyTarget } from '../lib/settings'
+import { useOperator } from '../context/OperatorContext'
 
 type Tab       = 'team' | 'agent' | 'events' | 'category'
 type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime'
@@ -212,16 +213,18 @@ function categoryStats(rows: DataRow[]) {
 
 // Supabase PostgREST has a server-side max-rows cap (default 1000).
 // Paginate in chunks so we always retrieve all records regardless of that cap.
-async function fetchAllIssues() {
+async function fetchAllIssues(operatorId: string | null) {
   const PAGE = 1000
   const all: any[] = []
   let from = 0
   while (true) {
-    const { data, error } = await supabase
+    let q = supabase
       .from('ticket_issues')
       .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, agent_email, ticket_category, created_at)')
       .order('created_at', { ascending: false })   // created_at is never NULL — safe for pagination
       .range(from, from + PAGE - 1)
+    if (operatorId) q = q.eq('operator_id', operatorId)
+    const { data, error } = await q
     if (error || !data || data.length === 0) break
     all.push(...data)
     if (data.length < PAGE) break
@@ -231,15 +234,17 @@ async function fetchAllIssues() {
 }
 
 export default function Analytics() {
+  const { selectedOperator } = useOperator()
   const [tab, setTab]         = useState<Tab>('team')
   const [allRows, setAllRows] = useState<DataRow[]>([])
   const [events, setEvents]   = useState<HotEvent[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     async function load() {
       const [issues, { data: evts }] = await Promise.all([
-        fetchAllIssues(),
+        fetchAllIssues(selectedOperator?.id ?? null),
         supabase.from('hot_events').select('*').order('start_date', { ascending: false }),
       ])
 
@@ -259,7 +264,7 @@ export default function Analytics() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [selectedOperator?.id])
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'team',     label: 'Team View'           },

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOperator } from '../context/OperatorContext'
 
 type TimeRange = 'last7' | 'last14' | 'last30' | 'lastQuarter'
 
@@ -33,16 +34,18 @@ function toDateStr(d: Date) {
   return d.toISOString().split('T')[0]
 }
 
-async function fetchAllIssues() {
+async function fetchAllIssues(operatorId: string | null) {
   const PAGE = 1000
   const all: any[] = []
   let from = 0
   while (true) {
-    const { data, error } = await supabase
+    let q = supabase
       .from('ticket_issues')
       .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, agent_email, created_at)')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
+    if (operatorId) q = q.eq('operator_id', operatorId)
+    const { data, error } = await q
     if (error || !data || data.length === 0) break
     all.push(...data)
     if (data.length < PAGE) break
@@ -236,6 +239,7 @@ function TeamAdoptionCard({
 // ── Main export ────────────────────────────────────────────────────────────────
 export default function Leaderboard() {
   const { user } = useAuth()
+  const { selectedOperator } = useOperator()
   const [range, setRange]       = useState<TimeRange>('last7')
   const [allRows, setAllRows]   = useState<DataRow[]>([])
   const [loading, setLoading]   = useState(true)
@@ -262,9 +266,10 @@ export default function Leaderboard() {
       })
   }, [])
 
-  // Fetch gameLM data once
+  // Fetch gameLM data — re-runs when operator changes
   useEffect(() => {
-    fetchAllIssues().then(issues => {
+    setLoading(true)
+    fetchAllIssues(selectedOperator?.id ?? null).then(issues => {
       setAllRows(issues.map((ti: any) => ({
         issueType:    ti.issue_type ?? '',
         loggedAt:     ti.logged_at  ?? null,
@@ -276,7 +281,7 @@ export default function Leaderboard() {
       })))
       setLoading(false)
     })
-  }, [])
+  }, [selectedOperator?.id])
 
   // Stable key of all-time agent emails
   const rosterEmailsKey = useMemo(
