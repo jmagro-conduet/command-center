@@ -118,7 +118,9 @@ export default function Learn() {
       .from('kb_articles')
       .select('id, title, content, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type')
       .order('updated_at', { ascending: false })
-    if (opId) q = (q as any).eq('operator_id', opId)
+    // Show operator-specific articles + global articles (operator_id = null).
+    // When no operator is selected, show everything.
+    if (opId) q = (q as any).or(`operator_id.eq.${opId},operator_id.is.null`)
     if (!isAdmin) q = (q as any).eq('is_published', true)
     const { data } = await q
     setArticles(data ?? [])
