@@ -1035,9 +1035,10 @@ function Paginator({ page, total, onPage }: { page: number; total: number; onPag
 
 // ── Response Accuracy tab ───────────────────────────────────────────────────
 
-function ResponseAccuracyView({ rows, agentFilter, onReviewUpdate }: {
+function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   rows: EvalRow[]
   agentFilter?: string
+  priorRows?: EvalRow[]
   onReviewUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void
 }) {
   const [expanded,       setExpanded]       = useState<string | null>(null)
@@ -1065,6 +1066,18 @@ function ResponseAccuracyView({ rows, agentFilter, onReviewUpdate }: {
   const errorRate   = total ? Math.round(((p1a + p1b + p2) / total) * 100) : 0
   const reviewQueue = withEval.filter(r => r.accuracyHumanReview === true && r.accuracyErrorClass !== 'NONE')
   const allResults  = withEval.filter(r => !r.accuracyHumanReview || r.accuracyErrorClass === 'NONE')
+
+  // ── Prior-period accuracy metrics (for TrendPip) ────────────────────────────
+  const priorWithEval  = (priorRows ?? []).filter(r => r.accuracyRanAt !== null)
+  const priorTotal     = priorWithEval.length || null
+  const priorP1a       = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'P1A').length : null
+  const priorP1b       = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'P1B').length : null
+  const priorP2        = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'P2').length : null
+  const priorClean     = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'NONE').length : null
+  const priorErrorRate = (priorTotal && priorP1a !== null && priorP1b !== null && priorP2 !== null)
+    ? Math.round(((priorP1a + priorP1b + priorP2) / priorTotal) * 100)
+    : null
+  const priorCleanPct  = (priorTotal && priorClean !== null) ? pct(priorClean, priorTotal) : null
 
   const exportRows  = subTab === 'queue' ? reviewQueue : allResults
 
@@ -1141,16 +1154,22 @@ function ResponseAccuracyView({ rows, agentFilter, onReviewUpdate }: {
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
         {[
-          { label: 'Evals run',          value: total.toString(),      color: '#9B59D0',                                                    note: 'responses scored' },
-          { label: 'Error rate',         value: `${errorRate}%`,       color: errorRate > 10 ? '#e53e3e' : errorRate > 5 ? '#854d0e' : '#166534', note: 'P1A + P1B + P2' },
-          { label: 'P1A — Regulatory',   value: p1a.toString(),        color: p1a > 0 ? '#e53e3e' : '#166534',                             note: p1a > 0 ? 'Action required' : 'None detected' },
-          { label: 'P1B — Review queue', value: p1b.toString(),        color: p1b > 0 ? '#c05621' : '#166534',                             note: p1b > 0 ? 'Human review required' : 'None detected' },
-          { label: 'Clean responses',    value: total ? `${pct(clean, total)}%` : '—', color: '#166534',                                  note: 'No errors detected' },
+          { label: 'Evals run',          value: total.toString(),      color: '#9B59D0',                                                    note: 'responses scored',
+            pip: <TrendPip curr={total} prev={priorTotal} isPositiveGood fmt={n => `${n}`} /> },
+          { label: 'Error rate',         value: `${errorRate}%`,       color: errorRate > 10 ? '#e53e3e' : errorRate > 5 ? '#854d0e' : '#166534', note: 'P1A + P1B + P2',
+            pip: <TrendPip curr={errorRate} prev={priorErrorRate} isPositiveGood={false} fmt={n => `${n}pp`} /> },
+          { label: 'P1A — Regulatory',   value: p1a.toString(),        color: p1a > 0 ? '#e53e3e' : '#166534',                             note: p1a > 0 ? 'Action required' : 'None detected',
+            pip: <TrendPip curr={p1a} prev={priorP1a} isPositiveGood={false} fmt={n => `${n}`} /> },
+          { label: 'P1B — Review queue', value: p1b.toString(),        color: p1b > 0 ? '#c05621' : '#166534',                             note: p1b > 0 ? 'Human review required' : 'None detected',
+            pip: <TrendPip curr={p1b} prev={priorP1b} isPositiveGood={false} fmt={n => `${n}`} /> },
+          { label: 'Clean responses',    value: total ? `${pct(clean, total)}%` : '—', color: '#166534',                                  note: 'No errors detected',
+            pip: <TrendPip curr={total ? pct(clean, total) : 0} prev={priorCleanPct} isPositiveGood fmt={n => `${n}pp`} /> },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
+            {k.pip}
           </div>
         ))}
       </div>
@@ -1244,9 +1263,10 @@ function avgOf(rows: EvalRow[], key: keyof EvalRow): number | null {
   return vals.length ? parseFloat((vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(2)) : null
 }
 
-function ResponseQualityView({ rows, agentFilter, onReviewUpdate }: {
+function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   rows: EvalRow[]
   agentFilter?: string
+  priorRows?: EvalRow[]
   onReviewUpdate?: (id: string, status: 'confirmed' | 'dismissed', notes: string) => void
 }) {
   const [expanded,       setExpanded]       = useState<string | null>(null)
@@ -1301,6 +1321,14 @@ function ResponseQualityView({ rows, agentFilter, onReviewUpdate }: {
     return scores.length > 0 && scores.reduce((a, b) => a + b, 0) / scores.length >= 3.5
   }).length
   const tFlagged  = ticketGroups.filter(g => g.some(r => r.qualityFlag === true)).length
+
+  // ── Prior-period quality metrics (for TrendPip) ──────────────────────────────
+  const priorWithEval  = (priorRows ?? []).filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
+  const priorITotal    = priorWithEval.length || null
+  const priorIAvgScore = priorWithEval.length ? avgOf(priorWithEval, 'qualityScore') : null
+  const priorIAboveBar = priorWithEval.length ? priorWithEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length : null
+  const priorIAbovePct = (priorITotal && priorIAboveBar !== null) ? pct(priorIAboveBar, priorITotal) : null
+  const priorIFlagged  = priorWithEval.length ? priorWithEval.filter(r => r.qualityFlag === true).length : null
 
   // Deduplicated rows for ticket-level theme distribution (one entry per ticket×theme)
   const themeRows = useMemo(() => {
@@ -1391,16 +1419,24 @@ function ResponseQualityView({ rows, agentFilter, onReviewUpdate }: {
   // ── KPI values swap based on view mode ──────────────────────────────────────
   const kpis = viewMode === 'issue'
     ? [
-        { label: 'Responses scored', value: iTotal.toString(),                                color: '#9B59D0', note: 'individual responses' },
-        { label: 'Avg quality score', value: iAvgScore !== null ? iAvgScore.toFixed(2) : '—', color: scoreColor(iAvgScore), note: 'target ≥ 3.50' },
-        { label: 'Above bar (≥3.5)',  value: iTotal ? `${pct(iAboveBar, iTotal)}%` : '—',     color: '#166534', note: `${iAboveBar} / ${iTotal} responses` },
-        { label: 'Flagged (any cat=1)', value: iFlagged.toString(),                            color: iFlagged > 0 ? '#e53e3e' : '#166534', note: iFlagged > 0 ? 'Minimum quality fail' : 'None this period' },
+        { label: 'Responses scored',  value: iTotal.toString(),                                color: '#9B59D0', note: 'individual responses',
+          pip: <TrendPip curr={iTotal} prev={priorITotal} isPositiveGood fmt={n => `${n}`} /> },
+        { label: 'Avg quality score', value: iAvgScore !== null ? iAvgScore.toFixed(2) : '—', color: scoreColor(iAvgScore), note: 'target ≥ 3.50',
+          pip: iAvgScore !== null ? <TrendPip curr={iAvgScore} prev={priorIAvgScore} isPositiveGood fmt={n => `${n.toFixed(2)}`} /> : null },
+        { label: 'Above bar (≥3.5)',  value: iTotal ? `${pct(iAboveBar, iTotal)}%` : '—',     color: '#166534', note: `${iAboveBar} / ${iTotal} responses`,
+          pip: <TrendPip curr={iTotal ? pct(iAboveBar, iTotal) : 0} prev={priorIAbovePct} isPositiveGood fmt={n => `${n}pp`} /> },
+        { label: 'Flagged (any cat=1)', value: iFlagged.toString(),                            color: iFlagged > 0 ? '#e53e3e' : '#166534', note: iFlagged > 0 ? 'Minimum quality fail' : 'None this period',
+          pip: <TrendPip curr={iFlagged} prev={priorIFlagged} isPositiveGood={false} fmt={n => `${n}`} /> },
       ]
     : [
-        { label: 'Tickets scored',   value: tTotal.toString(),                                color: '#9B59D0', note: 'unique tickets' },
-        { label: 'Avg ticket score', value: tAvgScore !== null ? tAvgScore.toFixed(2) : '—',  color: scoreColor(tAvgScore), note: 'avg of per-ticket averages' },
-        { label: 'Above bar (≥3.5)', value: tTotal ? `${pct(tAboveBar, tTotal)}%` : '—',      color: '#166534', note: `${tAboveBar} / ${tTotal} tickets` },
-        { label: 'Tickets flagged',  value: tFlagged.toString(),                               color: tFlagged > 0 ? '#e53e3e' : '#166534', note: tFlagged > 0 ? '≥1 flagged response' : 'None this period' },
+        { label: 'Tickets scored',   value: tTotal.toString(),                                color: '#9B59D0', note: 'unique tickets',
+          pip: null },
+        { label: 'Avg ticket score', value: tAvgScore !== null ? tAvgScore.toFixed(2) : '—',  color: scoreColor(tAvgScore), note: 'avg of per-ticket averages',
+          pip: null },
+        { label: 'Above bar (≥3.5)', value: tTotal ? `${pct(tAboveBar, tTotal)}%` : '—',      color: '#166534', note: `${tAboveBar} / ${tTotal} tickets`,
+          pip: null },
+        { label: 'Tickets flagged',  value: tFlagged.toString(),                               color: tFlagged > 0 ? '#e53e3e' : '#166534', note: tFlagged > 0 ? '≥1 flagged response' : 'None this period',
+          pip: null },
       ]
 
   // ── Toggle pill ─────────────────────────────────────────────────────────────
@@ -1436,6 +1472,7 @@ function ResponseQualityView({ rows, agentFilter, onReviewUpdate }: {
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
+            {k.pip}
           </div>
         ))}
       </div>
@@ -2247,10 +2284,10 @@ export default function ReportCard() {
       </div>
 
       {/* ── Response Accuracy tab ── */}
-      {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} onReviewUpdate={handleReviewUpdate} />}
+      {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} priorRows={range !== 'allTime' ? priorRows : undefined} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Response Quality tab ── */}
-      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} onReviewUpdate={handleReviewUpdate} />}
+      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} priorRows={range !== 'allTime' ? priorRows : undefined} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Edit Evaluations tab ── */}
       {topTab === 'evals' && <>
