@@ -131,6 +131,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [backfillError,    setBackfillError]    = useState('')
   const [backfillOperator, setBackfillOperator] = useState('')
   const [backfillSince,    setBackfillSince]    = useState('14')
+  const [backfillForce,    setBackfillForce]    = useState(false)
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -386,7 +387,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
     setBackfillCounts(null)
     try {
       const { data, error } = await supabase.functions.invoke('backfill-evals', {
-        body: { operator_id: backfillOperator || undefined, since: sinceIso(backfillSince) },
+        body: { operator_id: backfillOperator || undefined, since: sinceIso(backfillSince), force: backfillForce },
       })
       if (error) throw error
       setBackfillCounts(data as BackfillCounts)
@@ -672,8 +673,36 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                 onMouseEnter={e => { if (backfillStatus === 'idle' || backfillStatus === 'ready' || backfillStatus === 'done' || backfillStatus === 'error') e.currentTarget.style.opacity = '0.8' }}
                 onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
               >
-                {backfillStatus === 'loading' ? 'Scanning…' : '🔍 Scan for unscored issues'}
+                {backfillStatus === 'loading' ? 'Scanning…' : '🔍 Scan'}
               </button>
+            </div>
+
+            {/* Force re-score toggle */}
+            <div
+              onClick={() => { if (backfillStatus !== 'running') { setBackfillForce(f => !f); setBackfillStatus('idle'); setBackfillCounts(null) } }}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '10px 14px', borderRadius: 10, marginBottom: 16,
+                background: backfillForce ? 'rgba(234,179,8,0.07)' : 'rgba(0,0,0,0.03)',
+                border: `1.5px solid ${backfillForce ? 'rgba(234,179,8,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                cursor: backfillStatus === 'running' ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={backfillForce}
+                onChange={() => {}}
+                style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+              />
+              <div>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                  Force re-score
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                  Re-run evals on <em>all</em> issues in this window, overwriting existing scores. Use after updating eval prompts to keep metrics consistent.
+                </p>
+              </div>
             </div>
 
             {/* Error */}
@@ -687,9 +716,9 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             {(backfillStatus === 'ready' || backfillStatus === 'running' || backfillStatus === 'done') && backfillCounts && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
                 {[
-                  { label: 'Needs accuracy eval', value: backfillCounts.accuracyIds.length, accent: backfillCounts.accuracyIds.length > 0 },
-                  { label: 'Needs quality eval',  value: backfillCounts.qualityIds.length,  accent: backfillCounts.qualityIds.length > 0 },
-                  { label: 'Total unique issues',  value: backfillCounts.totalUnique,        accent: false },
+                  { label: backfillForce ? 'Will re-score accuracy' : 'Needs accuracy eval', value: backfillCounts.accuracyIds.length, accent: backfillCounts.accuracyIds.length > 0 },
+                  { label: backfillForce ? 'Will re-score quality'  : 'Needs quality eval',  value: backfillCounts.qualityIds.length,  accent: backfillCounts.qualityIds.length > 0 },
+                  { label: 'Total unique issues',                                             value: backfillCounts.totalUnique,        accent: false },
                 ].map(s => (
                   <div key={s.label} style={{
                     background: s.accent ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
@@ -721,7 +750,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
                   onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                 >
-                  ▶ Run backfill
+                  {backfillForce ? '♻ Re-score all' : '▶ Run backfill'}
                 </button>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
                   Est. ~{estimateMinutes(backfillCounts.accuracyIds.length, backfillCounts.qualityIds.length)} min — keep this tab open
@@ -731,7 +760,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
             {backfillStatus === 'ready' && backfillCounts && backfillCounts.totalUnique === 0 && (
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534' }}>
-                ✅ All issues are already scored — nothing to backfill.
+                ✅ {backfillForce ? 'No scorable issues found in this window.' : 'All issues are already scored — nothing to backfill.'}
               </p>
             )}
 

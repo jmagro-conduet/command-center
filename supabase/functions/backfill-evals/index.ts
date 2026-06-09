@@ -1,10 +1,11 @@
 // backfill-evals
-// Queries ticket_issues for all rows that still need accuracy or quality evaluation.
-// Separate ID lists are returned so the caller can fan out to eval-accuracy and
-// eval-quality independently in chunks sized for each model's throughput.
+// Queries ticket_issues for rows needing accuracy / quality evaluation.
 //
-// POST body: { operator_id?: string, since?: string }  ← since = ISO date string (inclusive)
-// Returns:   { accuracyIds: string[], qualityIds: string[], totalUnique: number }
+// POST body: { operator_id?: string, since?: string, force?: boolean }
+//   force: when true, returns ALL scorable issues in the window (not just unscored ones)
+//          — useful after a prompt update to refresh scores across the board.
+//
+// Returns: { accuracyIds: string[], qualityIds: string[], totalUnique: number, force: boolean }
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +23,12 @@ const sbHeaders = {
 }
 
 // Paginate through ticket_issues and collect all matching IDs.
-async function queryIds(missingField: string, operatorId?: string, since?: string): Promise<string[]> {
+async function queryIds(
+  missingField: string,
+  force: boolean,
+  operatorId?: string,
+  since?: string,
+): Promise<string[]> {
   const PAGE   = 1000
   const ids: string[] = []
   let   offset = 0
@@ -32,9 +38,12 @@ async function queryIds(missingField: string, operatorId?: string, since?: strin
       `${SUPABASE_URL}/rest/v1/ticket_issues` +
       `?select=id` +
       `&suggested_response=not.is.null` +
-      `&issue_type=neq.No%20response` +
-      `&${missingField}=is.null` +
-      `&limit=${PAGE}&offset=${offset}`
+      `&issue_type=neq.No%20response`
+
+    // In normal mode only fetch rows missing the eval; in force mode fetch all scorable rows
+    if (!force) url += `&${missingField}=is.null`
+
+    url += `&limit=${PAGE}&offset=${offset}`
 
     if (operatorId) url += `&operator_id=eq.${encodeURIComponent(operatorId)}`
     if (since)      url += `&created_at=gte.${encodeURIComponent(since)}`
@@ -57,19 +66,34 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body  = await req.json().catch(() => ({})) as { operator_id?: string; since?: string }
+    const body  = await req.json().catch(() => ({})) as {
+      operator_id?: string
+      since?:       string
+      force?:       boolean
+    }
     const opId  = body.operator_id
-    const since = body.since   // ISO string, e.g. "2025-05-01T00:00:00.000Z"
+    const since = body.since
+    const force = body.force ?? false
 
-    const [accuracyIds, qualityIds] = await Promise.all([
-      queryIds('accuracy_ran_at', opId, since),
-      queryIds('quality_ran_at',  opId, since),
-    ])
+    // In force mode both lists are the same set, so only query once
+    let accuracyIds: string[]
+    let qualityIds:  string[]
+
+    if (force) {
+      // Re-score everything in the window — same IDs for both evals
+      accuracyIds = await queryIds('accuracy_ran_at', true, opId, since)
+      qualityIds  = accuracyIds
+    } else {
+      ;[accuracyIds, qualityIds] = await Promise.all([
+        queryIds('accuracy_ran_at', false, opId, since),
+        queryIds('quality_ran_at',  false, opId, since),
+      ])
+    }
 
     const totalUnique = new Set([...accuracyIds, ...qualityIds]).size
 
     return new Response(
-      JSON.stringify({ accuracyIds, qualityIds, totalUnique }),
+      JSON.stringify({ accuracyIds, qualityIds, totalUnique, force }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
