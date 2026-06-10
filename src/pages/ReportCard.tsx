@@ -1227,10 +1227,13 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   const p1a         = withEval.filter(r => r.accuracyErrorClass === 'P1A').length
   const p1b         = withEval.filter(r => r.accuracyErrorClass === 'P1B').length
   const p2          = withEval.filter(r => r.accuracyErrorClass === 'P2').length
-  const clean       = withEval.filter(r => r.accuracyErrorClass === 'NONE').length
   const errorRate   = total ? Math.round(((p1a + p1b + p2) / total) * 100) : 0
-  const reviewQueue = withEval.filter(r => r.accuracyHumanReview === true && r.accuracyErrorClass !== 'NONE')
-  const allResults  = withEval.filter(r => !r.accuracyHumanReview || r.accuracyErrorClass === 'NONE')
+  // Review queue: any flagged error not yet reviewed by a human
+  const reviewQueue = withEval.filter(r =>
+    r.accuracyErrorClass && r.accuracyErrorClass !== 'NONE' &&
+    (!r.reviewStatus || r.reviewStatus === 'pending')
+  )
+  const allResults  = withEval
 
   // ── Prior-period accuracy metrics (for TrendPip) ────────────────────────────
   const priorWithEval  = (priorRows ?? []).filter(r => r.accuracyRanAt !== null)
@@ -1238,11 +1241,9 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   const priorP1a       = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'P1A').length : null
   const priorP1b       = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'P1B').length : null
   const priorP2        = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'P2').length : null
-  const priorClean     = priorWithEval.length ? priorWithEval.filter(r => r.accuracyErrorClass === 'NONE').length : null
   const priorErrorRate = (priorTotal && priorP1a !== null && priorP1b !== null && priorP2 !== null)
     ? Math.round(((priorP1a + priorP1b + priorP2) / priorTotal) * 100)
     : null
-  const priorCleanPct  = (priorTotal && priorClean !== null) ? pct(priorClean, priorTotal) : null
 
   const exportRows  = subTab === 'queue' ? reviewQueue : allResults
 
@@ -1280,7 +1281,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
           </p>
         </div>
       )}
-      {r.accuracyHumanReview && (
+      {(r.accuracyErrorClass && r.accuracyErrorClass !== 'NONE') && (
         <ReviewActions
           row={r}
           onUpdate={onReviewUpdate}
@@ -1333,10 +1334,10 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
             pip: <TrendPip curr={errorRate} prev={priorErrorRate} isPositiveGood={false} fmt={n => `${n}pp`} /> },
           { label: 'P1A — Regulatory',   value: p1a.toString(),        color: p1a > 0 ? '#e53e3e' : '#166534',                             note: p1a > 0 ? 'Action required' : 'None detected',
             pip: <TrendPip curr={p1a} prev={priorP1a} isPositiveGood={false} fmt={n => `${n}`} /> },
-          { label: 'P1B — Review queue', value: p1b.toString(),        color: p1b > 0 ? '#c05621' : '#166534',                             note: p1b > 0 ? 'Human review required' : 'None detected',
+          { label: 'P1B — Hallucination', value: p1b.toString(),        color: p1b > 0 ? '#c05621' : '#166534',                             note: p1b > 0 ? 'Human review required' : 'None detected',
             pip: <TrendPip curr={p1b} prev={priorP1b} isPositiveGood={false} fmt={n => `${n}`} /> },
-          { label: 'Clean responses',    value: total ? `${pct(clean, total)}%` : '—', color: '#166534',                                  note: 'No errors detected',
-            pip: <TrendPip curr={total ? pct(clean, total) : 0} prev={priorCleanPct} isPositiveGood fmt={n => `${n}pp`} /> },
+          { label: 'P2 — Data error',    value: p2.toString(),          color: p2 > 0 ? '#854d0e' : '#166534',                             note: p2 > 0 ? 'Account data claims' : 'None detected',
+            pip: <TrendPip curr={p2} prev={priorP2} isPositiveGood={false} fmt={n => `${n}`} /> },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
@@ -1353,7 +1354,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
           {([
-            { id: 'queue' as const, label: `Review Queue (${reviewQueue.length})` },
+            { id: 'queue' as const, label: `Human Review Queue (${reviewQueue.length})` },
             { id: 'all'   as const, label: `All Results (${allResults.length})` },
           ]).map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)} style={{
