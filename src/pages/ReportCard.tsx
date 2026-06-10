@@ -1206,19 +1206,21 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   priorRows?: EvalRow[]
   onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
-  const [expanded,       setExpanded]       = useState<string | null>(null)
-  const [subTab,         setSubTab]         = useState<'queue' | 'all'>('queue')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  const [agentFil,       setAgentFil]       = useState('')
-  const [page,           setPage]           = useState(1)
+  const [expanded,        setExpanded]        = useState<string | null>(null)
+  const [subTab,          setSubTab]          = useState<'queue' | 'all'>('queue')
+  const [categoryFilter,  setCategoryFilter]  = useState('')
+  const [agentFil,        setAgentFil]        = useState('')
+  const [errorClassFilter, setErrorClassFilter] = useState<'P1A' | 'P1B' | 'P2' | ''>('')
+  const [page,            setPage]            = useState(1)
 
   // Reset page when the active list changes
-  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil])
+  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, errorClassFilter])
 
   const scoped = (() => {
     let r = agentFilter ? rows.filter(x => x.agentName === agentFilter) : rows
-    if (categoryFilter) r = r.filter(x => x.category === categoryFilter)
-    if (agentFil)       r = r.filter(x => x.agentName === agentFil)
+    if (categoryFilter)   r = r.filter(x => x.category === categoryFilter)
+    if (agentFil)         r = r.filter(x => x.agentName === agentFil)
+    if (errorClassFilter) r = r.filter(x => x.accuracyErrorClass === errorClassFilter)
     return r
   })()
 
@@ -1367,6 +1369,27 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Error class filter pills */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([
+              { key: 'P1A', label: 'P1A', color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
+              { key: 'P1B', label: 'P1B', color: '#c05621', bg: 'rgba(192,86,33,0.08)' },
+              { key: 'P2',  label: 'P2',  color: '#854d0e', bg: 'rgba(133,77,14,0.08)'  },
+            ] as const).map(({ key, label, color, bg }) => {
+              const active = errorClassFilter === key
+              return (
+                <button key={key} onClick={() => setErrorClassFilter(active ? '' : key)} style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                  padding: '4px 10px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+                  border: `1.5px solid ${active ? color : 'rgba(0,0,0,0.12)'}`,
+                  background: active ? bg : '#fff',
+                  color: active ? color : '#58595B',
+                }}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
           {!agentFilter && (
             <DiagnosticFilters rows={withEval} categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
               agentFilter={agentFil} onAgentChange={setAgentFil} />
