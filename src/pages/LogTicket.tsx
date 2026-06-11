@@ -73,7 +73,7 @@ function newTab(id: number): TabState {
 
 export default function LogTicket() {
   const { user } = useAuth()
-  const { selectedOperator } = useOperator()
+  const { selectedOperator, loading: operatorLoading } = useOperator()
 
   const nextId = useRef(2)
   const [allTabs, setAllTabs]       = useState<TabState[]>([newTab(1)])
@@ -273,7 +273,8 @@ export default function LogTicket() {
   const otherDetailRequired = active.category === 'Other'
   const canSubmit      = ticketValid && active.category &&
     (!otherDetailRequired || active.otherDetail.trim().length > 0) &&
-    active.responses.length > 0
+    active.responses.length > 0 &&
+    !!selectedOperator && !operatorLoading
 
   return (
     <>
