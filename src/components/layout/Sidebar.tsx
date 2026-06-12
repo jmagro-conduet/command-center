@@ -149,6 +149,7 @@ const ADMIN_NAV: NavItem[] = [
 ]
 
 const QA_NAV: NavItem[] = [
+  { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
   { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
   { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
   { id: 'report-card', label: 'Report Card', icon: <ReportCardIcon /> },
