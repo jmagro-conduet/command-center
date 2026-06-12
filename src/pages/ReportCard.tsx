@@ -1198,6 +1198,142 @@ function Paginator({ page, total, onPage }: { page: number; total: number; onPag
   )
 }
 
+// ── Accuracy Ticket-Level View ──────────────────────────────────────────────
+
+function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
+  rows: EvalRow[]
+  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
+}) {
+  const [expanded,         setExpanded]         = useState<string | null>(null)
+  const [page,             setPage]             = useState(1)
+  const [errorClassFilter, setErrorClassFilter] = useState<'P1A' | 'P1B' | 'P2' | ''>('')
+
+  const tickets = useMemo(() => {
+    const map = new Map<string, EvalRow[]>()
+    for (const row of rows) {
+      const key = row.ticketNumber ?? row.id
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(row)
+    }
+    return Array.from(map.entries()).map(([ticketNumber, issues]) => {
+      const errorClasses = [...new Set(issues.map(i => i.accuracyErrorClass).filter(c => c && c !== 'NONE'))] as string[]
+      const pendingReview = issues.filter(i =>
+        i.accuracyErrorClass && i.accuracyErrorClass !== 'NONE' &&
+        (!i.reviewStatus || i.reviewStatus === 'pending')
+      ).length
+      const latestDate = issues.reduce((max, i) => {
+        const d = i.accuracyRanAt ?? ''
+        return d > max ? d : max
+      }, '')
+      return { ticketNumber, issues, errorClasses, pendingReview, latestDate,
+        agent: issues[0]?.agentName ?? '', category: issues[0]?.category ?? '' }
+    }).sort((a, b) => {
+      if (a.pendingReview > 0 && b.pendingReview === 0) return -1
+      if (a.pendingReview === 0 && b.pendingReview > 0) return 1
+      return b.latestDate.localeCompare(a.latestDate)
+    })
+  }, [rows])
+
+  const filtered = errorClassFilter
+    ? tickets.filter(t => t.errorClasses.includes(errorClassFilter))
+    : tickets
+
+  const colTemplate = '100px 1fr 140px 200px 110px 90px'
+  const cols        = ['Ticket', 'Agent', 'Category', 'Errors', 'Pending', 'Date']
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {([
+          { key: 'P1A', label: 'P1A', color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
+          { key: 'P1B', label: 'P1B', color: '#c05621', bg: 'rgba(192,86,33,0.08)' },
+          { key: 'P2',  label: 'P2',  color: '#854d0e', bg: 'rgba(133,77,14,0.08)' },
+        ] as const).map(({ key, label, color, bg }) => {
+          const active = errorClassFilter === key
+          return (
+            <button key={key} onClick={() => { setErrorClassFilter(active ? '' : key); setPage(1) }} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+              padding: '4px 10px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+              border: `1.5px solid ${active ? color : 'rgba(0,0,0,0.12)'}`,
+              background: active ? bg : '#fff', color: active ? color : '#58595B',
+            }}>{label}</button>
+          )
+        })}
+        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginLeft: 4 }}>
+          {filtered.length} ticket{filtered.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+          {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
+        </div>
+        {filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(t => {
+          const isExp = expanded === t.ticketNumber
+          return (
+            <div key={t.ticketNumber} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+              <div onClick={() => setExpanded(isExp ? null : t.ticketNumber)}
+                style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 8, background: isExp ? 'rgba(206,164,255,0.04)' : 'transparent', transition: 'background 0.15s' }}
+                onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.04)' : 'transparent' }}
+              >
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{t.agent}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category || '—'}</span>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {t.errorClasses.length === 0
+                    ? <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: 'rgba(22,101,52,0.08)', color: '#166534' }}>Clean</span>
+                    : t.errorClasses.map(ec => <AccuracyBadge key={ec} cls={ec as AccuracyClass} small />)
+                  }
+                </div>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: t.pendingReview > 0 ? '#e53e3e' : '#166534' }}>
+                  {t.pendingReview > 0 ? `${t.pendingReview} pending` : 'Done'}
+                </span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                  {t.latestDate ? new Date(t.latestDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—'}
+                </span>
+              </div>
+              {isExp && (
+                <div style={{ padding: '0 0 12px 0' }}>
+                  {t.issues.map((r, idx) => (
+                    <div key={r.id} style={{ margin: '8px 16px 0', padding: '14px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.07)', background: idx % 2 === 0 ? '#fafafa' : '#fff' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <AccuracyBadge cls={(r.accuracyErrorClass ?? 'NONE') as AccuracyClass} />
+                        {r.themeTag && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, padding: '2px 8px', borderRadius: 100, background: 'rgba(155,89,208,0.08)', color: '#9B59D0', border: '1px solid rgba(155,89,208,0.15)' }}>{r.themeTag}</span>}
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                          {r.accuracyRanAt ? new Date(r.accuracyRanAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : ''}
+                        </span>
+                      </div>
+                      {r.accuracyReasoning && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 10 }}>{r.accuracyReasoning}</p>}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        {[{ label: 'Player message', value: r.customerInput }, { label: 'gameLM suggested', value: r.suggestedResponse }].map(box => (
+                          <div key={box.label} style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
+                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
+                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {(r.accuracyErrorClass && r.accuracyErrorClass !== 'NONE') && (
+                        <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm error" dismissLabel="Override error" verdictOptions={['P1A', 'P1B', 'P2', 'NONE']} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No tickets found for this filter</p>
+          </div>
+        )}
+        <Paginator page={page} total={filtered.length} onPage={p => { setPage(p); setExpanded(null) }} />
+      </div>
+    </div>
+  )
+}
+
 // ── Response Accuracy tab ───────────────────────────────────────────────────
 
 function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: {
@@ -1206,15 +1342,16 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   priorRows?: EvalRow[]
   onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
-  const [expanded,        setExpanded]        = useState<string | null>(null)
-  const [subTab,          setSubTab]          = useState<'queue' | 'all'>('queue')
-  const [categoryFilter,  setCategoryFilter]  = useState('')
-  const [agentFil,        setAgentFil]        = useState('')
+  const [expanded,         setExpanded]         = useState<string | null>(null)
+  const [viewMode,         setViewMode]         = useState<'issue' | 'ticket'>('issue')
+  const [subTab,           setSubTab]           = useState<'queue' | 'all'>('queue')
+  const [categoryFilter,   setCategoryFilter]   = useState('')
+  const [agentFil,         setAgentFil]         = useState('')
   const [errorClassFilter, setErrorClassFilter] = useState<'P1A' | 'P1B' | 'P2' | ''>('')
-  const [page,            setPage]            = useState(1)
+  const [page,             setPage]             = useState(1)
 
   // Reset page when the active list changes
-  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, errorClassFilter])
+  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, errorClassFilter, viewMode])
 
   const scoped = (() => {
     let r = agentFilter ? rows.filter(x => x.agentName === agentFilter) : rows
@@ -1325,8 +1462,26 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   const cols = ['Ticket', 'Agent', 'Category', 'Result', 'Theme', 'Date']
   const colTemplate = '100px 1fr 150px 140px 100px 90px'
 
+  const AccuracyViewToggle = () => (
+    <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+      {([
+        { id: 'issue'  as const, label: 'Issue Level' },
+        { id: 'ticket' as const, label: 'Ticket Level' },
+      ]).map(t => (
+        <button key={t.id} onClick={() => setViewMode(t.id)} style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: viewMode === t.id ? 500 : 400,
+          padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+          background: viewMode === t.id ? '#000' : 'transparent',
+          color: viewMode === t.id ? '#fff' : '#58595B',
+          boxShadow: viewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+        }}>{t.label}</button>
+      ))}
+    </div>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><AccuracyViewToggle /></div>
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
         {[
@@ -1352,6 +1507,10 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
 
       <ThemeDistribution rows={withEval} />
 
+      {viewMode === 'ticket' && (
+        <AccuracyTicketLevelView rows={withEval} onReviewUpdate={onReviewUpdate} />
+      )}
+      {viewMode === 'issue' && (<>
       {/* Sub-tab bar + filters + export */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
@@ -1441,6 +1600,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
           <Paginator page={page} total={allResults.length} onPage={p => { setPage(p); setExpanded(null) }} />
         </div>
       )}
+      </>)}
     </div>
   )
 }
@@ -1762,6 +1922,163 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+// ── Edit Eval Ticket-Level View ─────────────────────────────────────────────
+
+function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
+  rows: EvalRow[]
+  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
+}) {
+  const [expanded,       setExpanded]       = useState<string | null>(null)
+  const [page,           setPage]           = useState(1)
+  const [verdictFilter,  setVerdictFilter]  = useState<Verdict | ''>('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+
+  const evalRows = rows.filter(r => r.evalVerdict !== null)
+
+  const categories = useMemo(() => [...new Set(evalRows.map(r => r.category).filter(Boolean))].sort(), [evalRows])
+
+  const tickets = useMemo(() => {
+    const map = new Map<string, EvalRow[]>()
+    for (const row of evalRows) {
+      const key = row.ticketNumber ?? row.id
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(row)
+    }
+    return Array.from(map.entries()).map(([ticketNumber, issues]) => {
+      const corrections  = issues.filter(i => i.evalVerdict === 'CORRECTION').length
+      const enhancements = issues.filter(i => i.evalVerdict === 'ENHANCEMENT').length
+      const preferences  = issues.filter(i => i.evalVerdict === 'PREFERENCE').length
+      const agents       = [...new Set(issues.map(i => i.agentName).filter(Boolean))]
+      const avgConf      = issues.length ? Math.round(issues.reduce((s, i) => s + (i.evalConfidence ?? 0), 0) / issues.length) : 0
+      const latestDate   = issues.reduce((max, i) => { const d = i.evalRanAt ?? ''; return d > max ? d : max }, '')
+      return { ticketNumber, issues, corrections, enhancements, preferences, agents,
+        avgConf, category: issues[0]?.category ?? '', latestDate }
+    }).sort((a, b) => b.latestDate.localeCompare(a.latestDate))
+  }, [evalRows])
+
+  const filtered = useMemo(() => {
+    let r = tickets
+    if (verdictFilter)  r = r.filter(t => t.issues.some(i => i.evalVerdict === verdictFilter))
+    if (categoryFilter) r = r.filter(t => t.category === categoryFilter)
+    return r
+  }, [tickets, verdictFilter, categoryFilter])
+
+  useEffect(() => { setPage(1); setExpanded(null) }, [verdictFilter, categoryFilter])
+
+  const VERDICT_PILLS: { key: Verdict; label: string; color: string; bg: string }[] = [
+    { key: 'CORRECTION',  label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
+    { key: 'ENHANCEMENT', label: 'Enhancements', color: '#c05621', bg: 'rgba(192,86,33,0.08)' },
+    { key: 'PREFERENCE',  label: 'Preferences',  color: '#0369a1', bg: 'rgba(3,105,161,0.08)' },
+    { key: 'NONE',        label: 'None',          color: '#166534', bg: 'rgba(22,101,52,0.08)' },
+  ]
+
+  const colTemplate = '100px 1fr 150px 70px 110px 120px 110px 90px'
+  const cols        = ['Ticket', 'Agent(s)', 'Category', 'Evals', 'Corrections', 'Enhancements', 'Preferences', 'Date']
+
+  const exportTicketCSV = () => {
+    const header = cols.join(',')
+    const body = filtered.map(t =>
+      [t.ticketNumber, `"${t.agents.join('; ')}"`, `"${t.category}"`, t.issues.length, t.corrections, t.enhancements, t.preferences,
+       t.latestDate ? new Date(t.latestDate).toLocaleDateString() : ''].join(',')
+    )
+    const blob = new Blob([[header, ...body].join('\n')], { type: 'text/csv' })
+    const a    = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'eval_tickets.csv'; a.click()
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+          {VERDICT_PILLS.map(({ key, label, color, bg }) => {
+            const active = verdictFilter === key
+            return (
+              <button key={key} onClick={() => { setVerdictFilter(active ? '' : key); setPage(1) }} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                padding: '4px 10px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+                border: `1.5px solid ${active ? color : 'rgba(0,0,0,0.12)'}`,
+                background: active ? bg : '#fff', color: active ? color : '#58595B',
+              }}>{label}</button>
+            )
+          })}
+          <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1) }} style={{ ...filterSelectStyle, minWidth: 140 }}>
+            <option value="">All categories</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{filtered.length} ticket{filtered.length !== 1 ? 's' : ''}</span>
+          <button onClick={exportTicketCSV} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>Export CSV</button>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+          {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
+        </div>
+        {filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(t => {
+          const isExp = expanded === t.ticketNumber
+          return (
+            <div key={t.ticketNumber} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+              <div onClick={() => setExpanded(isExp ? null : t.ticketNumber)}
+                style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 4, background: isExp ? 'rgba(206,164,255,0.04)' : 'transparent', transition: 'background 0.15s' }}
+                onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.04)' : 'transparent' }}
+              >
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.agents.join(', ') || '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category || '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{t.issues.length}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: t.corrections > 0 ? '#e53e3e' : 'rgba(0,0,0,0.3)' }}>{t.corrections > 0 ? t.corrections : '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: t.enhancements > 0 ? '#c05621' : 'rgba(0,0,0,0.3)' }}>{t.enhancements > 0 ? t.enhancements : '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: t.preferences > 0 ? '#0369a1' : 'rgba(0,0,0,0.3)' }}>{t.preferences > 0 ? t.preferences : '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                  {t.latestDate ? new Date(t.latestDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—'}
+                </span>
+              </div>
+              {isExp && (
+                <div style={{ padding: '0 0 12px 0' }}>
+                  {t.issues.map((r, idx) => (
+                    <div key={r.id} style={{ margin: '8px 16px 0', padding: '14px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.07)', background: idx % 2 === 0 ? '#fafafa' : '#fff' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        {r.evalVerdict && <VerdictBadge verdict={r.evalVerdict} />}
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.agentName}</span>
+                        <ConfidencePip value={r.evalConfidence} />
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                          {r.evalRanAt ? new Date(r.evalRanAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : ''}
+                        </span>
+                      </div>
+                      {r.evalReasoning && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 10 }}>{r.evalReasoning}</p>}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                        {[
+                          { label: 'Player message', value: r.customerInput },
+                          { label: 'gameLM suggested', value: r.suggestedResponse },
+                          { label: 'Agent edit', value: r.finalEdits },
+                        ].map(box => (
+                          <div key={box.label} style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
+                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
+                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm" dismissLabel="Dismiss" verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE']} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No tickets found for this filter</p>
+          </div>
+        )}
+        <Paginator page={page} total={filtered.length} onPage={p => { setPage(p); setExpanded(null) }} />
+      </div>
     </div>
   )
 }
@@ -2312,6 +2629,7 @@ export default function ReportCard() {
   const [selected, setSelected]           = useState<string | null>(null)
   const [showWins, setShowWins]           = useState(false)
   const [topTab, setTopTab]               = useState<TopTab>('dashboard')
+  const [evalsViewMode, setEvalsViewMode] = useState<'agents' | 'tickets'>('agents')
   const [verdictModal, setVerdictModal]   = useState<Verdict | null>(null)
 
   // Update local state when a review action is saved
@@ -2805,7 +3123,29 @@ export default function ReportCard() {
         ))}
       </div>
 
-      {/* Per-agent table */}
+      {/* Per-agent / ticket-level toggle */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+          {([
+            { id: 'agents'  as const, label: 'Agent View'  },
+            { id: 'tickets' as const, label: 'Ticket View' },
+          ]).map(t => (
+            <button key={t.id} onClick={() => setEvalsViewMode(t.id)} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: evalsViewMode === t.id ? 500 : 400,
+              padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+              background: evalsViewMode === t.id ? '#000' : 'transparent',
+              color: evalsViewMode === t.id ? '#fff' : '#58595B',
+              boxShadow: evalsViewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+            }}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {evalsViewMode === 'tickets' && (
+        <EditEvalTicketLevelView rows={rows} onReviewUpdate={handleReviewUpdate} />
+      )}
+
+      {evalsViewMode === 'agents' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Agent Breakdown</p>
@@ -2876,6 +3216,7 @@ export default function ReportCard() {
           </div>
         )}
       </div>
+      )}
       <div style={{ height: 8 }} />
 
       </> /* end topTab === 'evals' */}
