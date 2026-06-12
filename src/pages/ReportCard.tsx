@@ -1208,6 +1208,9 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
   rows: EvalRow[]
   onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
+  const { user }                       = useAuth()
+  const isAdmin                        = user?.role === 'admin'
+  const [promoted, setPromoted]        = useState<Set<string>>(new Set())
   const [expanded,         setExpanded]         = useState<string | null>(null)
   const [page,             setPage]             = useState(1)
   const [errorClassFilter, setErrorClassFilter] = useState<'P1A' | 'P1B' | 'P2' | ''>('')
@@ -1319,6 +1322,37 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
                       </div>
                       {(r.accuracyErrorClass && r.accuracyErrorClass !== 'NONE') && (
                         <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm error" dismissLabel="Override error" verdictOptions={['P1A', 'P1B', 'P2', 'NONE']} />
+                      )}
+                      {isAdmin && r.accuracyRanAt && (
+                        <div style={{ marginTop: 10 }}>
+                          {promoted.has(r.id) ? (
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>✓ Added to gold set</span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                const { error } = await supabase.from('eval_gold_cases').upsert({
+                                  eval_type:            'accuracy',
+                                  ticket_issue_id:      r.id,
+                                  expected_error_class: r.accuracyErrorClass ?? 'NONE',
+                                  player_input:         r.customerInput,
+                                  suggested_response:   r.suggestedResponse,
+                                  notes:                r.accuracyReasoning,
+                                }, { onConflict: 'ticket_issue_id,eval_type' })
+                                if (!error) setPromoted(p => new Set([...p, r.id]))
+                              }}
+                              style={{
+                                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                                color: '#9B59D0', background: 'rgba(155,89,208,0.07)',
+                                border: '1px solid rgba(155,89,208,0.2)', borderRadius: 8,
+                                padding: '4px 12px', cursor: 'pointer', transition: 'all 0.15s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.07)')}
+                            >
+                              ★ Promote to gold set
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1936,6 +1970,9 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
   rows: EvalRow[]
   onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
+  const { user }                  = useAuth()
+  const isAdmin                   = user?.role === 'admin'
+  const [promoted, setPromoted]   = useState<Set<string>>(new Set())
   const [expanded,       setExpanded]       = useState<string | null>(null)
   const [page,           setPage]           = useState(1)
   const [verdictFilter,  setVerdictFilter]  = useState<Verdict | 'NONE' | ''>('')
@@ -2069,6 +2106,39 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                         ))}
                       </div>
                       <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm" dismissLabel="Dismiss" verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE']} />
+                      {isAdmin && r.evalVerdict !== null && (
+                        <div style={{ marginTop: 10 }}>
+                          {promoted.has(r.id) ? (
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>✓ Added to gold set</span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                const { error } = await supabase.from('eval_gold_cases').upsert({
+                                  eval_type:         'edit',
+                                  ticket_issue_id:   r.id,
+                                  expected_verdict:  r.reviewCorrectVerdict ?? r.evalVerdict,
+                                  player_input:      r.customerInput,
+                                  suggested_response: r.suggestedResponse,
+                                  final_edits:       r.finalEdits,
+                                  agent_reasoning:   r.reasoning,
+                                  notes:             r.evalReasoning,
+                                }, { onConflict: 'ticket_issue_id,eval_type' })
+                                if (!error) setPromoted(p => new Set([...p, r.id]))
+                              }}
+                              style={{
+                                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                                color: '#9B59D0', background: 'rgba(155,89,208,0.07)',
+                                border: '1px solid rgba(155,89,208,0.2)', borderRadius: 8,
+                                padding: '4px 12px', cursor: 'pointer', transition: 'all 0.15s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.07)')}
+                            >
+                              ★ Promote to gold set
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
 import Users from './Users'
 
-type SettingsTab = 'general' | 'users'
+type SettingsTab = 'general' | 'users' | 'evals'
 
 interface Team { id: string; name: string }
 
@@ -138,6 +138,47 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [backfillEdit,     setBackfillEdit]     = useState(true)
   const [backfillAccuracy, setBackfillAccuracy] = useState(true)
   const [backfillQuality,  setBackfillQuality]  = useState(true)
+
+  // ── Regression panel (admin) ──────────────────────────────────────────────
+  interface GoldCaseSummary { eval_type: string; expected_verdict: string | null; expected_error_class: string | null }
+  interface RegressionRun {
+    id: string; run_at: string; triggered_by: string | null
+    total_cases: number; passed: number; failed: number; pass_rate: number
+    eval_type: string | null
+    results: { case_id: string; eval_type: string; expected: string; got: string; passed: boolean; reasoning: string }[] | null
+  }
+  const [goldCases,        setGoldCases]        = useState<GoldCaseSummary[]>([])
+  const [lastRun,          setLastRun]          = useState<RegressionRun | null>(null)
+  const [regressionLoading, setRegressionLoading] = useState(false)
+  const [regressionRunning, setRegressionRunning] = useState(false)
+  const [regressionError,   setRegressionError]   = useState('')
+
+  useEffect(() => { if (isAdmin && activeTab === 'evals') loadRegressionData() }, [isAdmin, activeTab])
+
+  async function loadRegressionData() {
+    setRegressionLoading(true)
+    const [casesRes, runRes] = await Promise.all([
+      supabase.from('eval_gold_cases').select('eval_type, expected_verdict, expected_error_class').eq('is_active', true),
+      supabase.from('eval_regression_runs').select('*').order('run_at', { ascending: false }).limit(1),
+    ])
+    setGoldCases(casesRes.data ?? [])
+    setLastRun(runRes.data?.[0] ?? null)
+    setRegressionLoading(false)
+  }
+
+  async function runRegression() {
+    setRegressionRunning(true)
+    setRegressionError('')
+    const { error } = await supabase.functions.invoke('regression-runner', {
+      body: { triggered_by: 'manual' },
+    })
+    if (error) {
+      setRegressionError(error.message ?? 'Regression run failed')
+    } else {
+      await loadRegressionData()
+    }
+    setRegressionRunning(false)
+  }
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
@@ -465,7 +506,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             {isAdmin ? 'Admin settings' : 'Settings'}
           </h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
-            {activeTab === 'users' ? 'Manage team members and their operator access' : 'Configure your Command Center preferences'}
+            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : 'Configure your Command Center preferences'}
           </p>
         </div>
 
@@ -476,7 +517,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             background: 'rgba(0,0,0,0.05)', borderRadius: 12,
             alignSelf: 'flex-start',
           }}>
-            {(['general', 'users'] as SettingsTab[]).map(tab => (
+            {(['general', 'users', 'evals'] as SettingsTab[]).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -489,12 +530,175 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   transition: 'all 0.15s',
                 }}
               >
-                {tab === 'general' ? 'General' : 'Users'}
+                {tab === 'general' ? 'General' : tab === 'users' ? 'Users' : 'Evals'}
               </button>
             ))}
           </div>
         )}
       </div>
+
+      {/* ── Evals tab ───────────────────────────────────────────────────────── */}
+      {isAdmin && activeTab === 'evals' && (
+        <>
+          {/* Gold case counts */}
+          <SectionCard title="Gold Case Library" subtitle="Curated examples with known-correct outputs used as regression anchors.">
+            {regressionLoading ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+            ) : (() => {
+              const editCases     = goldCases.filter(c => c.eval_type === 'edit')
+              const accuracyCases = goldCases.filter(c => c.eval_type === 'accuracy')
+              const editByVerdict: Record<string, number> = {}
+              editCases.forEach(c => {
+                const k = c.expected_verdict ?? 'Unknown'
+                editByVerdict[k] = (editByVerdict[k] ?? 0) + 1
+              })
+              const accByClass: Record<string, number> = {}
+              accuracyCases.forEach(c => {
+                const k = c.expected_error_class ?? 'Unknown'
+                accByClass[k] = (accByClass[k] ?? 0) + 1
+              })
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Edit eval */}
+                  <div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', marginBottom: 8 }}>
+                      Edit Eval — {editCases.length} cases
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {(['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE'] as const).map(v => (
+                        <div key={v} style={{
+                          padding: '8px 14px', borderRadius: 10,
+                          background: (editByVerdict[v] ?? 0) > 0 ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
+                          border: `1.5px solid ${(editByVerdict[v] ?? 0) > 0 ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
+                        }}>
+                          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: (editByVerdict[v] ?? 0) > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)' }}>
+                            {editByVerdict[v] ?? 0}
+                          </div>
+                          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 1 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Accuracy eval */}
+                  <div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', marginBottom: 8 }}>
+                      Accuracy Eval — {accuracyCases.length} cases
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {(['P1A', 'P1B', 'P2', 'NONE'] as const).map(v => (
+                        <div key={v} style={{
+                          padding: '8px 14px', borderRadius: 10,
+                          background: (accByClass[v] ?? 0) > 0 ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
+                          border: `1.5px solid ${(accByClass[v] ?? 0) > 0 ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
+                        }}>
+                          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: (accByClass[v] ?? 0) > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)' }}>
+                            {accByClass[v] ?? 0}
+                          </div>
+                          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 1 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {goldCases.length === 0 && (
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
+                      No gold cases yet. Promote reviewed issues from Report Card to build the library.
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
+          </SectionCard>
+
+          {/* Regression runner */}
+          <SectionCard title="Run Regression" subtitle="Runs all active gold cases through the live eval models and checks for regressions. Typically 1–3 min.">
+            {regressionError && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginBottom: 12 }}>
+                ❌ {regressionError}
+              </p>
+            )}
+
+            {/* Last run summary */}
+            {lastRun && (
+              <div style={{
+                padding: '14px 16px', borderRadius: 10, marginBottom: 16,
+                background: lastRun.pass_rate >= 85 ? 'rgba(22,101,52,0.05)' : 'rgba(229,62,62,0.05)',
+                border: `1.5px solid ${lastRun.pass_rate >= 85 ? 'rgba(22,101,52,0.2)' : 'rgba(229,62,62,0.2)'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                    Last run — {new Date(lastRun.run_at).toLocaleDateString()} {new Date(lastRun.run_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {lastRun.triggered_by && lastRun.triggered_by !== 'manual' && ` · ${lastRun.triggered_by}`}
+                  </span>
+                  <span style={{
+                    fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600,
+                    color: lastRun.pass_rate >= 85 ? '#166534' : '#c53030',
+                  }}>
+                    {lastRun.pass_rate}%
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                    {lastRun.passed}/{lastRun.total_cases} passed
+                  </span>
+                  {lastRun.failed > 0 && (
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#c53030' }}>
+                      {lastRun.failed} failed
+                    </span>
+                  )}
+                </div>
+
+                {/* Failures */}
+                {lastRun.failed > 0 && lastRun.results && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {lastRun.results.filter(r => !r.passed).map((r, i) => (
+                      <div key={i} style={{
+                        padding: '8px 12px', borderRadius: 8,
+                        background: 'rgba(229,62,62,0.06)', border: '1px solid rgba(229,62,62,0.15)',
+                        fontFamily: 'Inter, sans-serif', fontSize: 12,
+                      }}>
+                        <span style={{ fontWeight: 600, color: '#c53030' }}>{r.eval_type} · </span>
+                        <span style={{ color: '#58595B' }}>expected <strong>{r.expected}</strong>, got <strong>{r.got}</strong></span>
+                        {r.reasoning && (
+                          <span style={{ color: '#aaa' }}> — {r.reasoning}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={runRegression}
+                disabled={regressionRunning || goldCases.length === 0}
+                style={{
+                  background: (regressionRunning || goldCases.length === 0) ? 'rgba(0,0,0,0.1)' : '#000',
+                  color:      (regressionRunning || goldCases.length === 0) ? 'rgba(0,0,0,0.35)' : '#fff',
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '9px 20px', borderRadius: 10, border: 'none',
+                  cursor: (regressionRunning || goldCases.length === 0) ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s', whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={e => { if (!regressionRunning && goldCases.length > 0) e.currentTarget.style.opacity = '0.8' }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+              >
+                {regressionRunning ? '⏳ Running…' : '▶ Run regression'}
+              </button>
+              {goldCases.length > 0 && !regressionRunning && (
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                  {goldCases.length} cases · threshold 85%
+                </span>
+              )}
+              {regressionRunning && (
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                  Keep this tab open…
+                </span>
+              )}
+            </div>
+          </SectionCard>
+        </>
+      )}
 
       {/* ── Users tab ───────────────────────────────────────────────────────── */}
       {isAdmin && activeTab === 'users' && <Users />}
