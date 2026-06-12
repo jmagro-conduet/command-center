@@ -62,6 +62,7 @@ function AppShell() {
   if (!user) return <Login />
 
   const isAdmin = user?.role === 'admin'
+  const isQA    = user?.role === 'qa'
 
   function renderPage() {
     switch (activePage) {
@@ -71,8 +72,8 @@ function AppShell() {
       case 'events':      return isAdmin ? <Events      key={pageKey} /> : <LogTicket key={pageKey} />
       case 'submissions': return isAdmin ? <Submissions key={pageKey} /> : <LogTicket key={pageKey} />
       case 'report':      return isAdmin ? <Report      key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'analytics':    return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'report-card': return isAdmin ? <ReportCard  key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'analytics':   return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'report-card': return (isAdmin || isQA) ? <ReportCard key={pageKey} /> : <LogTicket key={pageKey} />
       case 'users':       return isAdmin ? <Settings key={pageKey} initialTab="users" /> : <LogTicket key={pageKey} />
       case 'learn':       return <Learn       key={pageKey} />
       case 'settings':    return isAdmin ? <Settings key={pageKey} /> : <Settings key={pageKey} />

@@ -148,6 +148,13 @@ const ADMIN_NAV: NavItem[] = [
   { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
 ]
 
+const QA_NAV: NavItem[] = [
+  { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
+  { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
+  { id: 'report-card', label: 'Report Card', icon: <ReportCardIcon /> },
+  { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
+]
+
 interface Props {
   activePage: Page
   onNavigate: (page: Page) => void
@@ -158,7 +165,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const [operatorDropOpen, setOperatorDropOpen] = useState(false)
   const { user, signOut }                   = useAuth()
   const { operators, selectedOperator, setSelectedOperator } = useOperator()
-  const navItems = user?.role === 'admin' ? ADMIN_NAV : AGENT_NAV
+  const navItems = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : AGENT_NAV
   const initial  = user?.name ? user.name[0].toUpperCase() : '?'
   const isAdmin  = user?.role === 'admin'
 
