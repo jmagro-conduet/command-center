@@ -140,30 +140,62 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [backfillQuality,  setBackfillQuality]  = useState(true)
 
   // ── Regression panel (admin) ──────────────────────────────────────────────
-  interface GoldCaseSummary { eval_type: string; expected_verdict: string | null; expected_error_class: string | null }
+  interface GoldCase {
+    id: string; eval_type: string
+    expected_verdict: string | null; expected_error_class: string | null
+    player_input: string | null; suggested_response: string | null
+    final_edits: string | null; agent_reasoning: string | null
+    notes: string | null; created_at: string
+    ticket_issue_id: string | null
+  }
   interface RegressionRun {
     id: string; run_at: string; triggered_by: string | null
     total_cases: number; passed: number; failed: number; pass_rate: number
     eval_type: string | null
     results: { case_id: string; eval_type: string; expected: string; got: string; passed: boolean; reasoning: string }[] | null
   }
-  const [goldCases,        setGoldCases]        = useState<GoldCaseSummary[]>([])
-  const [lastRun,          setLastRun]          = useState<RegressionRun | null>(null)
+  const [goldCases,         setGoldCases]         = useState<GoldCase[]>([])
+  const [lastRun,           setLastRun]           = useState<RegressionRun | null>(null)
   const [regressionLoading, setRegressionLoading] = useState(false)
   const [regressionRunning, setRegressionRunning] = useState(false)
   const [regressionError,   setRegressionError]   = useState('')
+  const [goldFilter,        setGoldFilter]        = useState<'all' | 'edit' | 'accuracy' | 'quality'>('all')
+  const [expandedCase,      setExpandedCase]      = useState<string | null>(null)
+  const [editingCase,       setEditingCase]       = useState<string | null>(null)
+  const [editValue,         setEditValue]         = useState('')
+  const [deletingCase,      setDeletingCase]      = useState<string | null>(null)
 
   useEffect(() => { if (isAdmin && activeTab === 'evals') loadRegressionData() }, [isAdmin, activeTab])
 
   async function loadRegressionData() {
     setRegressionLoading(true)
     const [casesRes, runRes] = await Promise.all([
-      supabase.from('eval_gold_cases').select('eval_type, expected_verdict, expected_error_class').eq('is_active', true),
+      supabase.from('eval_gold_cases')
+        .select('id, eval_type, expected_verdict, expected_error_class, player_input, suggested_response, final_edits, agent_reasoning, notes, created_at, ticket_issue_id')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false }),
       supabase.from('eval_regression_runs').select('*').order('run_at', { ascending: false }).limit(1),
     ])
     setGoldCases(casesRes.data ?? [])
     setLastRun(runRes.data?.[0] ?? null)
     setRegressionLoading(false)
+  }
+
+  async function deleteGoldCase(id: string) {
+    await supabase.from('eval_gold_cases').delete().eq('id', id)
+    setDeletingCase(null)
+    setGoldCases(prev => prev.filter(c => c.id !== id))
+  }
+
+  async function saveExpected(c: GoldCase) {
+    const patch = c.eval_type === 'accuracy'
+      ? { expected_error_class: editValue }
+      : { expected_verdict: editValue }
+    const { error } = await supabase.from('eval_gold_cases').update(patch).eq('id', c.id)
+    if (!error) {
+      setGoldCases(prev => prev.map(x => x.id === c.id ? { ...x, ...patch } : x))
+    }
+    setEditingCase(null)
   }
 
   async function runRegression() {
@@ -604,6 +636,178 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                       No gold cases yet. Promote reviewed issues from Report Card to build the library.
                     </p>
                   )}
+                </div>
+              )
+            })()}
+          </SectionCard>
+
+          {/* Manage gold cases */}
+          <SectionCard title="Manage Gold Cases" subtitle="View, edit expected outcomes, and remove cases from the active gold set.">
+            {regressionLoading ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+            ) : goldCases.length === 0 ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No gold cases yet.</p>
+            ) : (() => {
+              const filtered = goldFilter === 'all' ? goldCases : goldCases.filter(c => c.eval_type === goldFilter)
+              const typeOptions: { key: 'all' | 'edit' | 'accuracy' | 'quality'; label: string }[] = [
+                { key: 'all',      label: `All (${goldCases.length})` },
+                { key: 'edit',     label: `Edit (${goldCases.filter(c => c.eval_type === 'edit').length})` },
+                { key: 'accuracy', label: `Accuracy (${goldCases.filter(c => c.eval_type === 'accuracy').length})` },
+                { key: 'quality',  label: `Quality (${goldCases.filter(c => c.eval_type === 'quality').length})` },
+              ]
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Type toggle */}
+                  <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: 3, alignSelf: 'flex-start' }}>
+                    {typeOptions.map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => { setGoldFilter(opt.key); setExpandedCase(null); setEditingCase(null); setDeletingCase(null) }}
+                        style={{
+                          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                          padding: '5px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                          background: goldFilter === opt.key ? '#fff' : 'transparent',
+                          color: goldFilter === opt.key ? '#000' : '#58595B',
+                          boxShadow: goldFilter === opt.key ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Cases table */}
+                  <div style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden' }}>
+                    {filtered.length === 0 ? (
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '16px 20px' }}>
+                        No {goldFilter} cases yet.
+                      </p>
+                    ) : filtered.map((c, i) => {
+                      const expected = c.eval_type === 'accuracy' ? c.expected_error_class : c.expected_verdict
+                      const isExpanded = expandedCase === c.id
+                      const isEditing  = editingCase  === c.id
+                      const isDeleting = deletingCase === c.id
+                      const verdictOptions = c.eval_type === 'accuracy'
+                        ? ['P1A', 'P1B', 'P2', 'NONE']
+                        : ['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE']
+                      const chipColor = c.eval_type === 'edit'
+                        ? { bg: 'rgba(0,0,0,0.05)', color: '#58595B' }
+                        : c.eval_type === 'accuracy'
+                        ? { bg: 'rgba(155,89,208,0.08)', color: '#9B59D0' }
+                        : { bg: 'rgba(22,101,52,0.07)', color: '#166534' }
+
+                      return (
+                        <div key={c.id} style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.07)' }}>
+                          {/* Row */}
+                          <div
+                            style={{
+                              display: 'grid', gridTemplateColumns: '80px 1fr 160px 90px 80px',
+                              alignItems: 'center', gap: 12, padding: '10px 16px',
+                              background: isExpanded ? 'rgba(0,0,0,0.015)' : '#fff',
+                              cursor: 'pointer', transition: 'background 0.1s',
+                            }}
+                            onClick={() => { setExpandedCase(isExpanded ? null : c.id); setEditingCase(null); setDeletingCase(null) }}
+                          >
+                            {/* Type chip */}
+                            <span style={{
+                              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                              padding: '3px 8px', borderRadius: 100,
+                              background: chipColor.bg, color: chipColor.color,
+                              textTransform: 'uppercase', letterSpacing: '0.05em',
+                              whiteSpace: 'nowrap', textAlign: 'center',
+                            }}>
+                              {c.eval_type}
+                            </span>
+
+                            {/* Player input preview */}
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {c.player_input ? `"${c.player_input.slice(0, 80)}${c.player_input.length > 80 ? '…' : ''}"` : <em style={{ color: '#bbb' }}>no input</em>}
+                            </span>
+
+                            {/* Expected — inline edit */}
+                            <div onClick={e => e.stopPropagation()}>
+                              {isEditing ? (
+                                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                  <select
+                                    autoFocus
+                                    value={editValue}
+                                    onChange={e => setEditValue(e.target.value)}
+                                    style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, border: '1.5px solid #CEA4FF', borderRadius: 6, padding: '3px 6px', outline: 'none' }}
+                                  >
+                                    {verdictOptions.map(v => <option key={v} value={v}>{v}</option>)}
+                                  </select>
+                                  <button onClick={() => saveExpected(c)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#166534', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>Save</button>
+                                  <button onClick={() => setEditingCase(null)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>✕</button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setEditingCase(c.id); setEditValue(expected ?? '') }}
+                                  style={{
+                                    fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                                    color: '#000', background: 'rgba(0,0,0,0.04)',
+                                    border: '1px solid rgba(0,0,0,0.08)', borderRadius: 6,
+                                    padding: '3px 10px', cursor: 'pointer', transition: 'all 0.15s',
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)')}
+                                >
+                                  {expected ?? '—'}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Date */}
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
+                              {new Date(c.created_at).toLocaleDateString()}
+                            </span>
+
+                            {/* Delete */}
+                            <div onClick={e => e.stopPropagation()}>
+                              {isDeleting ? (
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <button onClick={() => deleteGoldCase(c.id)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#fff', background: '#e53e3e', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>Delete</button>
+                                  <button onClick={() => setDeletingCase(null)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setDeletingCase(c.id)}
+                                  style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 6px', borderRadius: 6, transition: 'all 0.15s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = '#e53e3e'; e.currentTarget.style.background = 'rgba(229,62,62,0.06)' }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#aaa'; e.currentTarget.style.background = 'none' }}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expanded detail */}
+                          {isExpanded && (
+                            <div style={{ padding: '0 16px 14px', background: 'rgba(0,0,0,0.015)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {c.notes && (
+                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', fontStyle: 'italic' }}>
+                                  {c.notes}
+                                </p>
+                              )}
+                              <div style={{ display: 'grid', gridTemplateColumns: c.final_edits ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8 }}>
+                                {[
+                                  { label: 'Player message',    value: c.player_input },
+                                  { label: 'gameLM suggested',  value: c.suggested_response },
+                                  ...(c.final_edits ? [{ label: 'Agent edit', value: c.final_edits }] : []),
+                                ].map(box => (
+                                  <div key={box.label} style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
+                                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
+                                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })()}
