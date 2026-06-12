@@ -1934,7 +1934,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
 }) {
   const [expanded,       setExpanded]       = useState<string | null>(null)
   const [page,           setPage]           = useState(1)
-  const [verdictFilter,  setVerdictFilter]  = useState<Verdict | ''>('')
+  const [verdictFilter,  setVerdictFilter]  = useState<Verdict | 'NONE' | ''>('')
   const [categoryFilter, setCategoryFilter] = useState('')
 
   const evalRows = rows.filter(r => r.evalVerdict !== null)
@@ -1969,7 +1969,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
 
   useEffect(() => { setPage(1); setExpanded(null) }, [verdictFilter, categoryFilter])
 
-  const VERDICT_PILLS: { key: Verdict; label: string; color: string; bg: string }[] = [
+  const VERDICT_PILLS: { key: Verdict | 'NONE'; label: string; color: string; bg: string }[] = [
     { key: 'CORRECTION',  label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
     { key: 'ENHANCEMENT', label: 'Enhancements', color: '#c05621', bg: 'rgba(192,86,33,0.08)' },
     { key: 'PREFERENCE',  label: 'Preferences',  color: '#0369a1', bg: 'rgba(3,105,161,0.08)' },
