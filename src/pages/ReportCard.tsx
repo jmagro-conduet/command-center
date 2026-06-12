@@ -77,6 +77,14 @@ function rangeDays(r: TimeRange) {
   return r === 'last7' ? 7 : r === 'last14' ? 14 : r === 'last30' ? 30 : 0
 }
 
+// Returns an ISO date string covering 2× the range so the prior period is included.
+function sinceDate(range: TimeRange): string | null {
+  if (range === 'allTime') return null
+  const d = new Date()
+  d.setDate(d.getDate() - rangeDays(range) * 2)
+  return d.toISOString()
+}
+
 function rowDate(r: EvalRow): Date {
   return new Date(r.loggedAt ?? r.createdAt)
 }
@@ -224,8 +232,7 @@ function TrendPip({ curr, prev, isPositiveGood = true, fmt }: {
   )
 }
 
-async function fetchTicketCompleteness(operatorId: string | null): Promise<TicketRow[]> {
-  // Fetch all tickets with zd_message_count populated
+async function fetchTicketCompleteness(operatorId: string | null, since: string | null): Promise<TicketRow[]> {
   const PAGE = 1000
   const allTickets: any[] = []
   let from = 0
@@ -237,6 +244,7 @@ async function fetchTicketCompleteness(operatorId: string | null): Promise<Ticke
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
+    if (since)      q = q.gte('created_at', since)
     const { data, error } = await q
     if (error || !data || data.length === 0) break
     allTickets.push(...data)
@@ -244,19 +252,13 @@ async function fetchTicketCompleteness(operatorId: string | null): Promise<Ticke
     from += PAGE
   }
 
-  // For each ticket, count its issue rows
   if (allTickets.length === 0) return []
   const ids = allTickets.map((t: any) => t.id)
   const issueCounts = new Map<string, number>()
 
-  for (let i = 0; i < ids.length; i += 200) {
-    const chunk = ids.slice(i, i + 200)
-    const { data } = await supabase
-      .from('ticket_issues')
-      .select('ticket_id')
-      .in('ticket_id', chunk)
-    data?.forEach((r: any) => issueCounts.set(r.ticket_id, (issueCounts.get(r.ticket_id) ?? 0) + 1))
-  }
+  // Single RPC call replaces the N/200 serial chunk loop
+  const { data: counts } = await supabase.rpc('get_ticket_issue_counts', { p_ticket_ids: ids })
+  counts?.forEach((r: any) => issueCounts.set(r.ticket_id, Number(r.cnt)))
 
   return allTickets.map((t: any) => ({
     id:                    t.id,
@@ -274,7 +276,7 @@ async function fetchTicketCompleteness(operatorId: string | null): Promise<Ticke
   }))
 }
 
-async function fetchAllEvals(operatorId: string | null): Promise<EvalRow[]> {
+async function fetchAllEvals(operatorId: string | null, since: string | null): Promise<EvalRow[]> {
   const PAGE = 1000
   const all: any[] = []
   let from = 0
@@ -286,6 +288,7 @@ async function fetchAllEvals(operatorId: string | null): Promise<EvalRow[]> {
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
+    if (since)      q = q.gte('created_at', since)
     const { data, error } = await q
     if (error || !data || data.length === 0) break
     all.push(...data)
@@ -297,7 +300,7 @@ async function fetchAllEvals(operatorId: string | null): Promise<EvalRow[]> {
 
 // Fetches all issues that have been scored by eval-accuracy or eval-quality,
 // regardless of whether eval_verdict (edit eval) has been run.
-async function fetchAllScoredIssues(operatorId: string | null): Promise<EvalRow[]> {
+async function fetchAllScoredIssues(operatorId: string | null, since: string | null): Promise<EvalRow[]> {
   const PAGE = 1000
   const all: any[] = []
   let from = 0
@@ -309,6 +312,7 @@ async function fetchAllScoredIssues(operatorId: string | null): Promise<EvalRow[
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
+    if (since)      q = q.gte('created_at', since)
     const { data, error } = await q
     if (error || !data || data.length === 0) break
     all.push(...data)
@@ -2649,14 +2653,20 @@ export default function ReportCard() {
   }
 
   useEffect(() => {
-    const opId = operator?.id ?? null
-    Promise.all([fetchAllEvals(opId), fetchTicketCompleteness(opId), fetchAllScoredIssues(opId)]).then(([evals, tickets, scored]) => {
+    const opId  = operator?.id ?? null
+    const since = sinceDate(range)
+    setLoading(true)
+    Promise.all([
+      fetchAllEvals(opId, since),
+      fetchTicketCompleteness(opId, since),
+      fetchAllScoredIssues(opId, since),
+    ]).then(([evals, tickets, scored]) => {
       setAllRows(evals)
       setTicketRows(tickets)
       setAllScoredRows(scored)
       setLoading(false)
     })
-  }, [operator?.id])
+  }, [operator?.id, range])
 
   const rows        = useMemo(() => filterByRange(allRows, range), [allRows, range])
   const scoredRows  = useMemo(() => filterByRange(allScoredRows, range), [allScoredRows, range])
