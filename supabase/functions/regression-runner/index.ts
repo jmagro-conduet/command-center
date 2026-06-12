@@ -18,6 +18,10 @@ import {
   buildConversationThread,
   parseAccuracyOutput,
 } from '../_shared/eval-accuracy-prompt.ts'
+import {
+  QUALITY_SYSTEM,
+  parseQualityOutput,
+} from '../_shared/eval-quality-prompt.ts'
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -191,6 +195,57 @@ async function runAccuracyCase(c: GoldCase): Promise<RunResult> {
   return { case_id: c.id, eval_type: 'accuracy', expected, got, passed: got === expected, reasoning }
 }
 
+// ── Quality eval ─────────────────────────────────────────────────────────────
+// expected_verdict is 'HIGH' (score >= 4.0) or 'LOW' (score < 3.5)
+
+async function runQualityCase(c: GoldCase): Promise<RunResult> {
+  const expected    = (c.expected_verdict ?? '').toUpperCase()
+  const playerInput = c.player_input ?? ''
+  const suggested   = c.suggested_response ?? ''
+
+  let thread = c.conversation_thread ?? ''
+  if (!thread && c.ticket_issue_id) {
+    thread = await fetchConversationThread(c.ticket_issue_id, playerInput)
+  }
+  if (!thread) thread = `Player: "${playerInput}"`
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:  'POST',
+    headers: {
+      'x-api-key':         ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type':      'application/json',
+    },
+    body: JSON.stringify({
+      model:      'claude-haiku-4-5',
+      max_tokens: 450,
+      system:     QUALITY_SYSTEM,
+      messages: [{
+        role:    'user',
+        content: `Conversation thread:\n${thread}\n\ngameLM suggested response:\n"${suggested}"`,
+      }],
+    }),
+  })
+
+  let score: number | null = null
+  let reasoning = ''
+  if (res.ok) {
+    const data   = await res.json()
+    const raw    = data.content?.[0]?.type === 'text' ? data.content[0].text.trim() : ''
+    const result = parseQualityOutput(raw)
+    score        = result.score
+    reasoning    = result.flagReason ?? (score !== null ? `Score: ${score}` : 'Parse error')
+  }
+
+  const got    = score !== null ? score.toFixed(2) : 'ERROR'
+  const passed = score !== null && (
+    expected === 'HIGH' ? score >= 4.0 :
+    expected === 'LOW'  ? score <  3.5 : false
+  )
+
+  return { case_id: c.id, eval_type: 'quality', expected, got, passed, reasoning }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -222,8 +277,10 @@ Deno.serve(async (req: Request) => {
           result = await runEditCase(client, c)
         } else if (c.eval_type === 'accuracy') {
           result = await runAccuracyCase(c)
+        } else if (c.eval_type === 'quality') {
+          result = await runQualityCase(c)
         } else {
-          continue // quality not yet implemented
+          continue
         }
         results.push(result)
       } catch {

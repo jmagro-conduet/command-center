@@ -579,6 +579,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             ) : (() => {
               const editCases     = goldCases.filter(c => c.eval_type === 'edit')
               const accuracyCases = goldCases.filter(c => c.eval_type === 'accuracy')
+              const qualityCases  = goldCases.filter(c => c.eval_type === 'quality')
               const editByVerdict: Record<string, number> = {}
               editCases.forEach(c => {
                 const k = c.expected_verdict ?? 'Unknown'
@@ -589,6 +590,23 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                 const k = c.expected_error_class ?? 'Unknown'
                 accByClass[k] = (accByClass[k] ?? 0) + 1
               })
+              const qualByTier: Record<string, number> = {}
+              qualityCases.forEach(c => {
+                const k = c.expected_verdict ?? 'Unknown'
+                qualByTier[k] = (qualByTier[k] ?? 0) + 1
+              })
+              const countChip = (count: number, label: string) => (
+                <div key={label} style={{
+                  padding: '8px 14px', borderRadius: 10,
+                  background: count > 0 ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
+                  border: `1.5px solid ${count > 0 ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
+                }}>
+                  <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: count > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)' }}>
+                    {count}
+                  </div>
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 1 }}>{label}</div>
+                </div>
+              )
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {/* Edit eval */}
@@ -597,18 +615,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                       Edit Eval — {editCases.length} cases
                     </p>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {(['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE'] as const).map(v => (
-                        <div key={v} style={{
-                          padding: '8px 14px', borderRadius: 10,
-                          background: (editByVerdict[v] ?? 0) > 0 ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
-                          border: `1.5px solid ${(editByVerdict[v] ?? 0) > 0 ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
-                        }}>
-                          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: (editByVerdict[v] ?? 0) > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)' }}>
-                            {editByVerdict[v] ?? 0}
-                          </div>
-                          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 1 }}>{v}</div>
-                        </div>
-                      ))}
+                      {(['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE'] as const).map(v => countChip(editByVerdict[v] ?? 0, v))}
                     </div>
                   </div>
                   {/* Accuracy eval */}
@@ -617,19 +624,20 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                       Accuracy Eval — {accuracyCases.length} cases
                     </p>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {(['P1A', 'P1B', 'P2', 'NONE'] as const).map(v => (
-                        <div key={v} style={{
-                          padding: '8px 14px', borderRadius: 10,
-                          background: (accByClass[v] ?? 0) > 0 ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
-                          border: `1.5px solid ${(accByClass[v] ?? 0) > 0 ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
-                        }}>
-                          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: (accByClass[v] ?? 0) > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)' }}>
-                            {accByClass[v] ?? 0}
-                          </div>
-                          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 1 }}>{v}</div>
-                        </div>
-                      ))}
+                      {(['P1A', 'P1B', 'P2', 'NONE'] as const).map(v => countChip(accByClass[v] ?? 0, v))}
                     </div>
+                  </div>
+                  {/* Quality eval */}
+                  <div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', marginBottom: 8 }}>
+                      Quality Eval — {qualityCases.length} cases
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {(['HIGH', 'LOW'] as const).map(v => countChip(qualByTier[v] ?? 0, v))}
+                    </div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 6 }}>
+                      HIGH = expect score ≥ 4.0 &nbsp;·&nbsp; LOW = expect score &lt; 3.5
+                    </p>
                   </div>
                   {goldCases.length === 0 && (
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
