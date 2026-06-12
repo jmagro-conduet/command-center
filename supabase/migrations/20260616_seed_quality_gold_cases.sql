@@ -6,11 +6,17 @@
 
 DO $$
 DECLARE
-  v_id uuid;
+  v_id  uuid;
+  v_inp text;
+  v_sug text;
 BEGIN
 
+-- ── Helper macro: look up the most substantive issue from a ticket ────────────
+-- Picks longest customer_input to avoid "talk to an agent" openers.
+
 -- ── HIGH 1 — Ticket 532824 ───────────────────────────────────────────────────
-  SELECT ti.id INTO v_id
+  SELECT ti.id, ti.customer_input, ti.suggested_response
+  INTO v_id, v_inp, v_sug
   FROM ticket_issues ti JOIN tickets t ON t.id = ti.ticket_id
   WHERE t.ticket_number = '532824'
     AND ti.customer_input IS NOT NULL
@@ -21,9 +27,10 @@ BEGIN
 
   IF v_id IS NOT NULL THEN
     INSERT INTO public.eval_gold_cases (
-      eval_type, ticket_issue_id, expected_verdict, notes, is_active
+      eval_type, ticket_issue_id, expected_verdict,
+      player_input, suggested_response, notes, is_active
     ) VALUES (
-      'quality', v_id, 'HIGH',
+      'quality', v_id, 'HIGH', v_inp, v_sug,
       'NONE case from Verdict × Category Matrix — no edit needed. Expected quality score >= 4.0.',
       true
     ) ON CONFLICT (ticket_issue_id, eval_type) DO NOTHING;
@@ -31,7 +38,8 @@ BEGIN
 
 
 -- ── HIGH 2 — Ticket 534630 ───────────────────────────────────────────────────
-  SELECT ti.id INTO v_id
+  SELECT ti.id, ti.customer_input, ti.suggested_response
+  INTO v_id, v_inp, v_sug
   FROM ticket_issues ti JOIN tickets t ON t.id = ti.ticket_id
   WHERE t.ticket_number = '534630'
     AND ti.customer_input IS NOT NULL
@@ -42,9 +50,10 @@ BEGIN
 
   IF v_id IS NOT NULL THEN
     INSERT INTO public.eval_gold_cases (
-      eval_type, ticket_issue_id, expected_verdict, notes, is_active
+      eval_type, ticket_issue_id, expected_verdict,
+      player_input, suggested_response, notes, is_active
     ) VALUES (
-      'quality', v_id, 'HIGH',
+      'quality', v_id, 'HIGH', v_inp, v_sug,
       'NONE case from Verdict × Category Matrix — no edit needed. Expected quality score >= 4.0.',
       true
     ) ON CONFLICT (ticket_issue_id, eval_type) DO NOTHING;
@@ -52,7 +61,8 @@ BEGIN
 
 
 -- ── HIGH 3 — Ticket 534552 ───────────────────────────────────────────────────
-  SELECT ti.id INTO v_id
+  SELECT ti.id, ti.customer_input, ti.suggested_response
+  INTO v_id, v_inp, v_sug
   FROM ticket_issues ti JOIN tickets t ON t.id = ti.ticket_id
   WHERE t.ticket_number = '534552'
     AND ti.customer_input IS NOT NULL
@@ -63,9 +73,10 @@ BEGIN
 
   IF v_id IS NOT NULL THEN
     INSERT INTO public.eval_gold_cases (
-      eval_type, ticket_issue_id, expected_verdict, notes, is_active
+      eval_type, ticket_issue_id, expected_verdict,
+      player_input, suggested_response, notes, is_active
     ) VALUES (
-      'quality', v_id, 'HIGH',
+      'quality', v_id, 'HIGH', v_inp, v_sug,
       'NONE case from Verdict × Category Matrix — no edit needed. Expected quality score >= 4.0.',
       true
     ) ON CONFLICT (ticket_issue_id, eval_type) DO NOTHING;
@@ -73,7 +84,8 @@ BEGIN
 
 
 -- ── HIGH 4 — Ticket 535180 ───────────────────────────────────────────────────
-  SELECT ti.id INTO v_id
+  SELECT ti.id, ti.customer_input, ti.suggested_response
+  INTO v_id, v_inp, v_sug
   FROM ticket_issues ti JOIN tickets t ON t.id = ti.ticket_id
   WHERE t.ticket_number = '535180'
     AND ti.customer_input IS NOT NULL
@@ -84,9 +96,10 @@ BEGIN
 
   IF v_id IS NOT NULL THEN
     INSERT INTO public.eval_gold_cases (
-      eval_type, ticket_issue_id, expected_verdict, notes, is_active
+      eval_type, ticket_issue_id, expected_verdict,
+      player_input, suggested_response, notes, is_active
     ) VALUES (
-      'quality', v_id, 'HIGH',
+      'quality', v_id, 'HIGH', v_inp, v_sug,
       'NONE case from Verdict × Category Matrix — no edit needed. Expected quality score >= 4.0.',
       true
     ) ON CONFLICT (ticket_issue_id, eval_type) DO NOTHING;
@@ -94,7 +107,8 @@ BEGIN
 
 
 -- ── HIGH 5 — Ticket 531371 ───────────────────────────────────────────────────
-  SELECT ti.id INTO v_id
+  SELECT ti.id, ti.customer_input, ti.suggested_response
+  INTO v_id, v_inp, v_sug
   FROM ticket_issues ti JOIN tickets t ON t.id = ti.ticket_id
   WHERE t.ticket_number = '531371'
     AND ti.customer_input IS NOT NULL
@@ -105,9 +119,10 @@ BEGIN
 
   IF v_id IS NOT NULL THEN
     INSERT INTO public.eval_gold_cases (
-      eval_type, ticket_issue_id, expected_verdict, notes, is_active
+      eval_type, ticket_issue_id, expected_verdict,
+      player_input, suggested_response, notes, is_active
     ) VALUES (
-      'quality', v_id, 'HIGH',
+      'quality', v_id, 'HIGH', v_inp, v_sug,
       'NONE case from Verdict × Category Matrix — no edit needed. Expected quality score >= 4.0.',
       true
     ) ON CONFLICT (ticket_issue_id, eval_type) DO NOTHING;
