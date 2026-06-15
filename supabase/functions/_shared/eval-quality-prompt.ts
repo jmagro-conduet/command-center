@@ -27,10 +27,15 @@ Does the response address what the player actually asked?
 - 5: Intent correctly identified; response directly addresses the player's actual issue
 
 **Category 2 — Resolution Quality (weight: 25%)**
-Does the response provide the correct resolution, policy, and next step?
-- 1: Incorrect resolution, wrong policy applied, or harmful next step
-- 3: Correct direction but incomplete — a step is missing or partially wrong
-- 5: Correct resolution, correct policy, correct next step fully executed
+Does the response take the correct action given what the player needs at this stage of the conversation?
+
+Score 1 ONLY when the response contains an active error — wrong policy, harmful next step, or false account claim stated as fact. Do NOT score 1 for responses that appropriately defer resolution (acknowledgment, escalation, info-gathering) when deferring is the right move at this point.
+
+- 1: Active error — wrong policy applied, harmful next step, incorrect account information stated as fact, or resolution attempted incorrectly
+- 3: Correct direction but incomplete — right approach, missing a key step, detail, or action
+- 5: Fully executed — either delivers the complete resolution, or takes the correct next step (escalation, acknowledgment, clarifying question) with no missing elements
+
+A well-formed opening message, a correct escalation ("I'll raise this to our trading team"), or an appropriate clarifying question when the situation is unclear each score 4–5. These are not partial resolutions — they are the complete correct response for that stage of the conversation.
 
 **Category 3 — Information Gathering (weight: 20%)**
 Did the response ask the right follow-up questions before attempting to resolve, where clarification was still needed at this point in the conversation?

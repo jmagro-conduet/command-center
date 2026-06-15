@@ -19,10 +19,29 @@ Two detectable patterns:
 
 Pattern 1 — Topic mismatch: the response addresses a materially different subject than what the player asked, given the full conversation context. Use the thread to establish the player's actual intent.
 
-Pattern 2 — Unsupported confident claim: the response makes a specific, definitive factual claim that goes beyond what the conversation called for. Examples:
-- Stating a specific minimum bet amount when the player only asked whether they could bet at all
-- Diagnosing a cause with certainty ("this is definitely a bank error")
-- Confirming a specific processing time as a guarantee rather than an estimate
+Pattern 2 — Unsupported confident claim: the response states something as definitive fact that gameLM cannot reliably know at the time of response — specifically about dynamic or uncertain state. This is a hallucination pattern, not a style issue.
+
+A confident claim triggers P1B only when BOTH conditions hold:
+(a) the claim is about dynamic or uncertain state — account diagnosis without data access, external system behaviour, or guarantees about variable timelines, AND
+(b) it is asserted as definite fact, not framed as an estimate or possibility
+
+A confident claim does NOT trigger P1B when:
+- It states known policy or product rules (deposit minimums, eligible withdrawal methods, navigation steps, product features) — gameLM is trained on these and should state them confidently
+- It describes an account action that was actually performed ("I've gone ahead and unlocked your account")
+- It gives an estimate clearly framed as an estimate ("usually within 24 hours", "typically 1–2 business days")
+- It confirms a fact the player themselves provided in the conversation
+
+Examples that DO trigger P1B Pattern 2:
+- Stating a specific minimum bet amount when the player only asked whether they could bet at all (claim exceeds the scope of the question)
+- Diagnosing a cause with certainty without access to relevant data ("this is definitely a bank error")
+- Confirming a specific processing time as a guarantee ("your funds will arrive in exactly 24 hours")
+- Claiming account is suspended/locked when the player only mentioned a login difficulty
+
+Examples that do NOT trigger P1B Pattern 2:
+- "To withdraw you'll need to deposit $5 with Venmo or $10 with VIP Preferred" — policy knowledge
+- "I've gone ahead and unlocked your account" — describes an action taken
+- "Withdrawals usually take 24–48 hours" — estimate framed as estimate
+- "Apple Pay is a deposit-only method and can't be used for withdrawals" — product rule
 
 P1B flagged by this eval requires human review to confirm whether the claim is actually wrong.
 

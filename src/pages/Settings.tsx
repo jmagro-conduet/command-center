@@ -13,27 +13,64 @@ function toSlug(name: string): string {
 }
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
-function parseCSVLine(line: string): string[] {
-  const result: string[] = []
-  let cur = '', inQuote = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuote && line[i + 1] === '"') { cur += '"'; i++ }
-      else inQuote = !inQuote
-    } else if (ch === ',' && !inQuote) {
-      result.push(cur.trim()); cur = ''
-    } else {
+// Robust parser: handles quoted fields containing commas, escaped quotes ("")
+// and — critically for transcript exports — newlines INSIDE quoted cells.
+// (The old line-split parser shredded any cell that spanned multiple lines.)
+function parseCSV(text: string): string[][] {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1) // strip BOM
+  const rows: string[][] = []
+  let row: string[] = [], cur = '', inQuote = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inQuote) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i++ } else inQuote = false
+      } else cur += ch
+    } else if (ch === '"') {
+      inQuote = true
+    } else if (ch === ',') {
+      row.push(cur.trim()); cur = ''
+    } else if (ch === '\n') {
+      row.push(cur.trim()); rows.push(row); row = []; cur = ''
+    } else if (ch !== '\r') {
       cur += ch
     }
   }
-  result.push(cur.trim())
-  return result
+  if (cur !== '' || row.length > 0) { row.push(cur.trim()); rows.push(row) }
+  return rows.filter(r => r.some(c => c !== ''))
 }
 
-function parseCSV(text: string): string[][] {
-  const lines = text.split(/\r?\n/).filter(l => l.trim())
-  return lines.map(parseCSVLine)
+// ── Import format detection + Metabase mappers ────────────────────────────────
+type ImportFormat = 'bolt' | 'metabase'
+
+// Bolt export = positional 12-column agent-logged CSV.
+// Metabase / Copilot export = AI suggestion-quality CSV (issue-level), detected
+// by its distinctive headers.
+function detectFormat(header: string[]): ImportFormat {
+  const h = header.map(c => c.toLowerCase().trim())
+  if (h.includes('ticket id') && h.includes('outcome') && h.includes('chat history')) return 'metabase'
+  return 'bolt'
+}
+
+// Metabase Outcome → Command Center issue_type.
+function outcomeToIssueType(outcome: string): string {
+  switch (outcome.toLowerCase().trim()) {
+    case 'unedited':       return 'Perfect'       // suggestion sent verbatim (sim 100)
+    case 'answer kept':    return 'Partial edit'  // suggestion edited but kept as base
+    case 'answer changed': return 'Majority edit' // suggestion materially rewritten
+    case 'no-response':    return 'No response'   // gameLM produced no suggestion
+    default:               return outcome
+  }
+}
+
+// Pull the last player ([user]) line from a Copilot chat-history transcript,
+// skipping the opening JSON form-data line. Becomes the row's customer_input.
+function lastUserMessage(chat: string): string {
+  if (!chat) return ''
+  const segs = [...chat.matchAll(/\[user\]\s*([\s\S]*?)(?=\n?\[(?:user|bot|agent)\]|$)/g)]
+    .map(m => m[1].trim())
+    .filter(t => t && !t.startsWith('{'))
+  return segs.length ? segs[segs.length - 1] : ''
 }
 
 function parseTimestamp(ts: string): string | null {
@@ -58,6 +95,7 @@ interface CSVRow {
   timestamp: string; agentName: string; agentEmail: string; agentTeam: string
   ticketNumber: string; category: string; issueType: string
   customerInput: string; suggestedResponse: string; reasoning: string; finalEdits: string; notes: string
+  issueCategory?: string; charSimilarity?: number | null; source?: string
 }
 
 interface ImportPreview {
@@ -66,6 +104,7 @@ interface ImportPreview {
   newTickets: number
   existingTickets: number
   totalIssues: number
+  format: ImportFormat
 }
 
 interface BackfillCounts {
@@ -274,21 +313,56 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
       const text = await file.text()
       const rows = parseCSV(text)
       if (rows.length < 2) throw new Error('CSV appears empty or has no data rows')
-      // Skip header row
-      const dataRows: CSVRow[] = rows.slice(1).filter(r => r.length >= 6 && r[4]?.trim()).map(r => ({
-        timestamp:         r[0] ?? '',
-        agentName:         r[1] ?? '',
-        agentEmail:        r[2] ?? '',
-        agentTeam:         r[3] ?? '',
-        ticketNumber:      r[4] ?? '',
-        category:          r[5] ?? '',
-        issueType:         r[6] ?? '',
-        customerInput:     r[7] ?? '',
-        suggestedResponse: r[8] ?? '',
-        reasoning:         r[9] ?? '',
-        finalEdits:        r[10] ?? '',
-        notes:             r[11] ?? '',
-      }))
+      const header = rows[0]
+      const format = detectFormat(header)
+
+      let dataRows: CSVRow[]
+      if (format === 'metabase') {
+        // Map by header name (robust to column reordering).
+        const h = header.map(c => c.toLowerCase().trim())
+        const col = (name: string) => h.indexOf(name.toLowerCase())
+        const ci = {
+          cat:  col('category'),       tix:  col('ticket id'),
+          chat: col('chat history'),   sug:  col('suggested response'),
+          sent: col('sent response'),  sim:  col('character similarity (0-100)'),
+          out:  col('outcome'),        time: col('suggestion time'),
+        }
+        dataRows = rows.slice(1).filter(r => r[ci.tix]?.trim()).map(r => ({
+          timestamp:         r[ci.time] ?? '',
+          agentName: '', agentEmail: '', agentTeam: '',   // Metabase has no agent identity
+          ticketNumber:      r[ci.tix] ?? '',
+          category:          '',                           // ticket-level category n/a for Metabase
+          issueType:         outcomeToIssueType(r[ci.out] ?? ''),
+          customerInput:     lastUserMessage(r[ci.chat] ?? ''),
+          suggestedResponse: r[ci.sug] ?? '',
+          reasoning:         '',                           // Metabase has no agent stated reason
+          finalEdits:        r[ci.sent] ?? '',
+          notes:             '',
+          issueCategory:     r[ci.cat] ?? '',
+          charSimilarity:    r[ci.sim] ? parseInt(r[ci.sim], 10) : null,
+          source:            'metabase_import',
+        }))
+      } else {
+        // Bolt export — positional 12-column layout.
+        dataRows = rows.slice(1).filter(r => r.length >= 6 && r[4]?.trim()).map(r => ({
+          timestamp:         r[0] ?? '',
+          agentName:         r[1] ?? '',
+          agentEmail:        r[2] ?? '',
+          agentTeam:         r[3] ?? '',
+          ticketNumber:      r[4] ?? '',
+          category:          r[5] ?? '',
+          issueType:         r[6] ?? '',
+          customerInput:     r[7] ?? '',
+          suggestedResponse: r[8] ?? '',
+          reasoning:         r[9] ?? '',
+          finalEdits:        r[10] ?? '',
+          notes:             r[11] ?? '',
+          issueCategory:     '',
+          charSimilarity:    null,
+          source:            'bolt_import',
+        }))
+      }
+
       const uniqueNums = [...new Set(dataRows.map(r => r.ticketNumber))]
       // Check which already exist
       const { data: existing } = await supabase
@@ -300,6 +374,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
         newTickets: uniqueNums.filter(n => !existingSet.has(n)).length,
         existingTickets: uniqueNums.filter(n => existingSet.has(n)).length,
         totalIssues: dataRows.length,
+        format,
       })
       setImportStatus('ready')
     } catch (err: any) {
@@ -360,6 +435,9 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             suggested_response:  r.suggestedResponse,
             reasoning:           r.reasoning,
             final_edits:         r.finalEdits,
+            issue_category:      r.issueCategory || null,
+            char_similarity:     r.charSimilarity ?? null,
+            source:              r.source ?? 'bolt_import',
             logged_at:           ts,
             created_at:          ts,
           }
@@ -1288,7 +1366,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
           {/* Import Data */}
           <SectionCard
             title="Import Submission Data"
-            subtitle="Import historical gameLM feedback CSV. Existing tickets (by ticket number) are skipped automatically."
+            subtitle="Import a Bolt agent-feedback CSV or a Metabase/Copilot suggestion-quality CSV — the format is auto-detected. Existing tickets (by ticket number) are skipped automatically."
           >
             <input
               ref={fileRef}
@@ -1332,6 +1410,14 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
             {(importStatus === 'ready' || importStatus === 'importing') && importPreview && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+                  padding: '5px 12px', borderRadius: 100,
+                  background: 'rgba(155,89,208,0.08)', border: '1.5px solid rgba(155,89,208,0.25)',
+                  fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 500,
+                }}>
+                  Detected: {importPreview.format === 'metabase' ? 'Metabase / Copilot (suggestion-quality, issue-level)' : 'Bolt agent feedback (ticket-level)'}
+                </div>
                 <div style={{
                   display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
                 }}>

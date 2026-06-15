@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Local ops scripts that embed secrets (service-role key) — never commit
+backfill.ps1
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

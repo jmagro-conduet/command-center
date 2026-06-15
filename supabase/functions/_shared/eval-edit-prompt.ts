@@ -11,7 +11,10 @@ CORRECTION — the edit was necessary because gameLM made an error:
 - Repeated a verification request after the player was already verified
 
 ENHANCEMENT — the edit added genuine value but gameLM's original was not wrong:
-- Added escalation status the agent had taken ("raised to trading team")
+- Added escalation status the agent had taken ("raised to trading team") — but this
+  counts as ENHANCEMENT only when gameLM's original was incomplete OR the escalation
+  is a necessary next step. If gameLM had already fully and correctly resolved the
+  issue, an unnecessary added escalation is PREFERENCE, not ENHANCEMENT.
 - Added VIP or account-specific context gameLM doesn't have access to
 - Added relevant information that answered more than gameLM did
 - Replaced a generic closing appropriate to the actual conversation state
@@ -29,12 +32,31 @@ PREFERENCE — the edit was stylistic only and the original was fully send-worth
 - Personal communication voice with no substantive change
 
 IMPORTANT RULES:
-1. Weight the agent's stated reason heavily — it is more reliable than the edit diff.
-2. "Confirm your email" or "unable to verify your account" responses have a known high error rate. When agents replace these, default to CORRECTION unless the edit is clearly stylistic.
-3. Closing edits are NOT automatically PREFERENCE — if the conversation was unresolved or pending, a changed closing is CORRECTION.
-4. When ambiguous between CORRECTION and ENHANCEMENT, choose ENHANCEMENT.
-5. When ambiguous between ENHANCEMENT and PREFERENCE, choose ENHANCEMENT.
-6. Only score PREFERENCE when you are confident the original was fully send-worthy.
+1. Weight the agent's stated reason, but VALIDATE it against the full conversation.
+   The agent is usually right — but not always. If the stated reason is contradicted
+   by the thread (e.g. it claims the player was verified when they actually failed
+   verification, or calls gameLM "incorrect" when gameLM's limitation was legitimate),
+   the agent's edit may itself be the error and gameLM may have been correct. Do not
+   assume every edit was warranted just because the agent made it.
+2. "Confirm your email" / "unable to verify your account" responses have an elevated
+   error rate, so scrutinise them — but they are NOT always wrong. Only lean CORRECTION
+   when the conversation shows the player was genuinely already verified. If the player
+   failed verification or supplied incorrect/missing details, gameLM's "unable to
+   verify" is correct and an agent who overrides it has made the error — that is NOT a
+   CORRECTION of gameLM.
+3. When gameLM reports it cannot find a bet, transaction, or account detail and the
+   agent overrides that, consider that gameLM's inability to locate the data may be
+   legitimate (e.g. desktop vs app bet-ID formats add/drop a leading digit; data not
+   yet in the backend). Do not automatically treat "gameLM couldn't find it" as a
+   gameLM error.
+4. Closing edits are NOT automatically PREFERENCE — if the conversation was unresolved or pending, a changed closing is CORRECTION.
+5. When ambiguous between CORRECTION and ENHANCEMENT, choose ENHANCEMENT.
+6. When ambiguous between ENHANCEMENT and PREFERENCE, choose ENHANCEMENT.
+7. Only score PREFERENCE when you are confident the original was fully send-worthy.
+8. The three categories all assume the edit was at least reasonable. If you conclude
+   the agent's edit was UNWARRANTED because gameLM was actually correct, say so
+   explicitly in your reasoning and lower your confidence — do not output a confident
+   CORRECTION when gameLM did not actually err.
 
 Return ONLY valid JSON — no other text, no markdown, no explanation outside the JSON:
 {"verdict":"CORRECTION","confidence":85,"reasoning":"Brief explanation."}`

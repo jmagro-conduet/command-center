@@ -688,10 +688,12 @@ function ReviewActions({
   )
   const [showOverride, setShowOverride] = useState(row.reviewStatus === 'dismissed')
   const [saving,       setSaving]       = useState(false)
+  // App auth lives on authClient (AuthContext), not supabase.auth — so use the
+  // AuthContext user for reviewer attribution. supabase.auth.getUser() is null here.
+  const { user } = useAuth()
 
   async function saveConfirm() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('ticket_issues').update({
       review_status:          'confirmed',
       review_notes:           notes || null,
@@ -708,7 +710,6 @@ function ReviewActions({
 
   async function saveOverride() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('ticket_issues').update({
       review_status:          'dismissed',
       review_notes:           notes || null,
