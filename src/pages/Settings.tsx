@@ -326,10 +326,13 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
           chat: col('chat history'),   sug:  col('suggested response'),
           sent: col('sent response'),  sim:  col('character similarity (0-100)'),
           out:  col('outcome'),        time: col('suggestion time'),
+          cust: col('customer'),
         }
         dataRows = rows.slice(1).filter(r => r[ci.tix]?.trim()).map(r => ({
           timestamp:         r[ci.time] ?? '',
-          agentName: '', agentEmail: '', agentTeam: '',   // Metabase has no agent identity
+          // No agent identity in this export. agent_team carries the Customer/operator
+          // name so the DB trigger can derive operator_id (matches operators.name).
+          agentName: '', agentEmail: '', agentTeam: (r[ci.cust] ?? '').trim(),
           ticketNumber:      r[ci.tix] ?? '',
           category:          '',                           // ticket-level category n/a for Metabase
           issueType:         outcomeToIssueType(r[ci.out] ?? ''),
