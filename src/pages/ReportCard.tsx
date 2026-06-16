@@ -191,8 +191,23 @@ function VerdictBadge({ verdict, small }: { verdict: Verdict; small?: boolean })
   )
 }
 
-function ConfidencePip({ value }: { value: number }) {
+function ConfidencePip({ value, label }: { value: number; label?: string }) {
   const color = value >= 80 ? '#166534' : value >= 60 ? '#854d0e' : '#e53e3e'
+  // Labelled variant: a self-describing chip for places with no column header to
+  // explain what the % means (e.g. the edit-eval ticket detail rows).
+  if (label) {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        fontFamily: 'Inter, sans-serif', fontSize: 11,
+        padding: '2px 9px', borderRadius: 100,
+        background: 'rgba(0,0,0,0.04)', color: '#58595B', whiteSpace: 'nowrap',
+      }}>
+        {label}
+        <strong style={{ color, fontWeight: 600 }}>{value}%</strong>
+      </span>
+    )
+  }
   return (
     <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color, fontWeight: 500 }}>
       {value}%
@@ -2088,7 +2103,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                         {r.evalVerdict && <VerdictBadge verdict={r.evalVerdict} />}
                         <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.agentName}</span>
-                        <ConfidencePip value={r.evalConfidence} />
+                        <ConfidencePip value={r.evalConfidence} label="Verdict confidence" />
                         <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                           {r.evalRanAt ? new Date(r.evalRanAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : ''}
                         </span>
@@ -2704,7 +2719,7 @@ export default function ReportCard() {
   const [selected, setSelected]           = useState<string | null>(null)
   const [showWins, setShowWins]           = useState(false)
   const [topTab, setTopTab]               = useState<TopTab>('dashboard')
-  const [evalsViewMode, setEvalsViewMode] = useState<'agents' | 'tickets'>('agents')
+  const [evalsViewMode, setEvalsViewMode] = useState<'agents' | 'tickets'>('tickets')
   const [verdictModal, setVerdictModal]   = useState<Verdict | null>(null)
 
   // Update local state when a review action is saved
