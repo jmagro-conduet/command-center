@@ -1,3 +1,7 @@
+// Bump this on every change to EVAL_SYSTEM / FEW_SHOT. The Report Card surfaces
+// only the latest version per eval type, so a bump "starts fresh" without a wipe.
+export const EDIT_PROMPT_VERSION = 'v2026-06-16'
+
 export const EVAL_SYSTEM = `You are evaluating a customer service AI called gameLM. An agent reviewed gameLM's suggested response and made an edit before sending it to a player.
 
 Classify the edit into ONE of four categories:

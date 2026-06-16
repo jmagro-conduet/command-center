@@ -7,6 +7,7 @@
 import { corsHeaders } from '../_shared/cors.ts'
 import {
   ACCURACY_SYSTEM,
+  ACCURACY_PROMPT_VERSION,
   TicketIssue,
   AccuracyResult,
   buildConversationThread,
@@ -114,6 +115,7 @@ Deno.serve(async (req: Request) => {
           accuracy_reasoning:    result.reasoning,
           accuracy_human_review: result.humanReview,
           accuracy_ran_at:       new Date().toISOString(),
+          accuracy_prompt_version: ACCURACY_PROMPT_VERSION,
         }),
       })
 

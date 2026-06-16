@@ -1,6 +1,6 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
 import { corsHeaders } from '../_shared/cors.ts'
-import { EVAL_SYSTEM, FEW_SHOT, buildEditUserMessage } from '../_shared/eval-edit-prompt.ts'
+import { EVAL_SYSTEM, EDIT_PROMPT_VERSION, FEW_SHOT, buildEditUserMessage } from '../_shared/eval-edit-prompt.ts'
 
 const SUPABASE_URL           = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -46,6 +46,7 @@ async function writeVerdict(id: string, result: EvalResult): Promise<void> {
       eval_confidence: result.confidence,
       eval_reasoning:  result.reasoning,
       eval_ran_at:     new Date().toISOString(),
+      edit_prompt_version: EDIT_PROMPT_VERSION,
     }),
   })
 }

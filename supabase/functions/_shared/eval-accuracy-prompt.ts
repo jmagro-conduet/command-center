@@ -1,3 +1,7 @@
+// Bump this on every change to ACCURACY_SYSTEM. The Report Card surfaces only the
+// latest version per eval type, so a bump "starts fresh" without a wipe.
+export const ACCURACY_PROMPT_VERSION = 'v2026-06-16'
+
 export const ACCURACY_SYSTEM = `You are a quality assurance evaluator for gameLM, an AI-powered customer service platform for sports betting and iGaming operators. Your job is to review a gameLM suggested response and determine whether it contains a P1 or P2 error as defined below.
 
 You are provided with the full conversation thread leading up to this response, followed by the gameLM suggested response. Use the conversation history to understand the player's intent and context before evaluating.

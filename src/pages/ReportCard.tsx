@@ -50,6 +50,10 @@ interface EvalRow {
   reviewContext:        string | null
   reviewedBy:           string | null
   reviewedAt:           string | null
+  // Prompt version each eval was scored under (surface-latest filtering)
+  accuracyPromptVersion: string | null
+  qualityPromptVersion:  string | null
+  editPromptVersion:     string | null
 }
 
 interface TicketRow {
@@ -94,6 +98,20 @@ function filterByRange(rows: EvalRow[], range: TimeRange): EvalRow[] {
   if (range === 'allTime') return rows
   const c = new Date(); c.setDate(c.getDate() - rangeDays(range))
   return rows.filter(r => rowDate(r) >= c)
+}
+
+// Surface-latest: keep only rows scored under the newest prompt version for a
+// given eval type. Falls back to all rows if nothing is tagged yet (no blanking).
+function scopeToLatest(
+  rows: EvalRow[],
+  key: 'accuracyPromptVersion' | 'qualityPromptVersion' | 'editPromptVersion',
+  on: boolean,
+): EvalRow[] {
+  if (!on) return rows
+  let latest: string | null = null
+  for (const r of rows) { const v = r[key]; if (v && (latest === null || v > latest)) latest = v }
+  if (!latest) return rows
+  return rows.filter(r => r[key] === latest)
 }
 
 function pct(n: number, total: number) {
@@ -327,7 +345,7 @@ async function fetchAllEvals(operatorId: string | null, since: string | null): P
   while (true) {
     let q = supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at,accuracy_prompt_version,quality_prompt_version,edit_prompt_version,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .not('eval_verdict', 'is', null)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -351,7 +369,7 @@ async function fetchAllScoredIssues(operatorId: string | null, since: string | n
   while (true) {
     let q = supabase
       .from('ticket_issues')
-      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
+      .select('id,issue_type,eval_verdict,eval_confidence,eval_reasoning,eval_ran_at,customer_input,suggested_response,final_edits,reasoning,logged_at,created_at,accuracy_error_class,accuracy_evidence,accuracy_reasoning,accuracy_human_review,accuracy_ran_at,quality_intent,quality_resolution,quality_info_gathering,quality_clarity,quality_brand,quality_score,quality_flag,quality_flag_reason,quality_ran_at,theme_tag,theme_detail,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at,accuracy_prompt_version,quality_prompt_version,edit_prompt_version,tickets!inner(ticket_number,agent_name,agent_email,ticket_category,created_at)')
       .or('accuracy_ran_at.not.is.null,quality_ran_at.not.is.null')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -408,6 +426,9 @@ function mapEvalRow(r: any): EvalRow {
     reviewContext:        r.review_context          ?? null,
     reviewedBy:           r.reviewed_by             ?? null,
     reviewedAt:           r.reviewed_at             ?? null,
+    accuracyPromptVersion: r.accuracy_prompt_version ?? null,
+    qualityPromptVersion:  r.quality_prompt_version  ?? null,
+    editPromptVersion:     r.edit_prompt_version     ?? null,
   }
 }
 
@@ -2752,6 +2773,8 @@ export default function ReportCard() {
   const [topTab, setTopTab]               = useState<TopTab>('dashboard')
   const [evalsViewMode, setEvalsViewMode] = useState<'agents' | 'tickets'>('tickets')
   const [verdictModal, setVerdictModal]   = useState<Verdict | null>(null)
+  // Show only the newest prompt version per eval type (excludes legacy/stale scores)
+  const [latestOnly, setLatestOnly]       = useState(true)
 
   // Update local state when a review action is saved
   const handleReviewUpdate = (id: string, update: ReviewUpdate) => {
@@ -2785,8 +2808,12 @@ export default function ReportCard() {
     })
   }, [operator?.id, range])
 
-  const rows        = useMemo(() => filterByRange(allRows, range), [allRows, range])
+  const rows        = useMemo(() => scopeToLatest(filterByRange(allRows, range), 'editPromptVersion', latestOnly), [allRows, range, latestOnly])
   const scoredRows  = useMemo(() => filterByRange(allScoredRows, range), [allScoredRows, range])
+  // Accuracy and quality live in the same scoredRows set but tag independently,
+  // so scope each to its own latest version.
+  const accScopedRows  = useMemo(() => scopeToLatest(scoredRows, 'accuracyPromptVersion', latestOnly), [scoredRows, latestOnly])
+  const qualScopedRows = useMemo(() => scopeToLatest(scoredRows, 'qualityPromptVersion',  latestOnly), [scoredRows, latestOnly])
 
   // Per-agent summary
   const agentSummaries = useMemo(() => {
@@ -2830,8 +2857,8 @@ export default function ReportCard() {
     const days = rangeDays(range)
     const cutEnd   = new Date(); cutEnd.setDate(cutEnd.getDate() - days)
     const cutStart = new Date(); cutStart.setDate(cutStart.getDate() - days * 2)
-    return allRows.filter(r => { const d = rowDate(r); return d >= cutStart && d < cutEnd })
-  }, [allRows, range])
+    return scopeToLatest(allRows.filter(r => { const d = rowDate(r); return d >= cutStart && d < cutEnd }), 'editPromptVersion', latestOnly)
+  }, [allRows, range, latestOnly])
 
   // Prior window for scored rows (accuracy + quality tabs — separate dataset from allRows)
   const priorScoredRows = useMemo(() => {
@@ -2841,6 +2868,8 @@ export default function ReportCard() {
     const cutStart = new Date(); cutStart.setDate(cutStart.getDate() - days * 2)
     return allScoredRows.filter(r => { const d = rowDate(r); return d >= cutStart && d < cutEnd })
   }, [allScoredRows, range])
+  const priorAccScoped  = useMemo(() => scopeToLatest(priorScoredRows, 'accuracyPromptVersion', latestOnly), [priorScoredRows, latestOnly])
+  const priorQualScoped = useMemo(() => scopeToLatest(priorScoredRows, 'qualityPromptVersion',  latestOnly), [priorScoredRows, latestOnly])
 
   const priorTickets = useMemo(() => {
     if (range === 'allTime') return []
@@ -2996,7 +3025,24 @@ export default function ReportCard() {
             AI evaluation of agent performance{operator?.name ? ` · ${operator.name}` : ''} — click an agent to drill down
           </p>
         </div>
-        <TimeRangeFilter value={range} onChange={setRange} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setLatestOnly(v => !v)}
+            title="Show only evals scored under the current prompt version. Turn off to include legacy/older-version scores."
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+              padding: '6px 12px', borderRadius: 100, cursor: 'pointer',
+              border: `1.5px solid ${latestOnly ? 'rgba(155,89,208,0.4)' : 'rgba(0,0,0,0.12)'}`,
+              background: latestOnly ? 'rgba(155,89,208,0.08)' : '#fff',
+              color: latestOnly ? '#9B59D0' : '#58595B', transition: 'all 0.15s',
+            }}
+          >
+            <span style={{ width: 7, height: 7, borderRadius: 100, background: latestOnly ? '#9B59D0' : 'rgba(0,0,0,0.25)' }} />
+            {latestOnly ? 'Latest evals only' : 'All versions'}
+          </button>
+          <TimeRangeFilter value={range} onChange={setRange} />
+        </div>
       </div>
 
       {/* Top-level tab switcher */}
@@ -3023,7 +3069,7 @@ export default function ReportCard() {
       {/* ── Dashboard tab ── */}
       {topTab === 'dashboard' && (() => {
         // Accuracy metrics from scoredRows
-        const accWithEval   = scoredRows.filter(r => r.accuracyRanAt !== null)
+        const accWithEval   = accScopedRows.filter(r => r.accuracyRanAt !== null)
         const accTotal      = accWithEval.length
         const accP1a        = accWithEval.filter(r => r.accuracyErrorClass === 'P1A').length
         const accP1b        = accWithEval.filter(r => r.accuracyErrorClass === 'P1B').length
@@ -3032,7 +3078,7 @@ export default function ReportCard() {
         const accRatioDenom = accErrorRate > 0 ? Math.round(100 / accErrorRate) : null
 
         // Prior accuracy
-        const priorAccWithEval  = priorScoredRows.filter(r => r.accuracyRanAt !== null)
+        const priorAccWithEval  = priorAccScoped.filter(r => r.accuracyRanAt !== null)
         const priorAccTotal     = priorAccWithEval.length || null
         const priorAccP1a       = priorAccWithEval.length ? priorAccWithEval.filter(r => r.accuracyErrorClass === 'P1A').length : null
         const priorAccP1b       = priorAccWithEval.length ? priorAccWithEval.filter(r => r.accuracyErrorClass === 'P1B').length : null
@@ -3042,14 +3088,14 @@ export default function ReportCard() {
           : null
 
         // Quality metrics from scoredRows
-        const qualWithEval  = scoredRows.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
+        const qualWithEval  = qualScopedRows.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
         const qualTotal     = qualWithEval.length
         const qualAvgScore  = qualTotal ? avgOf(qualWithEval, 'qualityScore') : null
         const qualAboveBar  = qualWithEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length
         const qualAbovePct  = qualTotal ? pct(qualAboveBar, qualTotal) : null
 
         // Prior quality
-        const priorQualWithEval = priorScoredRows.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
+        const priorQualWithEval = priorQualScoped.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
         const priorQualAvgScore = priorQualWithEval.length ? avgOf(priorQualWithEval, 'qualityScore') : null
         const priorQualAbovePct = priorQualWithEval.length ? pct(priorQualWithEval.filter(r => (r.qualityScore ?? 0) >= 3.5).length, priorQualWithEval.length) : null
 
@@ -3184,10 +3230,10 @@ export default function ReportCard() {
       })()}
 
       {/* ── Response Accuracy tab ── */}
-      {topTab === 'accuracy' && <ResponseAccuracyView rows={scoredRows} priorRows={range !== 'allTime' ? priorScoredRows : undefined} onReviewUpdate={handleReviewUpdate} />}
+      {topTab === 'accuracy' && <ResponseAccuracyView rows={accScopedRows} priorRows={range !== 'allTime' ? priorAccScoped : undefined} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Response Quality tab ── */}
-      {topTab === 'quality' && <ResponseQualityView rows={scoredRows} priorRows={range !== 'allTime' ? priorScoredRows : undefined} onReviewUpdate={handleReviewUpdate} />}
+      {topTab === 'quality' && <ResponseQualityView rows={qualScopedRows} priorRows={range !== 'allTime' ? priorQualScoped : undefined} onReviewUpdate={handleReviewUpdate} />}
 
       {/* ── Edit Evaluations tab ── */}
       {topTab === 'evals' && <>

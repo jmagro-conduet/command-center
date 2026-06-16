@@ -5,7 +5,7 @@
 //
 // POST body: { ids: string[] }
 
-import { QUALITY_SYSTEM, QualityResult, parseQualityOutput } from '../_shared/eval-quality-prompt.ts'
+import { QUALITY_SYSTEM, QUALITY_PROMPT_VERSION, QualityResult, parseQualityOutput } from '../_shared/eval-quality-prompt.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -141,6 +141,7 @@ Deno.serve(async (req: Request) => {
           theme_tag:              result.themeTag,
           theme_detail:           result.themeDetail,
           quality_ran_at:         new Date().toISOString(),
+          quality_prompt_version: QUALITY_PROMPT_VERSION,
         }),
       })
 

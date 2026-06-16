@@ -1,5 +1,9 @@
 // Shared quality eval prompt — imported by eval-quality and regression-runner.
 
+// Bump this on every change to QUALITY_SYSTEM. The Report Card surfaces only the
+// latest version per eval type, so a bump "starts fresh" without a wipe.
+export const QUALITY_PROMPT_VERSION = 'v2026-06-16'
+
 export const QUALITY_SYSTEM = `You are a quality assurance evaluator for gameLM, an AI-powered customer service platform for sports betting and iGaming operators. Your job is to score a gameLM suggested response across five quality categories using the rubric below.
 
 You are scoring the suggested response only — not any edited version submitted by a human agent.
