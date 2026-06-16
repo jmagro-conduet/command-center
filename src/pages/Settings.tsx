@@ -161,6 +161,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [importPreview,   setImportPreview]   = useState<ImportPreview | null>(null)
   const [importStatus,    setImportStatus]    = useState<'idle' | 'parsing' | 'ready' | 'importing' | 'done' | 'error'>('idle')
+  const [health,          setHealth]          = useState<{ usersNoOp: number; issuesNoOp: number } | null>(null)
   const [importLog,       setImportLog]       = useState<string[]>([])
   const [importError,     setImportError]     = useState('')
   const [repairMode,      setRepairMode]      = useState(false)
@@ -252,6 +253,19 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   }
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
+
+  // Data-health: surface operator-attribution gaps loudly (these silently drop rows
+  // from operator-scoped views like the leaderboard/analytics).
+  useEffect(() => {
+    if (!isAdmin) return
+    ;(async () => {
+      const u = await supabase.from('users').select('id', { count: 'exact', head: true })
+        .is('operator_id', null).not('operator_team', 'is', null)
+      const ti = await supabase.from('ticket_issues').select('id', { count: 'exact', head: true })
+        .is('operator_id', null)
+      setHealth({ usersNoOp: u.count ?? 0, issuesNoOp: ti.count ?? 0 })
+    })()
+  }, [isAdmin])
 
   async function loadTeams() {
     setTeamsLoading(true)
@@ -1023,6 +1037,36 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
       {/* ── Admin-only ──────────────────────────────────────────────────────── */}
       {isAdmin && (
         <>
+          {/* Data Health — operator attribution coverage */}
+          <SectionCard
+            title="Data Health"
+            subtitle="Operator-attribution coverage. Gaps here silently hide agents/teams from the leaderboard and analytics."
+          >
+            {health === null ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Checking…</p>
+            ) : (health.usersNoOp === 0 && health.issuesNoOp === 0) ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
+                ✓ All users and logged submissions have an operator assigned.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', borderRadius: 10, background: 'rgba(229,62,62,0.06)', border: '1.5px solid rgba(229,62,62,0.25)' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', fontWeight: 600 }}>
+                  ⚠ Operator attribution gaps detected — these rows are hidden from operator-scoped views:
+                </p>
+                {health.usersNoOp > 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                    • <strong>{health.usersNoOp}</strong> user(s) have a team but no operator — set their operator in the Users tab.
+                  </p>
+                )}
+                {health.issuesNoOp > 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                    • <strong>{health.issuesNoOp}</strong> logged issue(s) have no operator — confirm every team value matches an Operator name.
+                  </p>
+                )}
+              </div>
+            )}
+          </SectionCard>
+
           {/* Operators */}
           <SectionCard
             title="Operators"

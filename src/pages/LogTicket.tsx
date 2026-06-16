@@ -185,7 +185,9 @@ export default function LogTicket() {
         agent_email:            user?.email ?? '',
         agent_team:             user?.operatorTeam ?? null,
         notes:                  active.notes.trim(),
-        operator_id:            selectedOperator?.id ?? null,
+        // Fall back to the user's own operator if no operator is actively selected.
+        // (DB trigger is the final backstop, deriving from agent_team.)
+        operator_id:            selectedOperator?.id ?? user?.operatorId ?? null,
       })
       .select('id')
       .single()
@@ -206,7 +208,7 @@ export default function LogTicket() {
         reasoning:          r.reasoning || null,
         final_edits:        r.finalEdits || null,
         logged_at:          r.loggedAt,
-        operator_id:        selectedOperator?.id ?? null,
+        operator_id:        selectedOperator?.id ?? user?.operatorId ?? null,
       }
     })
 
