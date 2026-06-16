@@ -22,7 +22,7 @@ interface IssueRow {
 }
 
 interface EvalResult {
-  verdict:    'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE'
+  verdict:    'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE' | 'AGENT_ERROR'
   confidence: number
   reasoning:  string
 }
@@ -68,7 +68,7 @@ async function evalRow(client: Anthropic, row: IssueRow): Promise<EvalResult> {
   const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
   try {
     const parsed = JSON.parse(text)
-    if (!['CORRECTION', 'ENHANCEMENT', 'PREFERENCE'].includes(parsed.verdict)) {
+    if (!['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'AGENT_ERROR'].includes(parsed.verdict)) {
       throw new Error(`Unexpected verdict: ${parsed.verdict}`)
     }
     return {
@@ -78,7 +78,8 @@ async function evalRow(client: Anthropic, row: IssueRow): Promise<EvalResult> {
     }
   } catch {
     // Fallback: extract verdict from text if JSON parse fails
-    const v = text.includes('CORRECTION') ? 'CORRECTION'
+    const v = text.includes('AGENT_ERROR') ? 'AGENT_ERROR'
+            : text.includes('CORRECTION')  ? 'CORRECTION'
             : text.includes('ENHANCEMENT') ? 'ENHANCEMENT'
             : 'PREFERENCE'
     return { verdict: v as EvalResult['verdict'], confidence: 50, reasoning: 'Parse error — verdict inferred from text.' }

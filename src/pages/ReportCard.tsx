@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
 
 type TimeRange    = 'last7' | 'last14' | 'last30' | 'allTime'
-type Verdict      = 'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE'
+type Verdict      = 'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE' | 'AGENT_ERROR'
 type TopTab       = 'dashboard' | 'evals' | 'accuracy' | 'quality'
 type AccuracyClass = 'P1A' | 'P1B' | 'P2' | 'NONE'
 
@@ -68,9 +68,10 @@ interface TicketRow {
 }
 
 const VERDICT_CONFIG: Record<Verdict, { label: string; color: string; bg: string; desc: string }> = {
-  CORRECTION:  { label: 'Correction',  color: '#e53e3e', bg: 'rgba(229,62,62,0.09)',    desc: 'gameLM made an error — agent fix was necessary' },
-  ENHANCEMENT: { label: 'Enhancement', color: '#854d0e', bg: 'rgba(234,179,8,0.12)',    desc: 'gameLM was acceptable — agent added genuine value' },
-  PREFERENCE:  { label: 'Preference',  color: '#58595B', bg: 'rgba(0,0,0,0.06)',        desc: 'Stylistic edit — original was fully send-worthy' },
+  CORRECTION:  { label: 'Correction',  color: '#e53e3e', bg: 'rgba(229,62,62,0.09)',    desc: 'gameLM made an error — the agent fix was necessary.' },
+  ENHANCEMENT: { label: 'Enhancement', color: '#854d0e', bg: 'rgba(234,179,8,0.12)',    desc: 'gameLM was acceptable — the agent added genuine value (e.g. escalation status or account context).' },
+  PREFERENCE:  { label: 'Preference',  color: '#58595B', bg: 'rgba(0,0,0,0.06)',        desc: 'Stylistic only — gameLM was fully send-worthy and the agent just reworded it.' },
+  AGENT_ERROR: { label: 'Agent Error', color: '#9B59D0', bg: 'rgba(155,89,208,0.12)',   desc: 'gameLM was correct — the agent thought they were fixing it but the edit introduced an error. Excluded from training targets.' },
 }
 
 function rangeDays(r: TimeRange) {
@@ -211,6 +212,34 @@ function ConfidencePip({ value, label }: { value: number; label?: string }) {
   return (
     <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color, fontWeight: 500 }}>
       {value}%
+    </span>
+  )
+}
+
+// Small hoverable info icon with a tooltip — used to explain verdict KPI cards.
+function InfoTip({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', marginLeft: 5, cursor: 'help', verticalAlign: 'middle' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 13, height: 13, borderRadius: 100, fontSize: 9, fontWeight: 700,
+        background: 'rgba(0,0,0,0.18)', color: '#fff', fontFamily: 'Inter, sans-serif',
+        fontStyle: 'italic', lineHeight: 1,
+      }}>i</span>
+      {show && (
+        <span style={{
+          position: 'absolute', bottom: 'calc(100% + 7px)', left: '50%', transform: 'translateX(-50%)',
+          width: 210, padding: '9px 11px', borderRadius: 8, zIndex: 30,
+          background: '#000', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 11,
+          fontWeight: 400, lineHeight: 1.45, textTransform: 'none', letterSpacing: 0,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.22)', textAlign: 'left', pointerEvents: 'none', whiteSpace: 'normal',
+        }}>{text}</span>
+      )}
     </span>
   )
 }
@@ -863,6 +892,7 @@ const VERDICT_META: Record<Verdict, { label: string; color: string; bg: string; 
   CORRECTION:   { label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.06)',    desc: 'Cases where the agent identified an error in the gameLM response' },
   ENHANCEMENT:  { label: 'Enhancements', color: '#854d0e', bg: 'rgba(133,77,14,0.06)',    desc: 'Cases where the agent meaningfully improved or expanded the response' },
   PREFERENCE:   { label: 'Preferences',  color: '#58595B', bg: 'rgba(88,89,91,0.06)',     desc: 'Stylistic changes — the original response was also acceptable' },
+  AGENT_ERROR:  { label: 'Agent Errors', color: '#9B59D0', bg: 'rgba(155,89,208,0.07)',   desc: 'Cases where gameLM was correct but the agent edit introduced an error' },
 }
 
 function VerdictThemeModal({ verdict, rows, onClose }: {
@@ -2030,6 +2060,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
     { key: 'CORRECTION',  label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
     { key: 'ENHANCEMENT', label: 'Enhancements', color: '#c05621', bg: 'rgba(192,86,33,0.08)' },
     { key: 'PREFERENCE',  label: 'Preferences',  color: '#0369a1', bg: 'rgba(3,105,161,0.08)' },
+    { key: 'AGENT_ERROR', label: 'Agent Errors', color: '#9B59D0', bg: 'rgba(155,89,208,0.10)' },
     { key: 'NONE',        label: 'None',          color: '#166534', bg: 'rgba(22,101,52,0.08)' },
   ]
 
@@ -2121,7 +2152,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                           </div>
                         ))}
                       </div>
-                      <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm" dismissLabel="Dismiss" verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE']} />
+                      <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm" dismissLabel="Dismiss" verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'AGENT_ERROR', 'NONE']} />
                       {isAdmin && r.evalVerdict !== null && (
                         <div style={{ marginTop: 10 }}>
                           {promoted.has(r.id) ? (
@@ -2366,7 +2397,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
                     onUpdate={onReviewUpdate}
                     confirmLabel="Confirm verdict"
                     dismissLabel="Override verdict"
-                    verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE']}
+                    verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'AGENT_ERROR']}
                   />
                 </div>
               )}
@@ -2769,13 +2800,15 @@ export default function ReportCard() {
       const correction = a.rows.filter(r => r.evalVerdict === 'CORRECTION').length
       const enhancement = a.rows.filter(r => r.evalVerdict === 'ENHANCEMENT').length
       const preference = a.rows.filter(r => r.evalVerdict === 'PREFERENCE').length
+      const agentError = a.rows.filter(r => r.evalVerdict === 'AGENT_ERROR').length
       const avgConf    = total ? Math.round(a.rows.reduce((s, r) => s + r.evalConfidence, 0) / total) : 0
       return {
         ...a,
-        total, correction, enhancement, preference, avgConf,
+        total, correction, enhancement, preference, agentError, avgConf,
         correctionPct:  pct(correction, total),
         enhancementPct: pct(enhancement, total),
         preferencePct:  pct(preference, total),
+        agentErrorPct:  pct(agentError, total),
       }
     }).sort((a, b) => b.total - a.total)
   }, [rows])
@@ -2785,6 +2818,7 @@ export default function ReportCard() {
   const teamCorrection  = rows.filter(r => r.evalVerdict === 'CORRECTION').length
   const teamEnhancement = rows.filter(r => r.evalVerdict === 'ENHANCEMENT').length
   const teamPreference  = rows.filter(r => r.evalVerdict === 'PREFERENCE').length
+  const teamAgentError  = rows.filter(r => r.evalVerdict === 'AGENT_ERROR').length
 
   // "Added today" — always counted from all evals regardless of time range filter
   const todayStr   = new Date().toISOString().slice(0, 10)
@@ -2820,6 +2854,7 @@ export default function ReportCard() {
   const priorCorrection  = priorRows.filter(r => r.evalVerdict === 'CORRECTION').length
   const priorEnhancement = priorRows.filter(r => r.evalVerdict === 'ENHANCEMENT').length
   const priorPreference  = priorRows.filter(r => r.evalVerdict === 'PREFERENCE').length
+  const priorAgentError  = priorRows.filter(r => r.evalVerdict === 'AGENT_ERROR').length
 
   const priorTicketsWithRes = priorTickets.filter(t => t.zdResolutionMinutes !== null)
   const priorAvgResolutionMins = priorTicketsWithRes.length
@@ -3022,9 +3057,11 @@ export default function ReportCard() {
         const corrPct  = teamTotal ? pct(teamCorrection,  teamTotal) : 0
         const enhPct   = teamTotal ? pct(teamEnhancement, teamTotal) : 0
         const prefPct  = teamTotal ? pct(teamPreference,  teamTotal) : 0
+        const agentErrPct = teamTotal ? pct(teamAgentError, teamTotal) : 0
         const priorCorrPct  = priorTotal ? pct(priorCorrection,  priorTotal) : null
         const priorEnhPct   = priorTotal ? pct(priorEnhancement, priorTotal) : null
         const priorPrefPct  = priorTotal ? pct(priorPreference,  priorTotal) : null
+        const priorAgentErrPct = priorTotal ? pct(priorAgentError, priorTotal) : null
 
         const qualScoreColor = (s: number | null) => s === null ? '#aaa' : s >= 4 ? '#166534' : s >= 3.5 ? '#854d0e' : '#e53e3e'
 
@@ -3083,14 +3120,15 @@ export default function ReportCard() {
 
             {/* ── Edit Evaluations ── */}
             <SectionHeader label="Edit Evaluations" />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
               {[
-                { label: 'Corrections',  value: `${corrPct}%`, color: '#e53e3e',  note: 'Response needed rewriting',    curr: corrPct, prev: priorCorrPct,  good: false },
-                { label: 'Enhancements', value: `${enhPct}%`,  color: '#854d0e',  note: 'Response improved upon',       curr: enhPct,  prev: priorEnhPct,   good: true  },
-                { label: 'Preferences',  value: `${prefPct}%`, color: '#58595B',  note: 'Agent chose own wording',      curr: prefPct, prev: priorPrefPct,  good: false },
+                { label: 'Corrections',  value: `${corrPct}%`,    color: '#e53e3e',  note: 'Response needed rewriting',    curr: corrPct,    prev: priorCorrPct,     good: false, tip: VERDICT_CONFIG.CORRECTION.desc  },
+                { label: 'Enhancements', value: `${enhPct}%`,     color: '#854d0e',  note: 'Response improved upon',       curr: enhPct,     prev: priorEnhPct,      good: true,  tip: VERDICT_CONFIG.ENHANCEMENT.desc },
+                { label: 'Preferences',  value: `${prefPct}%`,    color: '#58595B',  note: 'Agent chose own wording',      curr: prefPct,    prev: priorPrefPct,     good: false, tip: VERDICT_CONFIG.PREFERENCE.desc  },
+                { label: 'Agent Errors', value: `${agentErrPct}%`, color: '#9B59D0', note: 'Agent edit was wrong',         curr: agentErrPct, prev: priorAgentErrPct, good: false, tip: VERDICT_CONFIG.AGENT_ERROR.desc },
               ].map(k => (
                 <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{k.label}</p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8, display: 'flex', alignItems: 'center' }}>{k.label}<InfoTip text={k.tip} /></p>
                   <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, color: k.color, lineHeight: 1 }}>{k.value}</p>
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>{k.note}</p>
                   {range !== 'allTime' && <TrendPip curr={k.curr} prev={k.prev} isPositiveGood={k.good} fmt={n => `${n}pp`} />}
@@ -3155,7 +3193,7 @@ export default function ReportCard() {
       {topTab === 'evals' && <>
 
       {/* Team summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {/* Evals run — split card with "added today" secondary metric */}
         <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Evals run</p>
@@ -3186,6 +3224,7 @@ export default function ReportCard() {
           { label: 'Corrections',  currPct: pct(teamCorrection, teamTotal),  priorPct: pct(priorCorrection, priorTotal),  isPositiveGood: false, color: '#e53e3e', note: 'gameLM had an error',  verdict: 'CORRECTION'  as Verdict },
           { label: 'Enhancements', currPct: pct(teamEnhancement, teamTotal), priorPct: pct(priorEnhancement, priorTotal), isPositiveGood: true,  color: '#854d0e', note: 'Agent added value',    verdict: 'ENHANCEMENT' as Verdict },
           { label: 'Preferences',  currPct: pct(teamPreference, teamTotal),  priorPct: pct(priorPreference, priorTotal),  isPositiveGood: false, color: '#58595B', note: 'Stylistic only',       verdict: 'PREFERENCE'  as Verdict },
+          { label: 'Agent Errors', currPct: pct(teamAgentError, teamTotal),  priorPct: pct(priorAgentError, priorTotal),  isPositiveGood: false, color: '#9B59D0', note: 'Agent edit was wrong',  verdict: 'AGENT_ERROR' as Verdict },
         ].map(k => (
           <div
             key={k.label}
@@ -3204,7 +3243,10 @@ export default function ReportCard() {
               e.currentTarget.style.boxShadow = 'none'
             }}
           >
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center' }}>
+              {k.label}
+              <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex' }}><InfoTip text={VERDICT_CONFIG[k.verdict].desc} /></span>
+            </p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.currPct}%</p>
             {range !== 'allTime' && (
               <div style={{ marginBottom: 4 }}>
@@ -3260,8 +3302,8 @@ export default function ReportCard() {
             >Export JSONL</button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 110px 120px 110px 100px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-          {['Agent', 'Evals', 'Corrections', 'Enhancements', 'Preferences', 'Avg confidence'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 70px 105px 115px 105px 105px 95px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+          {['Agent', 'Evals', 'Corrections', 'Enhancements', 'Preferences', 'Agent Errors', 'Avg confidence'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -3270,7 +3312,7 @@ export default function ReportCard() {
             key={a.name}
             onClick={() => setSelected(a.name)}
             style={{
-              display: 'grid', gridTemplateColumns: '1.5fr 80px 110px 120px 110px 100px',
+              display: 'grid', gridTemplateColumns: '1.5fr 70px 105px 115px 105px 105px 95px',
               padding: '13px 20px', alignItems: 'center', cursor: 'pointer',
               borderBottom: i < agentSummaries.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
               transition: 'background 0.15s',
@@ -3300,6 +3342,12 @@ export default function ReportCard() {
                 <div style={{ width: `${a.preferencePct}%`, height: '100%', borderRadius: 100, background: 'rgba(0,0,0,0.25)' }} />
               </div>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.preferencePct}%</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ flex: 1, maxWidth: 48, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                <div style={{ width: `${a.agentErrorPct}%`, height: '100%', borderRadius: 100, background: '#9B59D0' }} />
+              </div>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.agentErrorPct > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)', fontWeight: 500 }}>{a.agentErrorPct}%</span>
             </div>
             <ConfidencePip value={a.avgConf} />
           </div>

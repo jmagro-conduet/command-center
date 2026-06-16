@@ -1,6 +1,6 @@
 export const EVAL_SYSTEM = `You are evaluating a customer service AI called gameLM. An agent reviewed gameLM's suggested response and made an edit before sending it to a player.
 
-Classify the edit into ONE of three categories:
+Classify the edit into ONE of four categories:
 
 CORRECTION — the edit was necessary because gameLM made an error:
 - Wrong account detail (email, name, DOB, SSN, amount, date)
@@ -31,6 +31,17 @@ PREFERENCE — the edit was stylistic only and the original was fully send-worth
 - Punctuation, capitalisation, or filler word changes only
 - Personal communication voice with no substantive change
 
+AGENT_ERROR — gameLM was CORRECT and the agent's edit made it worse:
+- gameLM was right, but the agent believed it was wrong and changed it, introducing an error
+- e.g. gameLM correctly said "unable to verify" because the player had failed verification,
+  and the agent overrode it and serviced the unverified player
+- e.g. gameLM correctly could not find a bet ID that genuinely is not in the system, and the
+  agent asserted the issue was already resolved
+- The sent response is now LESS correct than gameLM's suggestion
+- This is the inverse of CORRECTION: here the AGENT made the error, not gameLM
+- Do NOT label these CORRECTION (that wrongly blames gameLM for the agent's mistake), and do
+  NOT label them PREFERENCE (the change was not harmless — it degraded a correct response)
+
 IMPORTANT RULES:
 1. Weight the agent's stated reason, but VALIDATE it against the full conversation.
    The agent is usually right — but not always. If the stated reason is contradicted
@@ -53,12 +64,12 @@ IMPORTANT RULES:
 5. When ambiguous between CORRECTION and ENHANCEMENT, choose ENHANCEMENT.
 6. When ambiguous between ENHANCEMENT and PREFERENCE, choose ENHANCEMENT.
 7. Only score PREFERENCE when you are confident the original was fully send-worthy.
-8. The three categories all assume the edit was at least reasonable. If you conclude
-   the agent's edit was UNWARRANTED because gameLM was actually correct, say so
-   explicitly in your reasoning and lower your confidence — do not output a confident
-   CORRECTION when gameLM did not actually err.
+8. If gameLM was actually correct and the agent's edit introduced an error, classify it
+   AGENT_ERROR — not a "false" CORRECTION. CORRECTION means gameLM erred; AGENT_ERROR
+   means the agent erred while editing a correct gameLM response.
 
-Return ONLY valid JSON — no other text, no markdown, no explanation outside the JSON:
+Return ONLY valid JSON — no other text, no markdown, no explanation outside the JSON.
+"verdict" must be one of: CORRECTION | ENHANCEMENT | PREFERENCE | AGENT_ERROR
 {"verdict":"CORRECTION","confidence":85,"reasoning":"Brief explanation."}`
 
 export interface FewShotExample {
@@ -181,6 +192,18 @@ Agent's final response: It appears that you've utilized deposit-only methods suc
 
 Agent's stated reason: I used the successful deposit macro because that is what the issue is based on their previous transactions. This will speed the process up and allow the user to know what the issue is quicker.`,
     assistant: `{"verdict":"PREFERENCE","confidence":80,"reasoning":"gameLM's clarifying question was reasonable — asking the payment method is a natural next step. The agent applied account context to skip that step and go straight to the macro. Both are correct approaches; the agent's is faster but neither adds information the other lacks."}`,
+  },
+
+  // ── AGENT_ERROR ───────────────────────────────────────────────────────────────
+  {
+    user: `Player message: Yes my first quarter wasn't graded Indiana first quarter I can't provide you the bad ID I don't have my eyeglasses I'm trying to catch the halftime
+
+gameLM suggested response: I am sorry, I am unable to verify your account. Can you confirm that whodini42@gmail.com is the correct email address for your account?
+
+Agent's final response: I have raised this to my trading team, and they will review your request for settlement as soon as possible. Is there anything else I can assist you with today?
+
+Agent's stated reason: User is verified`,
+    assistant: `{"verdict":"AGENT_ERROR","confidence":85,"reasoning":"gameLM correctly withheld service because the player had not passed verification — they supplied incorrect details in the pre-chat form. The agent's stated reason 'User is verified' is contradicted by the conversation: the agent serviced an unverified player and skipped a required identity check. gameLM was right; the agent's edit introduced the error, so this is AGENT_ERROR rather than a CORRECTION of gameLM."}`,
   },
 ]
 
