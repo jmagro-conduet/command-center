@@ -1004,192 +1004,6 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
               )}
             </div>
           </SectionCard>
-        </>
-      )}
-
-      {/* ── Users tab ───────────────────────────────────────────────────────── */}
-      {isAdmin && activeTab === 'users' && <Users />}
-
-      {/* ── General tab ─────────────────────────────────────────────────────── */}
-      {activeTab === 'general' && <>
-
-      {/* ── My Account ─────────────────────────────────────────────────────── */}
-      <SectionCard title="My Account" subtitle="Update your display name shown across the app">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', maxWidth: 380 }}>
-          <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Display name</label>
-            <input
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') saveName() }}
-              style={inputStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-              onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-            />
-          </div>
-          <SaveBtn onClick={saveName} loading={nameSaving} saved={nameSaved} />
-        </div>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>
-          Email: {user?.email} · Role: {user?.role}
-        </p>
-      </SectionCard>
-
-      {/* ── Admin-only ──────────────────────────────────────────────────────── */}
-      {isAdmin && (
-        <>
-          {/* Data Health — operator attribution coverage */}
-          <SectionCard
-            title="Data Health"
-            subtitle="Operator-attribution coverage. Gaps here silently hide agents/teams from the leaderboard and analytics."
-          >
-            {health === null ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Checking…</p>
-            ) : (health.usersNoOp === 0 && health.issuesNoOp === 0) ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
-                ✓ All users and logged submissions have an operator assigned.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', borderRadius: 10, background: 'rgba(229,62,62,0.06)', border: '1.5px solid rgba(229,62,62,0.25)' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', fontWeight: 600 }}>
-                  ⚠ Operator attribution gaps detected — these rows are hidden from operator-scoped views:
-                </p>
-                {health.usersNoOp > 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                    • <strong>{health.usersNoOp}</strong> user(s) have a team but no operator — set their operator in the Users tab.
-                  </p>
-                )}
-                {health.issuesNoOp > 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                    • <strong>{health.issuesNoOp}</strong> logged issue(s) have no operator — confirm every team value matches an Operator name.
-                  </p>
-                )}
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Operators */}
-          <SectionCard
-            title="Operators"
-            subtitle="Client operators you support. Each entry appears in the sidebar switcher and can be assigned to agents."
-          >
-            {teamsLoading ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {teams.length === 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '8px 0' }}>
-                    No operators yet. Add one below.
-                  </p>
-                )}
-
-                {teams.map(t => (
-                  <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '10px 14px', borderRadius: 10,
-                    border: '1.5px solid rgba(0,0,0,0.08)',
-                    background: renamingId === t.id ? 'rgba(206,164,255,0.04)' : '#fafafa',
-                    transition: 'background 0.15s',
-                  }}>
-                    {renamingId === t.id ? (
-                      <>
-                        <input
-                          autoFocus
-                          value={renameVal}
-                          onChange={e => setRenameVal(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') saveRename(t.id, t.name)
-                            if (e.key === 'Escape') setRenamingId(null)
-                          }}
-                          style={{ ...inputStyle, flex: 1, padding: '6px 10px' }}
-                          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                          onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                        />
-                        <GhostBtn onClick={() => saveRename(t.id, t.name)}>Save</GhostBtn>
-                        <GhostBtn onClick={() => setRenamingId(null)}>Cancel</GhostBtn>
-                      </>
-                    ) : (
-                      <>
-                        <span style={{
-                          flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13,
-                          fontWeight: 500, color: '#000',
-                        }}>
-                          {t.name}
-                        </span>
-                        <GhostBtn onClick={() => { setRenamingId(t.id); setRenameVal(t.name) }}>
-                          Rename
-                        </GhostBtn>
-                        <GhostBtn danger onClick={() => deleteTeam(t.id, t.name)}>Delete</GhostBtn>
-                      </>
-                    )}
-                  </div>
-                ))}
-
-                {/* Add new team row */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <input
-                    value={newTeamName}
-                    onChange={e => setNewTeamName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') addTeam() }}
-                    placeholder="New operator name…"
-                    style={{ ...inputStyle, flex: 1 }}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                    onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                  />
-                  <button
-                    onClick={addTeam}
-                    disabled={!newTeamName.trim() || addingTeam}
-                    style={{
-                      background: newTeamName.trim() && !addingTeam ? '#000' : 'rgba(0,0,0,0.1)',
-                      color: newTeamName.trim() && !addingTeam ? '#fff' : 'rgba(0,0,0,0.35)',
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                      padding: '9px 18px', borderRadius: 10, border: 'none',
-                      cursor: newTeamName.trim() && !addingTeam ? 'pointer' : 'default',
-                      transition: 'all 0.15s', whiteSpace: 'nowrap',
-                    }}
-                    onMouseEnter={e => { if (newTeamName.trim() && !addingTeam) e.currentTarget.style.opacity = '0.8' }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
-                  >
-                    {addingTeam ? 'Adding…' : '+ Add operator'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Daily Ticket Target */}
-          <SectionCard
-            title="Daily Ticket Target"
-            subtitle="Sets the target range line shown in Analytics charts and agent status calculations."
-          >
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-              <div>
-                <label style={labelStyle}>Min / agent / day</label>
-                <input
-                  type="number" min={1} value={targetMin}
-                  onChange={e => setTargetMin(e.target.value)}
-                  style={{ ...inputStyle, width: 110 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                  onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Max / agent / day</label>
-                <input
-                  type="number" min={1} value={targetMax}
-                  onChange={e => setTargetMax(e.target.value)}
-                  style={{ ...inputStyle, width: 110 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                  onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
-              </div>
-              <SaveBtn onClick={saveTarget} saved={targetSaved} />
-            </div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>
-              Currently: <strong>{tgt.min}–{tgt.max}</strong> tickets/agent/day
-              {targetSaved && <span style={{ color: '#166534', marginLeft: 10 }}>✓ Updated — reload Analytics to see changes</span>}
-            </p>
-          </SectionCard>
-
           {/* Backfill Evaluations */}
           <SectionCard
             title="Backfill Evaluations"
@@ -1408,6 +1222,192 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                 </button>
               </div>
             )}
+          </SectionCard>
+
+        </>
+      )}
+
+      {/* ── Users tab ───────────────────────────────────────────────────────── */}
+      {isAdmin && activeTab === 'users' && <Users />}
+
+      {/* ── General tab ─────────────────────────────────────────────────────── */}
+      {activeTab === 'general' && <>
+
+      {/* ── My Account ─────────────────────────────────────────────────────── */}
+      <SectionCard title="My Account" subtitle="Update your display name shown across the app">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', maxWidth: 380 }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Display name</label>
+            <input
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveName() }}
+              style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+            />
+          </div>
+          <SaveBtn onClick={saveName} loading={nameSaving} saved={nameSaved} />
+        </div>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>
+          Email: {user?.email} · Role: {user?.role}
+        </p>
+      </SectionCard>
+
+      {/* ── Admin-only ──────────────────────────────────────────────────────── */}
+      {isAdmin && (
+        <>
+          {/* Data Health — operator attribution coverage */}
+          <SectionCard
+            title="Data Health"
+            subtitle="Operator-attribution coverage. Gaps here silently hide agents/teams from the leaderboard and analytics."
+          >
+            {health === null ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Checking…</p>
+            ) : (health.usersNoOp === 0 && health.issuesNoOp === 0) ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
+                ✓ All users and logged submissions have an operator assigned.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', borderRadius: 10, background: 'rgba(229,62,62,0.06)', border: '1.5px solid rgba(229,62,62,0.25)' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', fontWeight: 600 }}>
+                  ⚠ Operator attribution gaps detected — these rows are hidden from operator-scoped views:
+                </p>
+                {health.usersNoOp > 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                    • <strong>{health.usersNoOp}</strong> user(s) have a team but no operator — set their operator in the Users tab.
+                  </p>
+                )}
+                {health.issuesNoOp > 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                    • <strong>{health.issuesNoOp}</strong> logged issue(s) have no operator — confirm every team value matches an Operator name.
+                  </p>
+                )}
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Operators */}
+          <SectionCard
+            title="Operators"
+            subtitle="Client operators you support. Each entry appears in the sidebar switcher and can be assigned to agents."
+          >
+            {teamsLoading ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {teams.length === 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '8px 0' }}>
+                    No operators yet. Add one below.
+                  </p>
+                )}
+
+                {teams.map(t => (
+                  <div key={t.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '10px 14px', borderRadius: 10,
+                    border: '1.5px solid rgba(0,0,0,0.08)',
+                    background: renamingId === t.id ? 'rgba(206,164,255,0.04)' : '#fafafa',
+                    transition: 'background 0.15s',
+                  }}>
+                    {renamingId === t.id ? (
+                      <>
+                        <input
+                          autoFocus
+                          value={renameVal}
+                          onChange={e => setRenameVal(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') saveRename(t.id, t.name)
+                            if (e.key === 'Escape') setRenamingId(null)
+                          }}
+                          style={{ ...inputStyle, flex: 1, padding: '6px 10px' }}
+                          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                          onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                        />
+                        <GhostBtn onClick={() => saveRename(t.id, t.name)}>Save</GhostBtn>
+                        <GhostBtn onClick={() => setRenamingId(null)}>Cancel</GhostBtn>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{
+                          flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13,
+                          fontWeight: 500, color: '#000',
+                        }}>
+                          {t.name}
+                        </span>
+                        <GhostBtn onClick={() => { setRenamingId(t.id); setRenameVal(t.name) }}>
+                          Rename
+                        </GhostBtn>
+                        <GhostBtn danger onClick={() => deleteTeam(t.id, t.name)}>Delete</GhostBtn>
+                      </>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add new team row */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <input
+                    value={newTeamName}
+                    onChange={e => setNewTeamName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addTeam() }}
+                    placeholder="New operator name…"
+                    style={{ ...inputStyle, flex: 1 }}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                  />
+                  <button
+                    onClick={addTeam}
+                    disabled={!newTeamName.trim() || addingTeam}
+                    style={{
+                      background: newTeamName.trim() && !addingTeam ? '#000' : 'rgba(0,0,0,0.1)',
+                      color: newTeamName.trim() && !addingTeam ? '#fff' : 'rgba(0,0,0,0.35)',
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '9px 18px', borderRadius: 10, border: 'none',
+                      cursor: newTeamName.trim() && !addingTeam ? 'pointer' : 'default',
+                      transition: 'all 0.15s', whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { if (newTeamName.trim() && !addingTeam) e.currentTarget.style.opacity = '0.8' }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                  >
+                    {addingTeam ? 'Adding…' : '+ Add operator'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </SectionCard>
+
+          {/* Daily Ticket Target */}
+          <SectionCard
+            title="Daily Ticket Target"
+            subtitle="Sets the target range line shown in Analytics charts and agent status calculations."
+          >
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+              <div>
+                <label style={labelStyle}>Min / agent / day</label>
+                <input
+                  type="number" min={1} value={targetMin}
+                  onChange={e => setTargetMin(e.target.value)}
+                  style={{ ...inputStyle, width: 110 }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Max / agent / day</label>
+                <input
+                  type="number" min={1} value={targetMax}
+                  onChange={e => setTargetMax(e.target.value)}
+                  style={{ ...inputStyle, width: 110 }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                />
+              </div>
+              <SaveBtn onClick={saveTarget} saved={targetSaved} />
+            </div>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>
+              Currently: <strong>{tgt.min}–{tgt.max}</strong> tickets/agent/day
+              {targetSaved && <span style={{ color: '#166534', marginLeft: 10 }}>✓ Updated — reload Analytics to see changes</span>}
+            </p>
           </SectionCard>
 
           {/* Import Data */}
