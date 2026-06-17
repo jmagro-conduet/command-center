@@ -1022,9 +1022,11 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
           const gap = Math.max(0, Math.round(80 - cat.perfect))
           const barColor = cat.perfect >= 80 ? '#166534' : cat.perfect >= 70 ? '#854d0e' : cat.perfect >= 50 ? '#f97316' : '#e53e3e'
 
-          // Per-agent breakdown for this category
+          // Per-agent breakdown for this category — roster must be built from THIS
+          // category's rows, not allRows, otherwise every agent in the system is
+          // listed under every category with 0 issues / 0% (padding the breakdown).
           const catAgentRows = rows.filter(r => (r.category || 'Uncategorized') === cat.name)
-          const catAgents = agentStats(catAgentRows, allRows, days)
+          const catAgents = agentStats(catAgentRows, catAgentRows, days)
 
           return (
             <div key={cat.name}>
