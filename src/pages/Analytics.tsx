@@ -135,24 +135,33 @@ function buildChartData(rows: DataRow[], days: number, target: number) {
 // rosterRows = all-time rows (for building the full agent list)
 // periodRows = time-filtered rows (for computing stats)
 function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number) {
+  // Identity key = email (case-insensitive) when present, else name. Keying by
+  // email prevents two distinct agents who share a display name from merging into
+  // one row — important as the roster grows across operators.
+  const keyOf = (r: DataRow) => (r.agentEmail?.trim().toLowerCase()) || r.agentName
+
   // 1. Build full roster from all-time data so inactive agents still appear
-  const roster = new Map<string, string>() // agentName -> agentEmail
+  const roster = new Map<string, { name: string; email: string }>() // key -> display info
   for (const r of rosterRows) {
-    if (r.agentName && !roster.has(r.agentName)) roster.set(r.agentName, r.agentEmail)
+    if (!r.agentName && !r.agentEmail) continue
+    const k = keyOf(r)
+    if (k && !roster.has(k)) roster.set(k, { name: r.agentName, email: r.agentEmail })
   }
 
-  // 2. Compute period stats
+  // 2. Compute period stats (keyed by the same identity)
   const statsMap = new Map<string, { tickets: Set<string>; counts: Record<string, number> }>()
   for (const r of periodRows) {
-    if (!statsMap.has(r.agentName)) statsMap.set(r.agentName, { tickets: new Set(), counts: {} })
-    const entry = statsMap.get(r.agentName)!
+    const k = keyOf(r)
+    if (!k) continue
+    if (!statsMap.has(k)) statsMap.set(k, { tickets: new Set(), counts: {} })
+    const entry = statsMap.get(k)!
     entry.tickets.add(r.ticketNumber)
     entry.counts[r.issueType] = (entry.counts[r.issueType] ?? 0) + 1
   }
 
   // 3. Merge: every roster agent gets stats (zeros if inactive this period)
-  return [...roster.entries()].map(([name, email]) => {
-    const s       = statsMap.get(name)
+  return [...roster.entries()].map(([k, { name, email }]) => {
+    const s       = statsMap.get(k)
     const tickets = s?.tickets ?? new Set<string>()
     const counts  = s?.counts  ?? {}
     const total    = Object.values(counts).reduce((a, b) => a + b, 0)
@@ -623,7 +632,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
             : null
 
           return (
-            <div key={a.name} onClick={() => setSelectedAgent(s => s === a.name ? null : a.name)}
+            <div key={a.email || a.name} onClick={() => setSelectedAgent(s => s === a.name ? null : a.name)}
               style={{
                 display: 'grid', gridTemplateColumns: '1.5fr 100px 85px 95px 95px 95px 80px 80px 85px',
                 padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
@@ -691,7 +700,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
         {agents.map(a => (
-          <button key={a.name} onClick={() => setSelected(a.name)} style={{
+          <button key={a.email || a.name} onClick={() => setSelected(a.name)} style={{
             background: '#fff', borderRadius: 14, textAlign: 'left',
             border: agentName === a.name ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.09)',
             padding: '14px 16px', transition: 'all 0.15s', cursor: 'pointer',
@@ -1073,7 +1082,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                       const agentGap = Math.max(0, Math.round(80 - a.perfect))
                       const agentBarColor = a.perfect >= 80 ? '#166534' : a.perfect >= 70 ? '#854d0e' : a.perfect >= 50 ? '#f97316' : '#e53e3e'
                       return (
-                        <div key={a.name} style={{
+                        <div key={a.email || a.name} style={{
                           display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 1fr',
                           padding: '10px 14px', alignItems: 'center',
                           borderBottom: ai < catAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
