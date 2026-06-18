@@ -40,39 +40,44 @@ function buildPrompt(req: CategoryInsightRequest): string {
     ? accEntries.map(([cls, n]) => `${n} case${n > 1 ? 's' : ''} where the AI ${accDescriptions[cls] ?? 'had an accuracy issue'}`).join(', ')
     : null
 
-  return `You are helping a leadership team understand why an AI customer support tool is not yet fully automatic for a specific query type.
+  return `You are helping a leadership team understand why gameLM — an AI customer support tool for a sports betting operator — is not yet fully automatic for a specific query type.
 
-The AI suggests responses. Agents either send them as-is or edit them before sending. We want more sent as-is.
+gameLM suggests responses. Agents either send them as-is or edit them before sending. We want more sent as-is.
 
 Query type: ${category}
 Total interactions reviewed: ${vol}
 Sent without any edits: ${perfectRate}%
 Required edits before sending: ${editDependency}%
-AI had no useful response: ${noRespRate}%
+gameLM had no useful response: ${noRespRate}%
 ${editContext ? `Why agents edited: ${editContext}` : ''}
 ${accContext ? `Accuracy problems found: ${accContext}` : ''}
 
-Write two short sections for a leadership audience. Plain English only — no technical jargon, no internal codes, no acronyms.
+Write two sections for a leadership audience. Plain English only — no jargon, no acronyms, no internal codes. Always refer to the AI as "gameLM", never "the AI" or "the model".
 
-OPERATIONS — what the team is doing that's causing edits. Focus on habits, training gaps, or process issues that a manager could act on.
+OPERATIONS — what the team is doing that causes edits. 2 bullets max. One plain sentence each, under 20 words.
 
-TECHNICAL — what the AI is struggling with. Focus on the types of questions it can't answer well or where it gets things wrong.
+TECHNICAL — what gameLM struggles with for this query type. 2 bullets max, each with 2–3 sub-bullets.
+  Main bullet: the broad theme (e.g. "gameLM struggles with complex multi-part queries")
+  Sub-bullets: specific examples of player inputs or situations that typically produce no response or a wrong response. Make these feel real — phrase them the way a player would actually ask (e.g. "My bet was settled wrong because the score was updated late").
 
 Rules:
-- 2 bullets per section maximum
-- Each bullet: one plain sentence, under 20 words
 - No jargon, no acronyms, no internal labels
-- Specific to ${category} queries — not generic
-- If there's not enough data to say anything meaningful, write one bullet: "Not enough data yet to identify clear patterns."
+- Specific to ${category} — not generic
+- If not enough data: one bullet only: "Not enough data yet to identify clear patterns."
 
-Format:
+Format exactly:
 OPERATIONS
-• [one plain sentence]
-• [one plain sentence]
+• [sentence]
+• [sentence]
 
 TECHNICAL
-• [one plain sentence]
-• [one plain sentence]`
+• [broad theme]
+  - [specific player input example or situation]
+  - [specific player input example or situation]
+  - [specific player input example or situation]
+• [broad theme]
+  - [specific player input example or situation]
+  - [specific player input example or situation]`
 }
 
 Deno.serve(async (req: Request) => {
