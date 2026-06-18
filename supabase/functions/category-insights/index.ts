@@ -54,7 +54,9 @@ ${accContext ? `Accuracy problems found: ${accContext}` : ''}
 
 Write two sections for a leadership audience. Plain English only — no jargon, no acronyms, no internal codes. Always refer to the AI as "gameLM", never "the AI" or "the model".
 
-OPERATIONS — what the team is doing that causes edits. 2 bullets max. One plain sentence each, under 20 words.
+OPERATIONS — what the team is doing that causes edits. 2 bullets max, each with 2–3 sub-bullets.
+  Main bullet: the broad behaviour pattern (e.g. "Agents are rewriting responses based on personal preference")
+  Sub-bullets: specific examples of what agents are doing or saying that causes the edit. Make these feel real — phrase them as concrete agent actions (e.g. "Agent softened the tone even though gameLM's response was accurate").
 
 TECHNICAL — what gameLM struggles with for this query type. 2 bullets max, each with 2–3 sub-bullets.
   Main bullet: the broad theme (e.g. "gameLM struggles with complex multi-part queries")
@@ -67,8 +69,13 @@ Rules:
 
 Format exactly:
 OPERATIONS
-• [sentence]
-• [sentence]
+• [broad behaviour pattern]
+  - [specific agent action or example]
+  - [specific agent action or example]
+  - [specific agent action or example]
+• [broad behaviour pattern]
+  - [specific agent action or example]
+  - [specific agent action or example]
 
 TECHNICAL
 • [broad theme]
