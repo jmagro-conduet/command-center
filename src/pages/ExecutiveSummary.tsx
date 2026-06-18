@@ -52,10 +52,12 @@ function qualitySplit(rows: Row[]) {
     else if (r.issueType === 'No response') noResp++
   }
   const qd = perfect + majority + partial
+  const total = qd + noResp
   return {
     perfect, majority, partial, noResp, qualityDenom: qd,
     perfectRate: pct(perfect, qd),
     editDependency: pct(majority + partial, qd),   // the COO's "edits reducing" metric
+    noRespRate: pct(noResp, total),
   }
 }
 
@@ -211,14 +213,15 @@ export default function ExecutiveSummary() {
       if (age < 0 || age >= WEEKS * 7 * DAY) continue
       buckets[Math.floor(age / (7 * DAY))].push(r)
     }
-    const out: { week: string; perfect: number | null; edits: number | null }[] = []
+    const out: { week: string; perfect: number | null; edits: number | null; noResponse: number | null }[] = []
     for (let i = WEEKS - 1; i >= 0; i--) {
       const s = qualitySplit(buckets[i])
       const start = new Date(now); start.setDate(start.getDate() - (i + 1) * 7)
       out.push({
         week: start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        perfect: s.qualityDenom ? s.perfectRate : null,
-        edits:   s.qualityDenom ? s.editDependency : null,
+        perfect:    s.qualityDenom ? s.perfectRate : null,
+        edits:      s.qualityDenom ? s.editDependency : null,
+        noResponse: s.qualityDenom ? s.noRespRate : null,
       })
     }
     return out
@@ -289,10 +292,11 @@ export default function ExecutiveSummary() {
       {/* Hero trend — responses improving / edits reducing */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <SectionTitle title="Is gameLM improving?" subtitle="Perfect rate climbing and edit dependency falling = the co-pilot is getting better. Weekly, last 12 weeks." />
+          <SectionTitle title="Is gameLM improving?" subtitle="Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Weekly, last 12 weeks." />
           <div style={{ display: 'flex', gap: 16 }}>
             <Legend color="#166534" label="Perfect rate" />
             <Legend color="#f97316" label="Edit dependency" />
+            <Legend color="#e53e3e" label="No response" />
           </div>
         </div>
         <ResponsiveContainer width="100%" height={260}>
@@ -304,6 +308,7 @@ export default function ExecutiveSummary() {
             <ReferenceLine y={READY_THRESHOLD} stroke="#166534" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: 'Auto-ready 80%', position: 'right', fontSize: 10, fill: '#166534' }} />
             <Line type="monotone" dataKey="perfect" name="Perfect rate" stroke="#166534" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
             <Line type="monotone" dataKey="edits" name="Edit dependency" stroke="#f97316" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+            <Line type="monotone" dataKey="noResponse" name="No response" stroke="#e53e3e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>
