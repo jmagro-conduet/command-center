@@ -9,6 +9,7 @@ export type Page =
   | 'events'
   | 'submissions'
   | 'report'
+  | 'executive-summary'
   | 'analytics'
   | 'report-card'
   | 'users'
@@ -99,6 +100,18 @@ function SettingsIcon() {
   )
 }
 
+function ExecSummaryIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M3 21h18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+      <rect x="4" y="12" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.7"/>
+      <rect x="10" y="8" width="4" height="10" rx="1" stroke="currentColor" strokeWidth="1.7"/>
+      <rect x="16" y="4" width="4" height="14" rx="1" stroke="currentColor" strokeWidth="1.7"/>
+      <path d="M5 9l4-3 4 2 5-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
+    </svg>
+  )
+}
+
 function ReportCardIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -143,6 +156,7 @@ const ADMIN_NAV: NavItem[] = [
   { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
   { id: 'events',      label: 'Events',      icon: <EventsIcon /> },
   { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
+  { id: 'executive-summary', label: 'Executive Summary', icon: <ExecSummaryIcon /> },
   { id: 'analytics',   label: 'Analytics',   icon: <AnalyticsIcon /> },
   { id: 'report-card', label: 'Report Card', icon: <ReportCardIcon /> },
   { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },

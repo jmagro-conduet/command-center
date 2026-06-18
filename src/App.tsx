@@ -11,6 +11,7 @@ import Events from './pages/Events'
 import Submissions from './pages/Submissions'
 import Report from './pages/Report'
 import Analytics from './pages/Analytics'
+import ExecutiveSummary from './pages/ExecutiveSummary'
 import Leaderboard from './pages/Leaderboard'
 import Learn from './pages/Learn'
 import Settings from './pages/Settings'
@@ -72,6 +73,7 @@ function AppShell() {
       case 'events':      return isAdmin ? <Events      key={pageKey} /> : <LogTicket key={pageKey} />
       case 'submissions': return isAdmin ? <Submissions key={pageKey} /> : <LogTicket key={pageKey} />
       case 'report':      return isAdmin ? <Report      key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'executive-summary': return isAdmin ? <ExecutiveSummary key={pageKey} /> : <LogTicket key={pageKey} />
       case 'analytics':   return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
       case 'report-card': return (isAdmin || isQA) ? <ReportCard key={pageKey} /> : <LogTicket key={pageKey} />
       case 'users':       return isAdmin ? <Settings key={pageKey} initialTab="users" /> : <LogTicket key={pageKey} />
