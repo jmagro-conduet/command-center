@@ -158,9 +158,10 @@ const STATUS_COLOR: Record<string, string> = { ready: '#166534', almost: '#854d0
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ExecutiveSummary() {
   const { selectedOperator } = useOperator()
-  const [rows, setRows]       = useState<Row[]>([])
-  const [loading, setLoading] = useState(true)
-  const [zdTotal, setZdTotal] = useState<number | null>(null)
+  const [rows, setRows]         = useState<Row[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [zdTotal, setZdTotal]   = useState<number | null>(null)
+  const [trendPeriod, setTrendPeriod] = useState<'30d' | 'quarter'>('quarter')
 
   useEffect(() => {
     setLoading(true)
@@ -204,28 +205,51 @@ export default function ExecutiveSummary() {
   const qualScored = qualRows.filter(r => r.qScore !== null)
   const avgQuality = qualScored.length ? (qualScored.reduce((s, r) => s + (r.qScore ?? 0), 0) / qualScored.length) : null
 
-  // Weekly trend (12 weeks): perfect-rate rising, edit-dependency falling
+  // Trend chart — switches between 12-week (quarter) and 30-day (daily) views
   const trend = useMemo(() => {
-    const WEEKS = 12
-    const buckets = Array.from({ length: WEEKS }, () => [] as Row[])
-    for (const r of rows) {
-      const age = now - r.date.getTime()
-      if (age < 0 || age >= WEEKS * 7 * DAY) continue
-      buckets[Math.floor(age / (7 * DAY))].push(r)
-    }
-    const out: { week: string; perfect: number | null; edits: number | null; noResponse: number | null }[] = []
-    for (let i = WEEKS - 1; i >= 0; i--) {
-      const s = qualitySplit(buckets[i])
-      const start = new Date(now); start.setDate(start.getDate() - (i + 1) * 7)
-      out.push({
-        week: start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        perfect:    s.qualityDenom ? s.perfectRate : null,
-        edits:      s.qualityDenom ? s.editDependency : null,
-        noResponse: s.qualityDenom ? s.noRespRate : null,
-      })
+    type TrendPoint = { week: string; perfect: number | null; edits: number | null; noResponse: number | null }
+    const out: TrendPoint[] = []
+
+    if (trendPeriod === 'quarter') {
+      const WEEKS = 12
+      const buckets = Array.from({ length: WEEKS }, () => [] as Row[])
+      for (const r of rows) {
+        const age = now - r.date.getTime()
+        if (age < 0 || age >= WEEKS * 7 * DAY) continue
+        buckets[Math.floor(age / (7 * DAY))].push(r)
+      }
+      for (let i = WEEKS - 1; i >= 0; i--) {
+        const s = qualitySplit(buckets[i])
+        const start = new Date(now); start.setDate(start.getDate() - (i + 1) * 7)
+        out.push({
+          week:       start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          perfect:    s.qualityDenom ? s.perfectRate : null,
+          edits:      s.qualityDenom ? s.editDependency : null,
+          noResponse: s.qualityDenom ? s.noRespRate : null,
+        })
+      }
+    } else {
+      // 30-day daily buckets
+      const DAYS = 30
+      const buckets = Array.from({ length: DAYS }, () => [] as Row[])
+      for (const r of rows) {
+        const age = now - r.date.getTime()
+        if (age < 0 || age >= DAYS * DAY) continue
+        buckets[Math.floor(age / DAY)].push(r)
+      }
+      for (let i = DAYS - 1; i >= 0; i--) {
+        const s = qualitySplit(buckets[i])
+        const d = new Date(now - i * DAY)
+        out.push({
+          week:       d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          perfect:    s.qualityDenom ? s.perfectRate : null,
+          edits:      s.qualityDenom ? s.editDependency : null,
+          noResponse: s.qualityDenom ? s.noRespRate : null,
+        })
+      }
     }
     return out
-  }, [rows, now])
+  }, [rows, now, trendPeriod])
 
   if (loading) {
     return <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', padding: 40 }}>Loading…</div>
@@ -292,8 +316,37 @@ export default function ExecutiveSummary() {
       {/* Hero trend — responses improving / edits reducing */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <SectionTitle title="Is gameLM improving?" subtitle="Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Weekly, last 12 weeks." />
-          <div style={{ display: 'flex', gap: 16 }}>
+          <SectionTitle
+            title="Is gameLM improving?"
+            subtitle={trendPeriod === 'quarter'
+              ? 'Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Weekly, last 12 weeks.'
+              : 'Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Daily, last 30 days.'}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Period toggle */}
+            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: 8, padding: 3, gap: 2 }}>
+              {(['quarter', '30d'] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setTrendPeriod(p)}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    fontFamily: 'Inter, sans-serif',
+                    background: trendPeriod === p ? '#fff' : 'transparent',
+                    color: trendPeriod === p ? '#000' : '#58595B',
+                    border: trendPeriod === p ? '1px solid rgba(0,0,0,0.1)' : 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    boxShadow: trendPeriod === p ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  {p === 'quarter' ? 'Last quarter' : 'Last 30 days'}
+                </button>
+              ))}
+            </div>
             <Legend color="#166534" label="Perfect rate" />
             <Legend color="#f97316" label="Edit dependency" />
             <Legend color="#e53e3e" label="No response" />
