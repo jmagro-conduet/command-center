@@ -45,21 +45,33 @@ const MIN_VOL = 10           // min issues before a category is judged
 function pct(n: number, total: number) { return total ? Math.round((n / total) * 100) : 0 }
 
 // Perfect-rate denominator excludes "No response" (matches Analytics / Category Performance)
+// Projected rate counts edits that were PREFERENCE / AGENT_ERROR / ENHANCEMENT — i.e.
+// gameLM was functionally correct; the agent could have sent the suggestion as-is.
 function qualitySplit(rows: Row[]) {
   let perfect = 0, majority = 0, partial = 0, noResp = 0
+  let prefEdits = 0, agentErrEdits = 0, enhEdits = 0
   for (const r of rows) {
     if (r.issueType === 'Perfect') perfect++
-    else if (r.issueType === 'Majority edit') majority++
-    else if (r.issueType === 'Partial edit') partial++
+    else if (r.issueType === 'Majority edit' || r.issueType === 'Partial edit') {
+      if (r.issueType === 'Majority edit') majority++; else partial++
+      if (r.reviewVerdict === 'PREFERENCE')   prefEdits++
+      else if (r.reviewVerdict === 'AGENT_ERROR')  agentErrEdits++
+      else if (r.reviewVerdict === 'ENHANCEMENT')  enhEdits++
+    }
     else if (r.issueType === 'No response') noResp++
   }
   const qd = perfect + majority + partial
   const total = qd + noResp
+  const projectedPerfect = perfect + prefEdits + agentErrEdits + enhEdits
   return {
     perfect, majority, partial, noResp, qualityDenom: qd,
     perfectRate: pct(perfect, qd),
+    projectedPerfectRate: pct(projectedPerfect, qd),
+    majorityRate: pct(majority, qd),
+    partialRate: pct(partial, qd),
     editDependency: pct(majority + partial, qd),   // the COO's "edits reducing" metric
     noRespRate: pct(noResp, total),
+    prefEdits, agentErrEdits, enhEdits,
   }
 }
 
@@ -93,7 +105,8 @@ function categoryReadiness(rows: Row[]) {
     const ready = vol >= MIN_VOL && s.perfectRate >= READY_THRESHOLD
     const status = vol < MIN_VOL ? 'low-data' : s.perfectRate >= READY_THRESHOLD ? 'ready' : s.perfectRate >= 70 ? 'almost' : 'not-ready'
     return {
-      name, vol, perfectRate: s.perfectRate, editDependency: s.editDependency, noRespRate: s.noRespRate,
+      name, vol, perfectRate: s.perfectRate, projectedPerfectRate: s.projectedPerfectRate,
+      editDependency: s.editDependency, noRespRate: s.noRespRate,
       ready, status,
       preferenceEdits, correctionEdits, enhancementEdits, accClasses,
     }
@@ -374,20 +387,39 @@ export default function ExecutiveSummary() {
 
       {/* Headline band — the COO's three priorities + adoption */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        <StatCard
-          label="gameLM Perfect Rate"
-          value={`${curSplit.perfectRate}%`}
-          color={curSplit.perfectRate >= 80 ? '#166534' : curSplit.perfectRate >= 70 ? '#854d0e' : '#e53e3e'}
-          sub="responses sent with no edit"
-          delta={<Delta curr={curSplit.perfectRate} prev={prev.length ? prevSplit.perfectRate : null} good="up" />}
-        />
-        <StatCard
-          label="Edit Dependency"
-          value={`${curSplit.editDependency}%`}
-          color={curSplit.editDependency <= 20 ? '#166534' : curSplit.editDependency <= 30 ? '#854d0e' : '#e53e3e'}
-          sub="needed a partial or major edit"
-          delta={<Delta curr={curSplit.editDependency} prev={prev.length ? prevSplit.editDependency : null} good="down" />}
-        />
+        {/* gameLM Perfect Rate — split actual vs projected */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>gameLM Perfect Rate</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+            <div>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actual</p>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: curSplit.perfectRate >= 80 ? '#166534' : curSplit.perfectRate >= 70 ? '#854d0e' : '#e53e3e', lineHeight: 1 }}>{curSplit.perfectRate}%</p>
+            </div>
+            <div style={{ width: 1, height: 36, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
+            <div>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projected</p>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: '#9B59D0', lineHeight: 1 }}>{curSplit.projectedPerfectRate}%</p>
+            </div>
+          </div>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>Projected adds preference, enhancement &amp; agent-error edits</p>
+          <div style={{ marginTop: 4 }}><Delta curr={curSplit.perfectRate} prev={prev.length ? prevSplit.perfectRate : null} good="up" /></div>
+        </div>
+
+        {/* Edit Dependency — with majority / partial breakdown */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Edit Dependency</p>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: curSplit.editDependency <= 20 ? '#166534' : curSplit.editDependency <= 30 ? '#854d0e' : '#e53e3e', lineHeight: 1 }}>{curSplit.editDependency}%</p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 7 }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+              <span style={{ fontWeight: 600, color: '#000' }}>{curSplit.majorityRate}%</span> majority
+            </span>
+            <span style={{ color: 'rgba(0,0,0,0.2)' }}>·</span>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+              <span style={{ fontWeight: 600, color: '#000' }}>{curSplit.partialRate}%</span> partial
+            </span>
+          </div>
+          <div style={{ marginTop: 4 }}><Delta curr={curSplit.editDependency} prev={prev.length ? prevSplit.editDependency : null} good="down" /></div>
+        </div>
         <StatCard
           label="Autopilot-Ready Use Cases"
           value={`${readyCount} / ${trackedCats}`}
@@ -460,9 +492,9 @@ export default function ExecutiveSummary() {
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
         <SectionTitle title="Path to Full Automation" subtitle={`Each use case toward the ${READY_THRESHOLD}% perfect-rate bar needed to go live. ${readyCount} of ${trackedCats} ready today.`} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 70px 90px 1.4fr 70px 32px', padding: '8px 4px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-            {['Use case', 'Volume', 'Perfect', 'Progress to 80%', 'Status', ''].map(h => (
-              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 60px 80px 90px 1.3fr 70px 32px', padding: '8px 4px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+            {['Use case', 'Volume', 'Actual', 'Projected', 'Progress to 80%', 'Status', ''].map(h => (
+              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: h === 'Projected' ? '#9B59D0' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
             ))}
           </div>
           {curReady.slice(0, 10).map(c => {
@@ -473,7 +505,7 @@ export default function ExecutiveSummary() {
               <div key={c.name}>
                 {/* Main row */}
                 <div
-                  style={{ display: 'grid', gridTemplateColumns: '1.6fr 70px 90px 1.4fr 70px 32px', padding: '10px 4px', alignItems: 'center', borderBottom: isExpanded ? 'none' : '1px solid rgba(0,0,0,0.04)', cursor: 'pointer' }}
+                  style={{ display: 'grid', gridTemplateColumns: '1.4fr 60px 80px 90px 1.3fr 70px 32px', padding: '10px 4px', alignItems: 'center', borderBottom: isExpanded ? 'none' : '1px solid rgba(0,0,0,0.04)', cursor: 'pointer' }}
                   onClick={() => {
                     const next = isExpanded ? null : c.name
                     setExpandedCat(next)
@@ -483,9 +515,13 @@ export default function ExecutiveSummary() {
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{c.name}</span>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{c.vol}</span>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color }}>{c.status === 'low-data' ? '—' : `${c.perfectRate}%`}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: c.status === 'low-data' ? '#aaa' : '#9B59D0' }}>{c.status === 'low-data' ? '—' : `${c.projectedPerfectRate}%`}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 16 }}>
-                    <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.min(100, (c.perfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: color, borderRadius: 100, transition: 'width 0.4s' }} />
+                    <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden', position: 'relative' }}>
+                      {/* Projected bar (behind) */}
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: `${Math.min(100, (c.projectedPerfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: 'rgba(155,89,208,0.2)', borderRadius: 100 }} />
+                      {/* Actual bar (front) */}
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: `${Math.min(100, (c.perfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: color, borderRadius: 100, transition: 'width 0.4s' }} />
                     </div>
                   </div>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color }}>
@@ -562,7 +598,7 @@ export default function ExecutiveSummary() {
           })}
         </div>
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic', marginTop: 12 }}>
-          A use case needs ≥{READY_THRESHOLD}% perfect rate (and ≥{MIN_VOL} interactions) before it's a candidate for full automation.
+          A use case needs ≥{READY_THRESHOLD}% perfect rate (and ≥{MIN_VOL} interactions) before it's a candidate for full automation. · Projected rate includes preference, enhancement &amp; agent-error edits where gameLM was correct but the agent overrode it.
         </p>
       </div>
 
