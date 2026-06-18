@@ -19,61 +19,60 @@ function buildPrompt(req: CategoryInsightRequest): string {
   const { category, vol, perfectRate, editDependency, noRespRate, preferenceEdits, correctionEdits, enhancementEdits, accClasses } = req
 
   const totalVerdict = preferenceEdits + correctionEdits + enhancementEdits
-  const prefPct  = totalVerdict ? Math.round((preferenceEdits  / totalVerdict) * 100) : null
-  const corrPct  = totalVerdict ? Math.round((correctionEdits  / totalVerdict) * 100) : null
-  const enhPct   = totalVerdict ? Math.round((enhancementEdits / totalVerdict) * 100) : null
 
-  const verdictSummary = totalVerdict > 0
-    ? `Edit breakdown (human-reviewed): ${correctionEdits} actual corrections (${corrPct}%), ${preferenceEdits} preference overrides (${prefPct}%), ${enhancementEdits} enhancements (${enhPct}%)`
-    : 'Edit breakdown: not yet human-reviewed'
+  // Translate internal labels into plain English before passing to Claude
+  const editContext = totalVerdict > 0 ? [
+    correctionEdits > 0   && `${correctionEdits} of ${totalVerdict} reviewed edits were genuine fixes (the AI response was wrong or missing key info)`,
+    preferenceEdits > 0   && `${preferenceEdits} of ${totalVerdict} reviewed edits were style or tone choices by the agent (the AI was correct but the agent rewrote it anyway)`,
+    enhancementEdits > 0  && `${enhancementEdits} of ${totalVerdict} reviewed edits added extra detail on top of a good response`,
+  ].filter(Boolean).join('. ') : null
 
+  // Translate accClass codes into plain descriptions
+  const accDescriptions: Record<string, string> = {
+    'HALLUCINATION':   'made up information',
+    'MISSING_INFO':    'left out important details',
+    'WRONG_OUTCOME':   'reached the wrong conclusion',
+    'OUTDATED':        'used outdated information',
+    'MISUNDERSTOOD':   'misread what the customer was asking',
+  }
   const accEntries = Object.entries(accClasses).filter(([, n]) => n > 0)
-  const accSummary = accEntries.length > 0
-    ? accEntries.map(([cls, n]) => `${cls}: ${n}`).join(', ')
-    : 'No accuracy flags recorded'
+  const accContext = accEntries.length > 0
+    ? accEntries.map(([cls, n]) => `${n} case${n > 1 ? 's' : ''} where the AI ${accDescriptions[cls] ?? 'had an accuracy issue'}`).join(', ')
+    : null
 
-  return `You are a senior CS operations analyst reviewing AI-assisted support performance data for a sports betting operator.
+  return `You are helping a leadership team understand why an AI customer support tool is not yet fully automatic for a specific query type.
 
-The AI tool (gameLM) suggests responses to customer support queries. Agents review each suggestion and categorise it as:
-- Perfect: sent as-is (no edits)
-- Majority edit: agent made significant changes
-- Partial edit: agent made minor changes
-- No response: gameLM returned nothing useful
+The AI suggests responses. Agents either send them as-is or edit them before sending. We want more sent as-is.
 
-You are analysing the category: **${category}**
+Query type: ${category}
+Total interactions reviewed: ${vol}
+Sent without any edits: ${perfectRate}%
+Required edits before sending: ${editDependency}%
+AI had no useful response: ${noRespRate}%
+${editContext ? `Why agents edited: ${editContext}` : ''}
+${accContext ? `Accuracy problems found: ${accContext}` : ''}
 
-METRICS (last period):
-- Total interactions: ${vol}
-- Perfect rate: ${perfectRate}% (want this high — means gameLM is ready to send)
-- Edit dependency: ${editDependency}% (want this low — means agents are editing too often)
-- No response rate: ${noRespRate}% (want this low — means gameLM has no useful answer)
-- ${verdictSummary}
-- Accuracy flags: ${accSummary}
+Write two short sections for a leadership audience. Plain English only — no technical jargon, no internal codes, no acronyms.
 
-Provide two short, specific insight blocks. Be direct and grounded in the numbers above.
+OPERATIONS — what the team is doing that's causing edits. Focus on habits, training gaps, or process issues that a manager could act on.
 
-**OPERATIONS** — recurring human and process themes that explain why agents are editing or overriding. Focus on: agent behaviour patterns (e.g. preference-driven edits, vocabulary habits, "good enough" mentality), training gaps, or workflow friction. Reference the specific verdict data if available.
-
-**TECHNICAL** — recurring system and model themes that explain no responses or accuracy corrections. Focus on: query sub-types that gameLM struggles with in this category, knowledge gaps, edge cases, or accuracy error patterns.
+TECHNICAL — what the AI is struggling with. Focus on the types of questions it can't answer well or where it gets things wrong.
 
 Rules:
-- Each block: 2–3 bullet points maximum
-- Reference actual numbers from the data
-- Be specific to this category (${category}) — not generic AI advice
-- If preference edits dominate, call it out in Operations: agents may be overriding for style, not accuracy
-- If no-response rate is high, investigate what sub-types of ${category} queries are likely causing it
-- No preamble, no closing summary, no filler phrases
-- If the data volume is too low to draw conclusions, say so honestly in one line
+- 2 bullets per section maximum
+- Each bullet: one plain sentence, under 20 words
+- No jargon, no acronyms, no internal labels
+- Specific to ${category} queries — not generic
+- If there's not enough data to say anything meaningful, write one bullet: "Not enough data yet to identify clear patterns."
 
-Return ONLY the two blocks in this exact format:
-
+Format:
 OPERATIONS
-• [insight]
-• [insight]
+• [one plain sentence]
+• [one plain sentence]
 
 TECHNICAL
-• [insight]
-• [insight]`
+• [one plain sentence]
+• [one plain sentence]`
 }
 
 Deno.serve(async (req: Request) => {
