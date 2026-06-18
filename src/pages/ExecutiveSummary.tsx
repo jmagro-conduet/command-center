@@ -18,7 +18,8 @@ interface Row {
   qScore:        number | null
   qRanAt:        string | null
   qVer:          string | null
-  reviewVerdict: string | null
+  evalVerdict:   string | null   // AI auto-eval verdict
+  reviewVerdict: string | null   // human QA override (takes precedence)
   themeTag:      string | null
 }
 
@@ -54,9 +55,11 @@ function qualitySplit(rows: Row[]) {
     if (r.issueType === 'Perfect') perfect++
     else if (r.issueType === 'Majority edit' || r.issueType === 'Partial edit') {
       if (r.issueType === 'Majority edit') majority++; else partial++
-      if (r.reviewVerdict === 'PREFERENCE')   prefEdits++
-      else if (r.reviewVerdict === 'AGENT_ERROR')  agentErrEdits++
-      else if (r.reviewVerdict === 'ENHANCEMENT')  enhEdits++
+      // Human QA override takes precedence; fall back to AI auto-eval verdict
+      const v = r.reviewVerdict ?? r.evalVerdict
+      if (v === 'PREFERENCE')   prefEdits++
+      else if (v === 'AGENT_ERROR')  agentErrEdits++
+      else if (v === 'ENHANCEMENT')  enhEdits++
     }
     else if (r.issueType === 'No response') noResp++
   }
@@ -86,12 +89,13 @@ function categoryReadiness(rows: Row[]) {
     const s = qualitySplit(rs)
     const vol = s.qualityDenom + s.noResp
 
-    // Verdict distribution — why agents edited
+    // Verdict distribution — why agents edited; human QA takes precedence over AI verdict
     let preferenceEdits = 0, correctionEdits = 0, enhancementEdits = 0
     for (const r of rs) {
-      if (r.reviewVerdict === 'PREFERENCE')  preferenceEdits++
-      else if (r.reviewVerdict === 'CORRECTION')  correctionEdits++
-      else if (r.reviewVerdict === 'ENHANCEMENT') enhancementEdits++
+      const v = r.reviewVerdict ?? r.evalVerdict
+      if (v === 'PREFERENCE')  preferenceEdits++
+      else if (v === 'CORRECTION')  correctionEdits++
+      else if (v === 'ENHANCEMENT') enhancementEdits++
     }
 
     // Accuracy error class distribution (non-NONE only)
@@ -127,7 +131,7 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
   let from = 0
   while (true) {
     let q = supabase.from('ticket_issues')
-      .select('issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, review_correct_verdict, theme_tag, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
+      .select('issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, eval_verdict, review_correct_verdict, theme_tag, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
@@ -149,6 +153,7 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
     qScore:        ti.quality_score ?? null,
     qRanAt:        ti.quality_ran_at ?? null,
     qVer:          ti.quality_prompt_version ?? null,
+    evalVerdict:   ti.eval_verdict ?? null,
     reviewVerdict: ti.review_correct_verdict ?? null,
     themeTag:      ti.theme_tag ?? null,
   }))
