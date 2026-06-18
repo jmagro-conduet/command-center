@@ -210,6 +210,35 @@ function VerdictBadge({ verdict, small }: { verdict: Verdict; small?: boolean })
   )
 }
 
+// QA quick-filter — a row is "QA'd" once a human confirmed or dismissed it.
+function isQAd(r: EvalRow) { return r.reviewStatus === 'confirmed' || r.reviewStatus === 'dismissed' }
+type QAStatus = 'all' | 'qad' | 'pending'
+function applyQA(rows: EvalRow[], s: QAStatus): EvalRow[] {
+  if (s === 'qad')     return rows.filter(isQAd)
+  if (s === 'pending') return rows.filter(r => !isQAd(r))
+  return rows
+}
+function QAFilter({ value, onChange, qad, pending }: { value: QAStatus; onChange: (v: QAStatus) => void; qad: number; pending: number }) {
+  const opts: { id: QAStatus; label: string }[] = [
+    { id: 'all',     label: 'All' },
+    { id: 'qad',     label: `QA'd ${qad}` },
+    { id: 'pending', label: `Pending ${pending}` },
+  ]
+  return (
+    <div title="Filter by QA review status" style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+      {opts.map(o => (
+        <button key={o.id} onClick={() => onChange(o.id)} style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: value === o.id ? 600 : 400,
+          padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+          background: value === o.id ? (o.id === 'qad' ? '#9B59D0' : '#fff') : 'transparent',
+          color: value === o.id ? (o.id === 'qad' ? '#fff' : '#000') : '#58595B',
+          boxShadow: value === o.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+        }}>{o.label}</button>
+      ))}
+    </div>
+  )
+}
+
 function ConfidencePip({ value, label }: { value: number; label?: string }) {
   const color = value >= 80 ? '#166534' : value >= 60 ? '#854d0e' : '#e53e3e'
   // Labelled variant: a self-describing chip for places with no column header to
@@ -1453,18 +1482,24 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   const [categoryFilter,   setCategoryFilter]   = useState('')
   const [agentFil,         setAgentFil]         = useState('')
   const [errorClassFilter, setErrorClassFilter] = useState<'P1A' | 'P1B' | 'P2' | ''>('')
+  const [qaFilter,         setQaFilter]         = useState<QAStatus>('all')
   const [page,             setPage]             = useState(1)
 
   // Reset page when the active list changes
-  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, errorClassFilter, viewMode])
+  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, errorClassFilter, qaFilter, viewMode])
 
-  const scoped = (() => {
+  const scopedPreQA = (() => {
     let r = agentFilter ? rows.filter(x => x.agentName === agentFilter) : rows
     if (categoryFilter)   r = r.filter(x => x.category === categoryFilter)
     if (agentFil)         r = r.filter(x => x.agentName === agentFil)
     if (errorClassFilter) r = r.filter(x => x.accuracyErrorClass === errorClassFilter)
     return r
   })()
+  // QA counts over the evaluated set (before the QA filter is applied)
+  const qaEvald   = scopedPreQA.filter(r => r.accuracyRanAt !== null)
+  const qaQad     = qaEvald.filter(isQAd).length
+  const qaPending = qaEvald.length - qaQad
+  const scoped    = applyQA(scopedPreQA, qaFilter)
 
   const withEval    = scoped.filter(r => r.accuracyRanAt !== null)
   const total       = withEval.length
@@ -1654,6 +1689,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
               )
             })}
           </div>
+          <QAFilter value={qaFilter} onChange={v => { setQaFilter(v); setPage(1) }} qad={qaQad} pending={qaPending} />
           {!agentFilter && (
             <DiagnosticFilters rows={withEval} categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
               agentFilter={agentFil} onAgentChange={setAgentFil} />
@@ -1736,17 +1772,22 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   const [subTab,         setSubTab]         = useState<'below' | 'passing'>('below')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [agentFil,       setAgentFil]       = useState('')
+  const [qaFilter,       setQaFilter]       = useState<QAStatus>('all')
   const [page,           setPage]           = useState(1)
 
   // Reset page when the active list changes
-  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, viewMode])
+  useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, qaFilter, viewMode])
 
-  const scoped = (() => {
+  const scopedPreQA = (() => {
     let r = agentFilter ? rows.filter(x => x.agentName === agentFilter) : rows
     if (categoryFilter) r = r.filter(x => x.category === categoryFilter)
     if (agentFil)       r = r.filter(x => x.agentName === agentFil)
     return r
   })()
+  const qaEvald   = scopedPreQA.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
+  const qaQad     = qaEvald.filter(isQAd).length
+  const qaPending = qaEvald.length - qaQad
+  const scoped    = applyQA(scopedPreQA, qaFilter)
 
   const withEval = scoped.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
 
@@ -1984,6 +2025,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <QAFilter value={qaFilter} onChange={v => { setQaFilter(v); setPage(1) }} qad={qaQad} pending={qaPending} />
             {!agentFilter && (
               <DiagnosticFilters rows={withEval} categoryFilter={categoryFilter} onCategoryChange={setCategoryFilter}
                 agentFilter={agentFil} onAgentChange={setAgentFil} />
@@ -2044,14 +2086,18 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
   const [page,           setPage]           = useState(1)
   const [verdictFilter,  setVerdictFilter]  = useState<Verdict | 'NONE' | ''>('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [qaFilter,       setQaFilter]       = useState<QAStatus>('all')
 
   const evalRows = rows.filter(r => r.evalVerdict !== null)
+  const qaQad     = evalRows.filter(isQAd).length
+  const qaPending = evalRows.length - qaQad
+  const qaRows    = useMemo(() => applyQA(evalRows, qaFilter), [evalRows, qaFilter])
 
   const categories = useMemo(() => [...new Set(evalRows.map(r => r.category).filter(Boolean))].sort(), [evalRows])
 
   const tickets = useMemo(() => {
     const map = new Map<string, EvalRow[]>()
-    for (const row of evalRows) {
+    for (const row of qaRows) {
       const key = row.ticketNumber ?? row.id
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(row)
@@ -2066,7 +2112,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
       return { ticketNumber, issues, corrections, enhancements, preferences, agents,
         avgConf, category: issues[0]?.category ?? '', latestDate }
     }).sort((a, b) => b.latestDate.localeCompare(a.latestDate))
-  }, [evalRows])
+  }, [qaRows])
 
   const filtered = useMemo(() => {
     let r = tickets
@@ -2075,7 +2121,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
     return r
   }, [tickets, verdictFilter, categoryFilter])
 
-  useEffect(() => { setPage(1); setExpanded(null) }, [verdictFilter, categoryFilter])
+  useEffect(() => { setPage(1); setExpanded(null) }, [verdictFilter, categoryFilter, qaFilter])
 
   const VERDICT_PILLS: { key: Verdict | 'NONE'; label: string; color: string; bg: string }[] = [
     { key: 'CORRECTION',  label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
@@ -2117,6 +2163,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
             <option value="">All categories</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          <QAFilter value={qaFilter} onChange={v => { setQaFilter(v); setPage(1) }} qad={qaQad} pending={qaPending} />
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{filtered.length} ticket{filtered.length !== 1 ? 's' : ''}</span>
