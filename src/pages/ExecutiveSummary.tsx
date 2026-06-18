@@ -65,7 +65,7 @@ function qualitySplit(rows: Row[]) {
   }
   const qd = perfect + majority + partial
   const total = qd + noResp
-  const projectedPerfect = perfect + prefEdits + agentErrEdits + enhEdits
+  const projectedPerfect = perfect + prefEdits + agentErrEdits + Math.round(enhEdits * 0.5)
   return {
     perfect, majority, partial, noResp, qualityDenom: qd,
     perfectRate: pct(perfect, qd),
@@ -406,7 +406,7 @@ export default function ExecutiveSummary() {
               <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: '#9B59D0', lineHeight: 1 }}>{curSplit.projectedPerfectRate}%</p>
             </div>
           </div>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>Projected adds preference, enhancement &amp; agent-error edits</p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>Projected adds preference &amp; agent-error edits + 50% of enhancements</p>
           <div style={{ marginTop: 4 }}><Delta curr={curSplit.perfectRate} prev={prev.length ? prevSplit.perfectRate : null} good="up" /></div>
         </div>
 
@@ -603,7 +603,7 @@ export default function ExecutiveSummary() {
           })}
         </div>
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic', marginTop: 12 }}>
-          A use case needs ≥{READY_THRESHOLD}% perfect rate (and ≥{MIN_VOL} interactions) before it's a candidate for full automation. · Projected rate includes preference, enhancement &amp; agent-error edits where gameLM was correct but the agent overrode it.
+          A use case needs ≥{READY_THRESHOLD}% perfect rate (and ≥{MIN_VOL} interactions) before it's a candidate for full automation. · Projected rate adds preference &amp; agent-error edits (100%) + enhancements (50%) — cases where gameLM was correct or marginally improvable.
         </p>
       </div>
 
