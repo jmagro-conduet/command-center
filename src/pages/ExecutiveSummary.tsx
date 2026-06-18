@@ -188,7 +188,8 @@ export default function ExecutiveSummary() {
   const [zdTotal, setZdTotal]   = useState<number | null>(null)
   const [trendPeriod, setTrendPeriod]     = useState<'30d' | 'quarter'>('quarter')
   const [expandedCat, setExpandedCat]     = useState<string | null>(null)
-  const [insightsCache, setInsightsCache] = useState<Record<string, { ops: string[]; tech: string[]; loading: boolean; error?: string }>>({})
+  type TechBullet = { text: string; subs: string[] }
+  const [insightsCache, setInsightsCache] = useState<Record<string, { ops: string[]; tech: TechBullet[]; loading: boolean; error?: string }>>({})
 
   const fetchInsights = async (cat: ReturnType<typeof categoryReadiness>[number]) => {
     const key = cat.name
@@ -213,14 +214,37 @@ export default function ExecutiveSummary() {
       const text: string = data.insights
       const opsMatch  = text.match(/OPERATIONS\s*([\s\S]*?)(?=TECHNICAL|$)/i)
       const techMatch = text.match(/TECHNICAL\s*([\s\S]*?)$/i)
-      const parseBullets = (block: string) =>
+      const parseFlat = (block: string): string[] =>
         block.split('\n').map(l => l.replace(/^[•\-\*]\s*/, '').trim()).filter(Boolean)
+
+      const parseTech = (block: string): TechBullet[] => {
+        const result: TechBullet[] = []
+        let current: TechBullet | null = null
+        for (const raw of block.split('\n')) {
+          const isSub  = /^\s{1,}[-–]/.test(raw)
+          const isMain = /^[•]/.test(raw.trim())
+          if (isMain) {
+            current = { text: raw.replace(/^[•]\s*/, '').trim(), subs: [] }
+            result.push(current)
+          } else if (isSub && current) {
+            current.subs.push(raw.replace(/^\s*[-–]\s*/, '').trim())
+          } else {
+            const clean = raw.trim()
+            if (clean) {
+              current = { text: clean.replace(/^[•\-\*]\s*/, ''), subs: [] }
+              result.push(current)
+            }
+          }
+        }
+        return result.filter(b => b.text)
+      }
+
       setInsightsCache(prev => ({
         ...prev,
         [key]: {
           loading: false,
-          ops:  parseBullets(opsMatch?.[1] ?? ''),
-          tech: parseBullets(techMatch?.[1] ?? ''),
+          ops:  parseFlat(opsMatch?.[1] ?? ''),
+          tech: parseTech(techMatch?.[1] ?? ''),
         },
       }))
     } catch (err) {
@@ -505,9 +529,16 @@ export default function ExecutiveSummary() {
                         <div style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.08)', borderLeft: '3px solid #3b82f6', borderRadius: 8, padding: '12px 14px' }}>
                           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Technical</p>
                           {insight.tech.length > 0 ? insight.tech.map((b, i) => (
-                            <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#111', margin: '0 0 6px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
-                              <span style={{ color: '#3b82f6', flexShrink: 0 }}>•</span>{b}
-                            </p>
+                            <div key={i} style={{ marginBottom: 8 }}>
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#111', margin: '0 0 4px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
+                                <span style={{ color: '#3b82f6', flexShrink: 0 }}>•</span>{b.text}
+                              </p>
+                              {b.subs.map((s, j) => (
+                                <p key={j} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#555', margin: '0 0 3px', lineHeight: 1.5, display: 'flex', gap: 6, paddingLeft: 16 }}>
+                                  <span style={{ color: '#93c5fd', flexShrink: 0 }}>–</span>{s}
+                                </p>
+                              ))}
+                            </div>
                           )) : <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', margin: 0 }}>No technical patterns identified.</p>}
                         </div>
                       </div>
