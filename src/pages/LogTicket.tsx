@@ -45,6 +45,7 @@ interface GamLMResponse {
   issueType: string
   reasoning: string
   finalEdits: string
+  enhancementNote: string
   loggedAt: string
 }
 
@@ -60,6 +61,7 @@ interface TabState {
   draftIssueType: string
   draftReasoning: string
   draftFinalEdits: string
+  draftEnhancementNote: string
 }
 
 function newTab(id: number): TabState {
@@ -67,7 +69,7 @@ function newTab(id: number): TabState {
     id,
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftCustomer: '', draftSuggested: '', draftIssueType: '',
-    draftReasoning: '', draftFinalEdits: '',
+    draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
   }
 }
 
@@ -114,8 +116,9 @@ export default function LogTicket() {
     } catch { /* ignore */ }
   }, [allTabs, activeTabId, user?.email])
 
-  const needsReasoning  = ['majority', 'partial', 'none'].includes(active.draftIssueType)
-  const needsFinalEdits = ['majority', 'partial'].includes(active.draftIssueType)
+  const needsReasoning      = ['majority', 'partial', 'none'].includes(active.draftIssueType)
+  const needsFinalEdits     = ['majority', 'partial'].includes(active.draftIssueType)
+  const showEnhancementNote = active.draftIssueType === 'perfect'
 
   function handleTicketNumberChange(raw: string) {
     // Strip non-digits and enforce max length
@@ -133,10 +136,11 @@ export default function LogTicket() {
         issueType:         active.draftIssueType,
         reasoning:         active.draftReasoning,
         finalEdits:        active.draftFinalEdits,
+        enhancementNote:   active.draftEnhancementNote,
         loggedAt:          new Date().toISOString(),
       }],
       draftCustomer: '', draftSuggested: '', draftIssueType: '',
-      draftReasoning: '', draftFinalEdits: '',
+      draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
     })
   }
 
@@ -207,6 +211,7 @@ export default function LogTicket() {
         suggested_response: r.suggestedResponse || null,
         reasoning:          r.reasoning || null,
         final_edits:        r.finalEdits || null,
+        enhancement_note:   r.enhancementNote || null,
         logged_at:          r.loggedAt,
         operator_id:        selectedOperator?.id ?? user?.operatorId ?? null,
       }
@@ -492,6 +497,29 @@ export default function LogTicket() {
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
             </Field>
+          )}
+
+          {showEnhancementNote && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+                  Suggested improvements
+                </label>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
+              </div>
+              <textarea
+                value={active.draftEnhancementNote}
+                onChange={e => updateActive({ draftEnhancementNote: e.target.value })}
+                placeholder="Even though the response was good, what could have made it better? e.g. tone, specificity, phrasing…"
+                rows={3}
+                style={textareaStyle}
+                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+              />
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', lineHeight: 1.45 }}>
+                This helps us reduce the urge to tweak good responses — your feedback trains gameLM to get there on its own.
+              </span>
+            </div>
           )}
 
           <button
