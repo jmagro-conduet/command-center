@@ -7,17 +7,19 @@ import { useOperator } from '../context/OperatorContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Row {
-  issueType:   string
-  date:        Date
-  ticketNumber: string
-  agentEmail:  string
-  category:    string
-  accClass:    string | null
-  accRanAt:    string | null
-  accVer:      string | null
-  qScore:      number | null
-  qRanAt:      string | null
-  qVer:        string | null
+  issueType:     string
+  date:          Date
+  ticketNumber:  string
+  agentEmail:    string
+  category:      string
+  accClass:      string | null
+  accRanAt:      string | null
+  accVer:        string | null
+  qScore:        number | null
+  qRanAt:        string | null
+  qVer:          string | null
+  reviewVerdict: string | null
+  themeTag:      string | null
 }
 
 // ── Category canonicalisation (mirror of Analytics) ─────────────────────────────
@@ -71,9 +73,30 @@ function categoryReadiness(rows: Row[]) {
   return [...m.entries()].map(([name, rs]) => {
     const s = qualitySplit(rs)
     const vol = s.qualityDenom + s.noResp
+
+    // Verdict distribution — why agents edited
+    let preferenceEdits = 0, correctionEdits = 0, enhancementEdits = 0
+    for (const r of rs) {
+      if (r.reviewVerdict === 'PREFERENCE')  preferenceEdits++
+      else if (r.reviewVerdict === 'CORRECTION')  correctionEdits++
+      else if (r.reviewVerdict === 'ENHANCEMENT') enhancementEdits++
+    }
+
+    // Accuracy error class distribution (non-NONE only)
+    const accClasses: Record<string, number> = {}
+    for (const r of rs) {
+      if (r.accClass && r.accClass !== 'NONE') {
+        accClasses[r.accClass] = (accClasses[r.accClass] ?? 0) + 1
+      }
+    }
+
     const ready = vol >= MIN_VOL && s.perfectRate >= READY_THRESHOLD
     const status = vol < MIN_VOL ? 'low-data' : s.perfectRate >= READY_THRESHOLD ? 'ready' : s.perfectRate >= 70 ? 'almost' : 'not-ready'
-    return { name, vol, perfectRate: s.perfectRate, ready, status }
+    return {
+      name, vol, perfectRate: s.perfectRate, editDependency: s.editDependency, noRespRate: s.noRespRate,
+      ready, status,
+      preferenceEdits, correctionEdits, enhancementEdits, accClasses,
+    }
   }).sort((a, b) => b.vol - a.vol)
 }
 
@@ -91,7 +114,7 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
   let from = 0
   while (true) {
     let q = supabase.from('ticket_issues')
-      .select('issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
+      .select('issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, review_correct_verdict, theme_tag, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
@@ -107,12 +130,14 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
     ticketNumber: ti.tickets?.ticket_number ?? '',
     agentEmail:  ti.tickets?.agent_email ?? '',
     category:    normalizeCategory(ti.tickets?.ticket_category ?? ''),
-    accClass:    ti.accuracy_error_class ?? null,
-    accRanAt:    ti.accuracy_ran_at ?? null,
-    accVer:      ti.accuracy_prompt_version ?? null,
-    qScore:      ti.quality_score ?? null,
-    qRanAt:      ti.quality_ran_at ?? null,
-    qVer:        ti.quality_prompt_version ?? null,
+    accClass:      ti.accuracy_error_class ?? null,
+    accRanAt:      ti.accuracy_ran_at ?? null,
+    accVer:        ti.accuracy_prompt_version ?? null,
+    qScore:        ti.quality_score ?? null,
+    qRanAt:        ti.quality_ran_at ?? null,
+    qVer:          ti.quality_prompt_version ?? null,
+    reviewVerdict: ti.review_correct_verdict ?? null,
+    themeTag:      ti.theme_tag ?? null,
   }))
 }
 
@@ -161,7 +186,50 @@ export default function ExecutiveSummary() {
   const [rows, setRows]         = useState<Row[]>([])
   const [loading, setLoading]   = useState(true)
   const [zdTotal, setZdTotal]   = useState<number | null>(null)
-  const [trendPeriod, setTrendPeriod] = useState<'30d' | 'quarter'>('quarter')
+  const [trendPeriod, setTrendPeriod]     = useState<'30d' | 'quarter'>('quarter')
+  const [expandedCat, setExpandedCat]     = useState<string | null>(null)
+  const [insightsCache, setInsightsCache] = useState<Record<string, { ops: string[]; tech: string[]; loading: boolean; error?: string }>>({})
+
+  const fetchInsights = async (cat: ReturnType<typeof categoryReadiness>[number]) => {
+    const key = cat.name
+    if (insightsCache[key] && !insightsCache[key].loading) return
+    setInsightsCache(prev => ({ ...prev, [key]: { ops: [], tech: [], loading: true } }))
+    try {
+      const { data, error } = await supabase.functions.invoke('category-insights', {
+        body: {
+          category:         cat.name,
+          vol:              cat.vol,
+          perfectRate:      cat.perfectRate,
+          editDependency:   cat.editDependency,
+          noRespRate:       cat.noRespRate,
+          preferenceEdits:  cat.preferenceEdits,
+          correctionEdits:  cat.correctionEdits,
+          enhancementEdits: cat.enhancementEdits,
+          accClasses:       cat.accClasses,
+        },
+      })
+      if (error || !data?.insights) throw new Error(error?.message ?? 'No insights returned')
+      // Parse the two blocks from the response
+      const text: string = data.insights
+      const opsMatch  = text.match(/OPERATIONS\s*([\s\S]*?)(?=TECHNICAL|$)/i)
+      const techMatch = text.match(/TECHNICAL\s*([\s\S]*?)$/i)
+      const parseBullets = (block: string) =>
+        block.split('\n').map(l => l.replace(/^[•\-\*]\s*/, '').trim()).filter(Boolean)
+      setInsightsCache(prev => ({
+        ...prev,
+        [key]: {
+          loading: false,
+          ops:  parseBullets(opsMatch?.[1] ?? ''),
+          tech: parseBullets(techMatch?.[1] ?? ''),
+        },
+      }))
+    } catch (err) {
+      setInsightsCache(prev => ({
+        ...prev,
+        [key]: { loading: false, ops: [], tech: [], error: 'Could not load insights. Try again.' },
+      }))
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -259,6 +327,7 @@ export default function ExecutiveSummary() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 24 }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -370,26 +439,81 @@ export default function ExecutiveSummary() {
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
         <SectionTitle title="Path to Full Automation" subtitle={`Each use case toward the ${READY_THRESHOLD}% perfect-rate bar needed to go live. ${readyCount} of ${trackedCats} ready today.`} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 70px 90px 1.4fr 70px', padding: '8px 4px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-            {['Use case', 'Volume', 'Perfect', 'Progress to 80%', 'Status'].map(h => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 70px 90px 1.4fr 70px 32px', padding: '8px 4px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+            {['Use case', 'Volume', 'Perfect', 'Progress to 80%', 'Status', ''].map(h => (
               <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
             ))}
           </div>
           {curReady.slice(0, 10).map(c => {
             const color = STATUS_COLOR[c.status]
+            const isExpanded = expandedCat === c.name
+            const insight = insightsCache[c.name]
             return (
-              <div key={c.name} style={{ display: 'grid', gridTemplateColumns: '1.6fr 70px 90px 1.4fr 70px', padding: '10px 4px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{c.name}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{c.vol}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color }}>{c.status === 'low-data' ? '—' : `${c.perfectRate}%`}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 16 }}>
-                  <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.min(100, (c.perfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: color, borderRadius: 100, transition: 'width 0.4s' }} />
+              <div key={c.name}>
+                {/* Main row */}
+                <div
+                  style={{ display: 'grid', gridTemplateColumns: '1.6fr 70px 90px 1.4fr 70px 32px', padding: '10px 4px', alignItems: 'center', borderBottom: isExpanded ? 'none' : '1px solid rgba(0,0,0,0.04)', cursor: 'pointer' }}
+                  onClick={() => {
+                    const next = isExpanded ? null : c.name
+                    setExpandedCat(next)
+                    if (next && !insightsCache[c.name]) fetchInsights(c)
+                  }}
+                >
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{c.name}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{c.vol}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color }}>{c.status === 'low-data' ? '—' : `${c.perfectRate}%`}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 16 }}>
+                    <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.min(100, (c.perfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: color, borderRadius: 100, transition: 'width 0.4s' }} />
+                    </div>
                   </div>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color }}>
+                    {c.status === 'ready' ? '✓ Ready' : c.status === 'low-data' ? 'Low data' : c.status === 'almost' ? 'Almost' : 'Not ready'}
+                  </span>
+                  {/* Expand chevron */}
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </span>
                 </div>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color }}>
-                  {c.status === 'ready' ? '✓ Ready' : c.status === 'low-data' ? 'Low data' : c.status === 'almost' ? 'Almost' : 'Not ready'}
-                </span>
+
+                {/* Expanded insights panel */}
+                {isExpanded && (
+                  <div style={{ background: '#FAFAFA', border: '0.5px solid rgba(0,0,0,0.07)', borderRadius: '0 0 10px 10px', padding: '16px 16px 18px', marginBottom: 2, borderTop: 'none' }}>
+                    {insight?.loading ? (
+                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                          <circle cx="7" cy="7" r="5.5" stroke="#CEA4FF" strokeWidth="1.5" strokeDasharray="20 8"/>
+                        </svg>
+                        Analysing {c.name} patterns…
+                      </div>
+                    ) : insight?.error ? (
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{insight.error}</p>
+                    ) : insight ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                        {/* Operations */}
+                        <div style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.08)', borderLeft: '3px solid #f97316', borderRadius: 8, padding: '12px 14px' }}>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Operations</p>
+                          {insight.ops.length > 0 ? insight.ops.map((b, i) => (
+                            <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#111', margin: '0 0 6px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
+                              <span style={{ color: '#f97316', flexShrink: 0 }}>•</span>{b}
+                            </p>
+                          )) : <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', margin: 0 }}>No operational patterns identified.</p>}
+                        </div>
+                        {/* Technical */}
+                        <div style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.08)', borderLeft: '3px solid #3b82f6', borderRadius: 8, padding: '12px 14px' }}>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Technical</p>
+                          {insight.tech.length > 0 ? insight.tech.map((b, i) => (
+                            <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#111', margin: '0 0 6px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
+                              <span style={{ color: '#3b82f6', flexShrink: 0 }}>•</span>{b}
+                            </p>
+                          )) : <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', margin: 0 }}>No technical patterns identified.</p>}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             )
           })}
