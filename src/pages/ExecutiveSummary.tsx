@@ -522,9 +522,11 @@ export default function ExecutiveSummary() {
                                 <span style={{ color: '#f97316', flexShrink: 0 }}>•</span>{b.text}
                               </p>
                               {b.subs.length > 0 && (
-                                <div style={{ marginLeft: 18, borderLeft: '2px solid rgba(249,115,22,0.2)', paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
                                   {b.subs.map((s, j) => (
-                                    <p key={j} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#666', margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>{s}</p>
+                                    <p key={j} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#666', margin: 0, lineHeight: 1.5, fontStyle: 'italic', display: 'flex', gap: 5, paddingLeft: 18 }}>
+                                      <span style={{ color: '#fdba74', flexShrink: 0, fontSize: 9, marginTop: 3 }}>◦</span>{s}
+                                    </p>
                                   ))}
                                 </div>
                               )}
@@ -540,9 +542,11 @@ export default function ExecutiveSummary() {
                                 <span style={{ color: '#3b82f6', flexShrink: 0 }}>•</span>{b.text}
                               </p>
                               {b.subs.length > 0 && (
-                                <div style={{ marginLeft: 18, borderLeft: '2px solid rgba(59,130,246,0.2)', paddingLeft: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
                                   {b.subs.map((s, j) => (
-                                    <p key={j} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#666', margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>{s}</p>
+                                    <p key={j} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#666', margin: 0, lineHeight: 1.5, fontStyle: 'italic', display: 'flex', gap: 5, paddingLeft: 18 }}>
+                                      <span style={{ color: '#93c5fd', flexShrink: 0, fontSize: 9, marginTop: 3 }}>◦</span>{s}
+                                    </p>
                                   ))}
                                 </div>
                               )}
