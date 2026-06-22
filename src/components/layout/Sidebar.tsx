@@ -199,9 +199,10 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const [operatorDropOpen, setOperatorDropOpen] = useState(false)
   const { user, signOut }                   = useAuth()
   const { operators, selectedOperator, setSelectedOperator } = useOperator()
-  const navItems = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : user?.role === 'operator' ? OPERATOR_NAV : AGENT_NAV
-  const initial  = user?.name ? user.name[0].toUpperCase() : '?'
-  const isAdmin  = user?.role === 'admin'
+  const navItems   = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : user?.role === 'operator' ? OPERATOR_NAV : AGENT_NAV
+  const initial    = user?.name ? user.name[0].toUpperCase() : '?'
+  const isAdmin    = user?.role === 'admin'
+  const isOperator = user?.role === 'operator'
 
   return (
     <div style={{
@@ -435,7 +436,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
           </div>
         )}
 
-        <button
+        {!isOperator && <button
           onClick={() => onNavigate('settings')}
           title={collapsed ? (isAdmin ? 'Admin settings' : 'Settings') : undefined}
           style={{
@@ -468,7 +469,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             <SettingsIcon />
           </span>
           {!collapsed && (isAdmin ? 'Admin settings' : 'Settings')}
-        </button>
+        </button>}
 
         <button
           onClick={() => signOut()}
