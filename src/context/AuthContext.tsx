@@ -5,7 +5,7 @@ export interface AppUser {
   id: string
   email: string
   name: string
-  role: 'admin' | 'agent' | 'qa'
+  role: 'admin' | 'agent' | 'qa' | 'operator'
   operatorTeam: string | null
   operatorId: string | null
 }

@@ -70,7 +70,7 @@ export default function Users() {
   const [addName, setAddName]         = useState('')
   const [addEmail, setAddEmail]       = useState('')
   const [addPassword, setAddPassword] = useState('')
-  const [addRole, setAddRole]         = useState<'admin' | 'agent' | 'qa'>('agent')
+  const [addRole, setAddRole]         = useState<'admin' | 'agent' | 'qa' | 'operator'>('agent')
   const [addTeam, setAddTeam]         = useState('')
   const [addOperatorId, setAddOperatorId] = useState('')
   const [addSaving, setAddSaving]     = useState(false)
@@ -370,6 +370,7 @@ export default function Users() {
                   >
                     <option value="agent">Agent</option>
                     <option value="qa">QA</option>
+                    <option value="operator">Operator</option>
                     <option value="admin">Admin</option>
                   </select>
                 </td>
@@ -471,11 +472,12 @@ export default function Users() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Role</label>
-                  <select value={addRole} onChange={e => setAddRole(e.target.value as 'admin' | 'agent' | 'qa')} style={inputStyle}
+                  <select value={addRole} onChange={e => setAddRole(e.target.value as 'admin' | 'agent' | 'qa' | 'operator')} style={inputStyle}
                     onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
                     <option value="agent">Agent</option>
                     <option value="qa">QA</option>
+                    <option value="operator">Operator</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>

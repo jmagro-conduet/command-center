@@ -63,10 +63,12 @@ function AppShell() {
   if (recoveryMode) return <ResetPasswordPage updatePassword={updatePassword} />
   if (!user) return <Login />
 
-  const isAdmin = user?.role === 'admin'
-  const isQA    = user?.role === 'qa'
+  const isAdmin    = user?.role === 'admin'
+  const isQA       = user?.role === 'qa'
+  const isOperator = user?.role === 'operator'
 
   function renderPage() {
+    if (isOperator) return <ExecutiveSummary key={pageKey} />
     switch (activePage) {
       case 'log-ticket':  return <LogTicket    key={pageKey} />
       case 'bulletin':    return <Bulletin     key={pageKey} />
