@@ -16,20 +16,12 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-const CATEGORIES = [
-  'Account access',
-  'Bet Dispute',
-  'Bet Placement Issue',
-  'Bonus/promotion',
-  'Deposit/withdrawal',
-  'Game dispute',
-  'KYC/verification',
-  'Responsible gaming',
-  'Tax / W2',
-  'Technical issue',
-  'Win-Loss Statement',
-  'Other',
-]
+interface OpCategory {
+  id: string
+  main_category: string
+  sub_category: string | null
+  detail: string | null
+}
 
 const ISSUE_TYPES = [
   { value: 'perfect',  label: 'Perfect/no edits', dbLabel: 'Perfect',       emoji: '🔥' },
@@ -85,6 +77,19 @@ export default function LogTicket() {
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [closePending, setClosePending] = useState<number | null>(null)
+  const [opCategories,  setOpCategories]  = useState<OpCategory[]>([])
+  const [catsLoading,   setCatsLoading]   = useState(false)
+
+  useEffect(() => {
+    if (!selectedOperator) { setOpCategories([]); return }
+    setCatsLoading(true)
+    supabase.from('operator_issue_categories')
+      .select('id, main_category, sub_category, detail')
+      .eq('operator_id', selectedOperator.id)
+      .eq('active', true)
+      .order('main_category').order('sub_category', { nullsFirst: true }).order('detail', { nullsFirst: true })
+      .then(({ data }) => { setOpCategories(data ?? []); setCatsLoading(false) })
+  }, [selectedOperator?.id])
 
   const active = allTabs.find(t => t.id === activeTabId) ?? allTabs[0]
 
@@ -380,9 +385,33 @@ export default function LogTicket() {
                 style={{ ...inputStyle, color: active.category ? '#000' : '#aaa' }}
                 onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                disabled={catsLoading}
               >
-                <option value="">Select category</option>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                <option value="">{catsLoading ? 'Loading…' : 'Select category'}</option>
+                {(() => {
+                  const grouped: Record<string, OpCategory[]> = {}
+                  opCategories.forEach(c => {
+                    if (!grouped[c.main_category]) grouped[c.main_category] = []
+                    grouped[c.main_category].push(c)
+                  })
+                  return Object.keys(grouped).sort().map(main => {
+                    const items = grouped[main]
+                    const hasSub = items.some(c => c.sub_category)
+                    if (!hasSub) {
+                      return <option key={main} value={main}>{main}</option>
+                    }
+                    return (
+                      <optgroup key={main} label={main}>
+                        {items.map(c => {
+                          const value = [c.main_category, c.sub_category, c.detail].filter(Boolean).join(' › ')
+                          const label = [c.sub_category, c.detail].filter(Boolean).join(' › ')
+                          return <option key={c.id} value={value}>{label}</option>
+                        })}
+                      </optgroup>
+                    )
+                  })
+                })()}
+                <option value="Other">Other</option>
               </select>
             </div>
           </div>
