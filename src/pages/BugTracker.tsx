@@ -584,7 +584,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {bug.reported_by ?? '—'}
                   </span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {bug.ticket_id ?? '—'}
                   </span>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
