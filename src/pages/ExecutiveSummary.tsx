@@ -226,6 +226,9 @@ export default function ExecutiveSummary() {
   const [zdTotal, setZdTotal]   = useState<number | null>(null)
   const [trendPeriod, setTrendPeriod]     = useState<'30d' | 'quarter'>('quarter')
   const [expandedCat, setExpandedCat]     = useState<string | null>(null)
+  const [showCompliments, setShowCompliments] = useState(false)
+  type ComplimentTicket = { id: string; ticketNumber: string; agentName: string; lastMessage: string | null; confidence: number | null; createdAt: string }
+  const [compliments, setCompliments] = useState<ComplimentTicket[]>([])
   type TechBullet = { text: string; subs: string[] }
   const [insightsCache, setInsightsCache] = useState<Record<string, { ops: TechBullet[]; tech: TechBullet[]; loading: boolean; error?: string }>>({})
 
@@ -293,6 +296,27 @@ export default function ExecutiveSummary() {
   useEffect(() => {
     setLoading(true)
     fetchIssues(selectedOperator?.id ?? null).then(r => { setRows(r); setLoading(false) })
+  }, [selectedOperator?.id])
+
+  useEffect(() => {
+    const since = new Date(); since.setDate(since.getDate() - 30)
+    let q = supabase
+      .from('tickets')
+      .select('id, ticket_number, agent_name, zd_last_player_message, zd_sentiment_confidence, created_at')
+      .eq('zd_player_sentiment', 'COMPLIMENT')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+    if (selectedOperator?.id) q = (q as any).eq('operator_id', selectedOperator.id)
+    q.then(({ data }: any) => {
+      setCompliments((data ?? []).map((t: any) => ({
+        id:           t.id,
+        ticketNumber: t.ticket_number ?? '',
+        agentName:    t.agent_name ?? '',
+        lastMessage:  t.zd_last_player_message ?? null,
+        confidence:   t.zd_sentiment_confidence ?? null,
+        createdAt:    t.created_at ?? '',
+      })))
+    })
   }, [selectedOperator?.id])
 
   const now = Date.now()
@@ -632,12 +656,76 @@ export default function ExecutiveSummary() {
       {/* Quality & safety engine (eval system, business framing) */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
         <SectionTitle title="Quality &amp; Safety — automated evaluation" subtitle="Every gameLM suggestion is auto-graded so accuracy and regulatory risks surface fast — no extra headcount." />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 14 }}>
           <MiniStat label="Responses auto-evaluated (30d)" value={`${accRows.length}`} color="#9B59D0" />
           <MiniStat label="Accuracy issues caught" value={`${accIssues}`} color={accIssues > 0 ? '#854d0e' : '#166534'} sub="P1/P2 flagged for human review" />
           <MiniStat label="Avg response quality" value={avgQuality !== null ? `${avgQuality.toFixed(2)} / 5` : '—'} color={avgQuality !== null && avgQuality >= 4 ? '#166534' : '#854d0e'} />
+          {/* Compliments — clickable drilldown */}
+          <div
+            onClick={() => compliments.length > 0 && setShowCompliments(s => !s)}
+            style={{
+              background: showCompliments ? 'rgba(22,101,52,0.04)' : 'rgba(0,0,0,0.02)',
+              borderRadius: 12,
+              border: compliments.length > 0 ? `1.5px solid ${showCompliments ? 'rgba(22,101,52,0.35)' : 'rgba(22,101,52,0.2)'}` : '1.5px solid rgba(0,0,0,0.06)',
+              padding: '14px 16px',
+              cursor: compliments.length > 0 ? 'pointer' : 'default',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { if (compliments.length > 0) e.currentTarget.style.background = 'rgba(22,101,52,0.06)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = showCompliments ? 'rgba(22,101,52,0.04)' : 'rgba(0,0,0,0.02)' }}
+          >
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 6 }}>Player compliments (30d)</p>
+            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, lineHeight: 1, color: compliments.length > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
+              {compliments.length > 0 ? `+${compliments.length}` : '—'}
+            </p>
+            {compliments.length > 0 && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#166534', marginTop: 4 }}>
+                {showCompliments ? 'Click to collapse ↑' : 'Click to view all →'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Compliments drilldown */}
+      {showCompliments && compliments.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(22,101,52,0.2)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(22,101,52,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Player Compliments</p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+                {compliments.length} genuine compliment{compliments.length !== 1 ? 's' : ''} in the last 30 days — classified by AI from the final player message
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCompliments(false)}
+              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', padding: '4px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: 'pointer' }}
+            >
+              Close
+            </button>
+          </div>
+          {compliments.map((t, i) => (
+            <div key={t.id} style={{ padding: '14px 20px', borderBottom: i < compliments.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{t.agentName}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(22,101,52,0.09)', color: '#166534' }}>Compliment</span>
+                {t.confidence !== null && (
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{t.confidence}% confidence</span>
+                )}
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
+                  {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                </span>
+              </div>
+              {t.lastMessage && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.5, fontStyle: 'italic', padding: '8px 12px', borderRadius: 8, background: 'rgba(22,101,52,0.04)', borderLeft: '3px solid rgba(22,101,52,0.3)', margin: 0 }}>
+                  "{t.lastMessage.length > 300 ? t.lastMessage.slice(0, 300) + '…' : t.lastMessage}"
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
     </div>
   )
