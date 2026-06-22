@@ -87,12 +87,12 @@ function AppShell() {
   }
 
   return (
-    <div style={{
+    <div className="app-layout" style={{
       height: '100vh', display: 'flex', gap: 16, padding: 16,
       background: '#F1F1F2', overflow: 'hidden', boxSizing: 'border-box',
     }}>
       <Sidebar activePage={activePage} onNavigate={handleNavigate} />
-      <main style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
+      <main className="app-main" style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
         {renderPage()}
       </main>
     </div>

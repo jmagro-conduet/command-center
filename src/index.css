@@ -40,3 +40,27 @@ input, textarea, select {
   background: rgba(0, 0, 0, 0.15);
   border-radius: 100px;
 }
+
+@media print {
+  html, body, #root {
+    height: auto;
+    overflow: visible;
+  }
+
+  .app-sidebar {
+    display: none !important;
+  }
+
+  .app-layout {
+    display: block !important;
+    height: auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .app-main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+}

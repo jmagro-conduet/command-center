@@ -205,7 +205,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const isOperator = user?.role === 'operator'
 
   return (
-    <div style={{
+    <div className="app-sidebar" style={{
       width: collapsed ? 72 : 240,
       minWidth: collapsed ? 72 : 240,
       height: '100%',
