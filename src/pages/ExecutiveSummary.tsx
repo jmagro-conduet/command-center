@@ -672,62 +672,74 @@ export default function ExecutiveSummary() {
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => { if (compliments.length > 0) e.currentTarget.style.background = 'rgba(22,101,52,0.06)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = showCompliments ? 'rgba(22,101,52,0.04)' : 'rgba(0,0,0,0.02)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
           >
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 6 }}>Player compliments (30d)</p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, lineHeight: 1, color: compliments.length > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
               {compliments.length > 0 ? `+${compliments.length}` : '—'}
             </p>
             {compliments.length > 0 && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#166534', marginTop: 4 }}>
-                {showCompliments ? 'Click to collapse ↑' : 'Click to view all →'}
-              </p>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#166534', marginTop: 4 }}>Click to view all →</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Compliments drilldown */}
-      {showCompliments && compliments.length > 0 && (
-        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(22,101,52,0.2)', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(22,101,52,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    </div>
+
+    {/* Compliments modal */}
+    {showCompliments && compliments.length > 0 && (
+      <div
+        onClick={() => setShowCompliments(false)}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+        >
+          {/* Header */}
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <div>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Player Compliments</p>
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 17, fontWeight: 600, color: '#000' }}>Player Compliments</p>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
-                {compliments.length} genuine compliment{compliments.length !== 1 ? 's' : ''} in the last 30 days — classified by AI from the final player message
+                {compliments.length} genuine compliment{compliments.length !== 1 ? 's' : ''} in the last 30 days
               </p>
             </div>
             <button
               onClick={() => setShowCompliments(false)}
-              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', padding: '4px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: 'pointer' }}
+              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#58595B', flexShrink: 0 }}
             >
-              Close
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+              </svg>
             </button>
           </div>
-          {compliments.map((t, i) => (
-            <div key={t.id} style={{ padding: '14px 20px', borderBottom: i < compliments.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{t.agentName}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(22,101,52,0.09)', color: '#166534' }}>Compliment</span>
-                {t.confidence !== null && (
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{t.confidence}% confidence</span>
+          {/* List */}
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {compliments.map((t, i) => (
+              <div key={t.id} style={{ padding: '14px 24px', borderBottom: i < compliments.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{t.agentName}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(22,101,52,0.09)', color: '#166534' }}>Compliment</span>
+                  {t.confidence !== null && (
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{t.confidence}% confidence</span>
+                  )}
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
+                    {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                  </span>
+                </div>
+                {t.lastMessage && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, fontStyle: 'italic', padding: '10px 14px', borderRadius: 8, background: 'rgba(22,101,52,0.04)', borderLeft: '3px solid rgba(22,101,52,0.3)', margin: 0 }}>
+                    "{t.lastMessage.length > 400 ? t.lastMessage.slice(0, 400) + '…' : t.lastMessage}"
+                  </p>
                 )}
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
-                  {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
-                </span>
               </div>
-              {t.lastMessage && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.5, fontStyle: 'italic', padding: '8px 12px', borderRadius: 8, background: 'rgba(22,101,52,0.04)', borderLeft: '3px solid rgba(22,101,52,0.3)', margin: 0 }}>
-                  "{t.lastMessage.length > 300 ? t.lastMessage.slice(0, 300) + '…' : t.lastMessage}"
-                </p>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      )}
-
-    </div>
+      </div>
+    )}
   )
 }
 
