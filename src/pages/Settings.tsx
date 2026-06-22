@@ -1859,7 +1859,6 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
         </>
       )}
 
-      </> /* end General tab */}
     </div>
   )
 }
