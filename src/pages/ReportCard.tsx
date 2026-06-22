@@ -1463,6 +1463,7 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
                                   player_input:         r.customerInput,
                                   suggested_response:   r.suggestedResponse,
                                   notes:                r.accuracyReasoning,
+                                  operator_id:          operator?.id ?? null,
                                 }, { onConflict: 'ticket_issue_id,eval_type' })
                                 if (!error) setPromoted(p => new Set([...p, r.id]))
                               }}
@@ -2268,6 +2269,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                                   final_edits:       r.finalEdits,
                                   agent_reasoning:   r.reasoning,
                                   notes:             r.evalReasoning,
+                                  operator_id:       operator?.id ?? null,
                                 }, { onConflict: 'ticket_issue_id,eval_type' })
                                 if (!error) setPromoted(p => new Set([...p, r.id]))
                               }}

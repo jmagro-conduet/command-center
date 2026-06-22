@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { useOperator } from '../context/OperatorContext'
 import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
 import Users from './Users'
 
-type SettingsTab = 'general' | 'users' | 'evals'
+type SettingsTab = 'general' | 'users' | 'evals' | 'config'
 
 interface Team { id: string; name: string }
 
@@ -114,6 +115,16 @@ interface BackfillCounts {
   totalUnique: number
 }
 
+interface OperatorCategory {
+  id: string
+  operator_id: string
+  main_category: string
+  sub_category: string | null
+  detail: string | null
+  active: boolean
+  sort_order: number
+}
+
 // ── Module-level helpers ──────────────────────────────────────────────────────
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
@@ -135,6 +146,7 @@ interface SettingsProps {
 export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const { selectedOperator } = useOperator()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(isAdmin ? initialTab : 'general')
 
@@ -186,7 +198,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
     player_input: string | null; suggested_response: string | null
     final_edits: string | null; agent_reasoning: string | null
     notes: string | null; created_at: string
-    ticket_issue_id: string | null
+    ticket_issue_id: string | null; operator_id: string | null
   }
   interface RegressionRun {
     id: string; run_at: string; triggered_by: string | null
@@ -205,14 +217,86 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [editValue,         setEditValue]         = useState('')
   const [deletingCase,      setDeletingCase]      = useState<string | null>(null)
 
-  useEffect(() => { if (isAdmin && activeTab === 'evals') loadRegressionData() }, [isAdmin, activeTab])
+  // ── Operator Config — categories ──────────────────────────────────────────
+  const [categories,    setCategories]    = useState<OperatorCategory[]>([])
+  const [catsLoading,   setCatsLoading]   = useState(false)
+  const [addingCat,     setAddingCat]     = useState(false)
+  const [savingCat,     setSavingCat]     = useState(false)
+  const [newCatMain,    setNewCatMain]    = useState('')
+  const [newCatSub,     setNewCatSub]     = useState('')
+  const [newCatDetail,  setNewCatDetail]  = useState('')
+  const [editingCatId,  setEditingCatId]  = useState<string | null>(null)
+  const [editCatMain,   setEditCatMain]   = useState('')
+  const [editCatSub,    setEditCatSub]    = useState('')
+  const [editCatDetail, setEditCatDetail] = useState('')
+  const [deletingCatId, setDeletingCatId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isAdmin && activeTab === 'config' && selectedOperator) loadCategories()
+  }, [isAdmin, activeTab, selectedOperator])
+
+  async function loadCategories() {
+    if (!selectedOperator) return
+    setCatsLoading(true)
+    const { data } = await supabase.from('operator_issue_categories')
+      .select('*')
+      .eq('operator_id', selectedOperator.id)
+      .order('main_category').order('sub_category', { nullsFirst: true }).order('detail', { nullsFirst: true })
+    setCategories(data ?? [])
+    setCatsLoading(false)
+  }
+
+  async function addCategory() {
+    if (!selectedOperator || !newCatMain.trim()) return
+    setSavingCat(true)
+    const { data, error } = await supabase.from('operator_issue_categories').insert({
+      operator_id:   selectedOperator.id,
+      main_category: newCatMain.trim(),
+      sub_category:  newCatSub.trim() || null,
+      detail:        newCatDetail.trim() || null,
+      active:        true,
+      sort_order:    categories.length,
+    }).select().single()
+    if (!error && data) {
+      setCategories(prev => [...prev, data])
+      setNewCatMain(''); setNewCatSub(''); setNewCatDetail('')
+      setAddingCat(false)
+    }
+    setSavingCat(false)
+  }
+
+  async function saveEditCategory(id: string) {
+    if (!editCatMain.trim()) return
+    const patch = {
+      main_category: editCatMain.trim(),
+      sub_category:  editCatSub.trim() || null,
+      detail:        editCatDetail.trim() || null,
+    }
+    await supabase.from('operator_issue_categories').update(patch).eq('id', id)
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
+    setEditingCatId(null)
+  }
+
+  async function toggleCatActive(id: string, current: boolean) {
+    await supabase.from('operator_issue_categories').update({ active: !current }).eq('id', id)
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, active: !current } : c))
+  }
+
+  async function deleteCategory(id: string) {
+    await supabase.from('operator_issue_categories').delete().eq('id', id)
+    setCategories(prev => prev.filter(c => c.id !== id))
+    setDeletingCatId(null)
+  }
+
+  useEffect(() => { if (isAdmin && activeTab === 'evals') loadRegressionData() }, [isAdmin, activeTab, selectedOperator])
 
   async function loadRegressionData() {
     setRegressionLoading(true)
     const [casesRes, runRes] = await Promise.all([
       supabase.from('eval_gold_cases')
-        .select('id, eval_type, expected_verdict, expected_error_class, player_input, suggested_response, final_edits, agent_reasoning, notes, created_at, ticket_issue_id')
+        .select('id, eval_type, expected_verdict, expected_error_class, player_input, suggested_response, final_edits, agent_reasoning, notes, created_at, ticket_issue_id, operator_id')
         .eq('is_active', true)
+        .eq('operator_id', selectedOperator?.id ?? '')
         .order('created_at', { ascending: false }),
       supabase.from('eval_regression_runs').select('*').order('run_at', { ascending: false }).limit(1),
     ])
@@ -633,7 +717,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             {isAdmin ? 'Admin settings' : 'Settings'}
           </h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
-            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : 'Configure your Command Center preferences'}
+            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? `Operator-specific configuration for ${selectedOperator?.name ?? 'the selected operator'}` : 'Configure your Command Center preferences'}
           </p>
         </div>
 
@@ -644,7 +728,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             background: 'rgba(0,0,0,0.05)', borderRadius: 12,
             alignSelf: 'flex-start',
           }}>
-            {(['general', 'users', 'evals'] as SettingsTab[]).map(tab => (
+            {(['general', 'users', 'evals', 'config'] as SettingsTab[]).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -657,7 +741,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   transition: 'all 0.15s',
                 }}
               >
-                {tab === 'general' ? 'General' : tab === 'users' ? 'Users' : 'Evals'}
+                {tab === 'general' ? 'General' : tab === 'users' ? 'Users' : tab === 'evals' ? 'Evals' : 'Config'}
               </button>
             ))}
           </div>
@@ -1558,6 +1642,220 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
               </div>
             )}
           </SectionCard>
+        </>
+      )}
+
+      </> /* end General tab */}
+
+      {/* ── Config tab ──────────────────────────────────────────────────────── */}
+      {isAdmin && activeTab === 'config' && (
+        <>
+          {!selectedOperator ? (
+            <SectionCard title="No operator selected" subtitle="Select an operator from the sidebar to manage its configuration.">
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                Use the operator switcher in the sidebar to choose which operator to configure.
+              </p>
+            </SectionCard>
+          ) : (
+            <SectionCard
+              title="Issue Categories"
+              subtitle={`Category taxonomy for ${selectedOperator.name}. Agents use these when logging tickets.`}
+            >
+              {catsLoading ? (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+              ) : (() => {
+                // Group by main_category
+                const grouped: Record<string, OperatorCategory[]> = {}
+                categories.forEach(c => {
+                  if (!grouped[c.main_category]) grouped[c.main_category] = []
+                  grouped[c.main_category].push(c)
+                })
+                const mains = Object.keys(grouped).sort()
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    {mains.length === 0 && !addingCat && (
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
+                        No categories yet. Add one below.
+                      </p>
+                    )}
+
+                    {mains.map(main => (
+                      <div key={main}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>
+                            {main}
+                          </span>
+                          <span style={{
+                            fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0',
+                            background: 'rgba(155,89,208,0.08)', padding: '1px 8px', borderRadius: 100,
+                          }}>
+                            {grouped[main].length}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          {grouped[main].map(cat => (
+                            <div key={cat.id} style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '8px 12px', borderRadius: 10,
+                              background: cat.active ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.01)',
+                              border: '1.5px solid rgba(0,0,0,0.07)',
+                              opacity: cat.active ? 1 : 0.5,
+                            }}>
+                              {editingCatId === cat.id ? (
+                                <>
+                                  <input
+                                    value={editCatMain}
+                                    onChange={e => setEditCatMain(e.target.value)}
+                                    placeholder="Main category"
+                                    style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
+                                  />
+                                  <input
+                                    value={editCatSub}
+                                    onChange={e => setEditCatSub(e.target.value)}
+                                    placeholder="Sub-category"
+                                    style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
+                                  />
+                                  <input
+                                    value={editCatDetail}
+                                    onChange={e => setEditCatDetail(e.target.value)}
+                                    placeholder="Detail (optional)"
+                                    style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
+                                  />
+                                  <button
+                                    onClick={() => saveEditCategory(cat.id)}
+                                    style={{
+                                      background: '#000', color: '#fff', border: 'none', borderRadius: 8,
+                                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                                      padding: '5px 14px', cursor: 'pointer',
+                                    }}
+                                  >Save</button>
+                                  <GhostBtn onClick={() => setEditingCatId(null)}>Cancel</GhostBtn>
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{ flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                                    {[cat.main_category, cat.sub_category, cat.detail].filter(Boolean).join(' › ')}
+                                  </span>
+                                  <button
+                                    onClick={() => toggleCatActive(cat.id, cat.active)}
+                                    style={{
+                                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                                      padding: '3px 10px', borderRadius: 100, border: 'none', cursor: 'pointer',
+                                      background: cat.active ? 'rgba(155,89,208,0.1)' : 'rgba(0,0,0,0.06)',
+                                      color: cat.active ? '#9B59D0' : '#58595B',
+                                      transition: 'all 0.15s',
+                                    }}
+                                  >
+                                    {cat.active ? 'Active' : 'Inactive'}
+                                  </button>
+                                  <GhostBtn onClick={() => {
+                                    setEditingCatId(cat.id)
+                                    setEditCatMain(cat.main_category)
+                                    setEditCatSub(cat.sub_category ?? '')
+                                    setEditCatDetail(cat.detail ?? '')
+                                  }}>Edit</GhostBtn>
+                                  {deletingCatId === cat.id ? (
+                                    <>
+                                      <GhostBtn danger onClick={() => deleteCategory(cat.id)}>Confirm</GhostBtn>
+                                      <GhostBtn onClick={() => setDeletingCatId(null)}>Cancel</GhostBtn>
+                                    </>
+                                  ) : (
+                                    <GhostBtn danger onClick={() => setDeletingCatId(cat.id)}>Delete</GhostBtn>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add category form */}
+                    {addingCat ? (
+                      <div style={{
+                        display: 'flex', flexDirection: 'column', gap: 12,
+                        padding: 16, borderRadius: 12,
+                        border: '1.5px solid rgba(155,89,208,0.2)',
+                        background: 'rgba(155,89,208,0.03)',
+                      }}>
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
+                          New category
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 160px' }}>
+                            <label style={labelStyle}>Main category <span style={{ color: '#e53e3e' }}>*</span></label>
+                            <input
+                              value={newCatMain}
+                              onChange={e => setNewCatMain(e.target.value)}
+                              placeholder="e.g. Promotions"
+                              style={inputStyle}
+                              autoFocus
+                            />
+                          </div>
+                          <div style={{ flex: '1 1 160px' }}>
+                            <label style={labelStyle}>Sub-category</label>
+                            <input
+                              value={newCatSub}
+                              onChange={e => setNewCatSub(e.target.value)}
+                              placeholder="e.g. On-Site Promotion"
+                              style={inputStyle}
+                            />
+                          </div>
+                          <div style={{ flex: '1 1 160px' }}>
+                            <label style={labelStyle}>Detail</label>
+                            <input
+                              value={newCatDetail}
+                              onChange={e => setNewCatDetail(e.target.value)}
+                              placeholder="e.g. Deposited before Opt-In"
+                              style={inputStyle}
+                              onKeyDown={e => { if (e.key === 'Enter') addCategory() }}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={addCategory}
+                            disabled={!newCatMain.trim() || savingCat}
+                            style={{
+                              background: '#000', color: '#fff', border: 'none', borderRadius: 10,
+                              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                              padding: '9px 20px', cursor: newCatMain.trim() ? 'pointer' : 'not-allowed',
+                              opacity: newCatMain.trim() && !savingCat ? 1 : 0.4, transition: 'opacity 0.15s',
+                            }}
+                          >
+                            {savingCat ? 'Adding…' : 'Add'}
+                          </button>
+                          <button
+                            onClick={() => { setAddingCat(false); setNewCatMain(''); setNewCatSub(''); setNewCatDetail('') }}
+                            style={{
+                              background: 'none', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
+                              fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+                              padding: '9px 18px', cursor: 'pointer',
+                            }}
+                          >Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAddingCat(true)}
+                        style={{
+                          alignSelf: 'flex-start', background: '#000', color: '#fff',
+                          border: 'none', borderRadius: 10, cursor: 'pointer',
+                          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                          padding: '9px 20px', transition: 'opacity 0.15s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                      >
+                        + Add category
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+            </SectionCard>
+          )}
         </>
       )}
 
