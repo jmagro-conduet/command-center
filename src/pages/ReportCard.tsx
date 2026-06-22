@@ -1334,8 +1334,9 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
   rows: EvalRow[]
   onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
-  const { user }                       = useAuth()
-  const isAdmin                        = user?.role === 'admin'
+  const { user }                        = useAuth()
+  const { selectedOperator: operator }  = useOperator()
+  const isAdmin                         = user?.role === 'admin'
   const [promoted, setPromoted]        = useState<Set<string>>(new Set())
   const [expanded,         setExpanded]         = useState<string | null>(null)
   const [page,             setPage]             = useState(1)
@@ -2111,8 +2112,9 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
   rows: EvalRow[]
   onReviewUpdate?: (id: string, update: ReviewUpdate) => void
 }) {
-  const { user }                  = useAuth()
-  const isAdmin                   = user?.role === 'admin'
+  const { user }                        = useAuth()
+  const { selectedOperator: operator }  = useOperator()
+  const isAdmin                         = user?.role === 'admin'
   const [promoted, setPromoted]   = useState<Set<string>>(new Set())
   const [expanded,       setExpanded]       = useState<string | null>(null)
   const [page,           setPage]           = useState(1)
