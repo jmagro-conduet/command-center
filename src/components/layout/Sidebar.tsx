@@ -350,10 +350,11 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
       {/* Bottom: operator switcher + settings + sign out */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12 }}>
 
-        {/* Operator switcher — admins only, expanded sidebar only */}
-        {isAdmin && !collapsed && operators.length > 0 && (
+        {/* Operator indicator — admins get a switcher, operator-role gets a locked read-only badge */}
+        {!collapsed && selectedOperator && (isAdmin || isOperator) && (
           <div style={{ position: 'relative', marginBottom: 6 }}>
-            <button
+            {/* Admin: full switcher button */}
+            {isAdmin && <button
               onClick={() => setOperatorDropOpen(o => !o)}
               style={{
                 width: '100%',
@@ -386,9 +387,40 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#58595B', transform: operatorDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
                 <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </button>
+            </button>}
 
-            {operatorDropOpen && (
+            {/* Operator-role: locked badge, no dropdown */}
+            {isOperator && (
+              <div style={{
+                width: '100%',
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 10px', borderRadius: 10,
+                border: '1.5px solid rgba(155,89,208,0.2)',
+                background: 'rgba(155,89,208,0.05)',
+              }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: 6,
+                  background: '#9B59D0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                  fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700, color: '#fff',
+                }}>
+                  {selectedOperator.name[0].toUpperCase()}
+                </div>
+                <span style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                }}>
+                  {selectedOperator.name}
+                </span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#9B59D0' }}>
+                  <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+            )}
+
+            {operatorDropOpen && isAdmin && (
               <div style={{
                 position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0,
                 background: '#fff', borderRadius: 10,
