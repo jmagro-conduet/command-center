@@ -409,6 +409,7 @@ export default function ExecutiveSummary() {
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 24 }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
@@ -740,6 +741,7 @@ export default function ExecutiveSummary() {
         </div>
       </div>
     )}
+    </>
   )
 }
 
