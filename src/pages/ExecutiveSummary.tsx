@@ -7,6 +7,7 @@ import { useOperator } from '../context/OperatorContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Row {
+  id:            string
   issueType:     string
   date:          Date
   ticketNumber:  string
@@ -131,7 +132,7 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
   let from = 0
   while (true) {
     let q = supabase.from('ticket_issues')
-      .select('issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, eval_verdict, review_correct_verdict, theme_tag, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
+      .select('id, issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, eval_verdict, theme_tag, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
@@ -141,7 +142,8 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
     if (data.length < PAGE) break
     from += PAGE
   }
-  return all.map((ti: any) => ({
+  const rows = all.map((ti: any) => ({
+    id:          ti.id as string,
     issueType:   ti.issue_type ?? '',
     date:        new Date(ti.created_at ?? ti.logged_at ?? ti.tickets?.created_at),
     ticketNumber: ti.tickets?.ticket_number ?? '',
@@ -154,9 +156,24 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
     qRanAt:        ti.quality_ran_at ?? null,
     qVer:          ti.quality_prompt_version ?? null,
     evalVerdict:   ti.eval_verdict ?? null,
-    reviewVerdict: ti.review_correct_verdict ?? null,
+    reviewVerdict: null as string | null,
     themeTag:      ti.theme_tag ?? null,
   }))
+  // Fetch edit-eval QA overrides from the per-eval-type reviews table
+  if (rows.length > 0) {
+    const ids = rows.map(r => r.id)
+    const { data: reviews } = await supabase
+      .from('ticket_issue_reviews')
+      .select('ticket_issue_id, review_correct_verdict')
+      .in('ticket_issue_id', ids)
+      .eq('eval_type', 'edit')
+      .eq('review_status', 'dismissed')
+    if (reviews && reviews.length > 0) {
+      const reviewMap = new Map(reviews.map(r => [r.ticket_issue_id, r.review_correct_verdict]))
+      rows.forEach(r => { r.reviewVerdict = reviewMap.get(r.id) ?? null })
+    }
+  }
+  return rows
 }
 
 // ── Small UI helpers ────────────────────────────────────────────────────────────

@@ -386,7 +386,32 @@ async function fetchAllEvals(operatorId: string | null, since: string | null): P
     if (data.length < PAGE) break
     from += PAGE
   }
-  return all.map(mapEvalRow)
+  const rows = all.map(mapEvalRow)
+  if (rows.length > 0) {
+    const ids = rows.map(r => r.id)
+    const { data: reviews } = await supabase
+      .from('ticket_issue_reviews')
+      .select('ticket_issue_id,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at')
+      .in('ticket_issue_id', ids)
+      .eq('eval_type', 'edit')
+    if (reviews && reviews.length > 0) {
+      const reviewMap = new Map(reviews.map(r => [r.ticket_issue_id, r]))
+      return rows.map(row => {
+        const rev = reviewMap.get(row.id)
+        if (!rev) return row
+        return {
+          ...row,
+          reviewStatus:         (rev.review_status         as any) ?? row.reviewStatus,
+          reviewNotes:          rev.review_notes            ?? row.reviewNotes,
+          reviewCorrectVerdict: rev.review_correct_verdict  ?? row.reviewCorrectVerdict,
+          reviewContext:        rev.review_context          ?? row.reviewContext,
+          reviewedBy:           rev.reviewed_by             ?? row.reviewedBy,
+          reviewedAt:           rev.reviewed_at             ?? row.reviewedAt,
+        }
+      })
+    }
+  }
+  return rows
 }
 
 // Fetches all issues that have been scored by eval-accuracy or eval-quality,
@@ -766,13 +791,14 @@ interface ReviewUpdate {
 function ReviewActions({
   row, onUpdate,
   confirmLabel = 'Confirm', dismissLabel = 'Override',
-  verdictOptions,
+  verdictOptions, evalType,
 }: {
   row: EvalRow
   onUpdate?: (id: string, update: ReviewUpdate) => void
   confirmLabel?: string
   dismissLabel?: string
   verdictOptions?: string[]
+  evalType: 'edit' | 'accuracy' | 'quality'
 }) {
   const [notes,           setNotes]           = useState(row.reviewNotes         ?? '')
   const [correctVerdict,  setCorrectVerdict]  = useState(row.reviewCorrectVerdict ?? '')
@@ -788,14 +814,16 @@ function ReviewActions({
 
   async function saveConfirm() {
     setSaving(true)
-    await supabase.from('ticket_issues').update({
+    await supabase.from('ticket_issue_reviews').upsert({
+      ticket_issue_id:        row.id,
+      eval_type:              evalType,
       review_status:          'confirmed',
       review_notes:           notes || null,
       review_correct_verdict: null,
       review_context:         null,
       reviewed_by:            user?.email ?? null,
       reviewed_at:            new Date().toISOString(),
-    }).eq('id', row.id)
+    }, { onConflict: 'ticket_issue_id,eval_type' })
     setStatus('confirmed')
     setShowOverride(false)
     onUpdate?.(row.id, { status: 'confirmed', notes, correctVerdict: null, context: null })
@@ -804,14 +832,16 @@ function ReviewActions({
 
   async function saveOverride() {
     setSaving(true)
-    await supabase.from('ticket_issues').update({
+    await supabase.from('ticket_issue_reviews').upsert({
+      ticket_issue_id:        row.id,
+      eval_type:              evalType,
       review_status:          'dismissed',
       review_notes:           notes || null,
       review_correct_verdict: correctVerdict || null,
       review_context:         context || null,
       reviewed_by:            user?.email ?? null,
       reviewed_at:            new Date().toISOString(),
-    }).eq('id', row.id)
+    }, { onConflict: 'ticket_issue_id,eval_type' })
     setStatus('dismissed')
     onUpdate?.(row.id, { status: 'dismissed', notes, correctVerdict: correctVerdict || null, context: context || null })
     setSaving(false)
@@ -1417,7 +1447,7 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
                         ))}
                       </div>
                       {(r.accuracyErrorClass && r.accuracyErrorClass !== 'NONE') && (
-                        <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm error" dismissLabel="Override error" verdictOptions={['P1A', 'P1B', 'P2', 'NONE']} />
+                        <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm error" dismissLabel="Override error" verdictOptions={['P1A', 'P1B', 'P2', 'NONE']} evalType="accuracy" />
                       )}
                       {isAdmin && r.accuracyRanAt && (
                         <div style={{ marginTop: 10 }}>
@@ -1567,6 +1597,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
           confirmLabel="Confirm error"
           dismissLabel="Override error"
           verdictOptions={['P1A', 'P1B', 'P2', 'NONE']}
+          evalType="accuracy"
         />
       )}
     </div>
@@ -1912,7 +1943,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
                 </div>
               ))}
             </div>
-            <ReviewActions row={r} onUpdate={onReviewUpdate} />
+            <ReviewActions row={r} onUpdate={onReviewUpdate} evalType="quality" />
           </div>
         )}
       </div>
@@ -2220,7 +2251,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                           </div>
                         ))}
                       </div>
-                      <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm" dismissLabel="Dismiss" verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'AGENT_ERROR', 'NONE']} />
+                      <ReviewActions row={r} onUpdate={onReviewUpdate} confirmLabel="Confirm" dismissLabel="Dismiss" verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'AGENT_ERROR', 'NONE']} evalType="edit" />
                       {isAdmin && r.evalVerdict !== null && (
                         <div style={{ marginTop: 10 }}>
                           {promoted.has(r.id) ? (
@@ -2466,6 +2497,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
                     confirmLabel="Confirm verdict"
                     dismissLabel="Override verdict"
                     verdictOptions={['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'AGENT_ERROR']}
+                    evalType="edit"
                   />
                 </div>
               )}

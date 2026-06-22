@@ -1,6 +1,6 @@
 // Bump this on every change to EVAL_SYSTEM / FEW_SHOT. The Report Card surfaces
 // only the latest version per eval type, so a bump "starts fresh" without a wipe.
-export const EDIT_PROMPT_VERSION = 'v2026-06-16'
+export const EDIT_PROMPT_VERSION = 'v2026-06-22'
 
 export const EVAL_SYSTEM = `You are evaluating a customer service AI called gameLM. An agent reviewed gameLM's suggested response and made an edit before sending it to a player.
 
@@ -41,6 +41,9 @@ AGENT_ERROR — gameLM was CORRECT and the agent's edit made it worse:
   and the agent overrode it and serviced the unverified player
 - e.g. gameLM correctly could not find a bet ID that genuinely is not in the system, and the
   agent asserted the issue was already resolved
+- Agent made an accidental or mechanical data-entry error — filled in the wrong field, sent
+  the wrong macro, or entered incorrect account details — so the sent response contains wrong
+  information that gameLM's original did not (gameLM's version was correct)
 - The sent response is now LESS correct than gameLM's suggestion
 - This is the inverse of CORRECTION: here the AGENT made the error, not gameLM
 - Do NOT label these CORRECTION (that wrongly blames gameLM for the agent's mistake), and do
@@ -64,11 +67,18 @@ IMPORTANT RULES:
    legitimate (e.g. desktop vs app bet-ID formats add/drop a leading digit; data not
    yet in the backend). Do not automatically treat "gameLM couldn't find it" as a
    gameLM error.
-4. Closing edits are NOT automatically PREFERENCE — if the conversation was unresolved or pending, a changed closing is CORRECTION.
-5. When ambiguous between CORRECTION and ENHANCEMENT, choose ENHANCEMENT.
-6. When ambiguous between ENHANCEMENT and PREFERENCE, choose ENHANCEMENT.
-7. Only score PREFERENCE when you are confident the original was fully send-worthy.
-8. If gameLM was actually correct and the agent's edit introduced an error, classify it
+4. Closing edits are NOT automatically PREFERENCE — if the conversation was unresolved or
+   pending, a changed closing is CORRECTION. Conversely, if the conversation is clearly
+   resolved (player thanked us, acknowledged, or said "ok") and gameLM's closing was
+   send-worthy, any agent modification to the closing is PREFERENCE, not CORRECTION.
+5. When ambiguous between CORRECTION and PREFERENCE, choose PREFERENCE — only classify
+   CORRECTION when you are confident gameLM made a factual error, used wrong information,
+   or violated a clear policy. If the agent's alternative approach is also defensible, that
+   is PREFERENCE or ENHANCEMENT, not CORRECTION.
+6. When ambiguous between CORRECTION and ENHANCEMENT, choose ENHANCEMENT.
+7. When ambiguous between ENHANCEMENT and PREFERENCE, choose ENHANCEMENT.
+8. Only score PREFERENCE when you are confident the original was fully send-worthy.
+9. If gameLM was actually correct and the agent's edit introduced an error, classify it
    AGENT_ERROR — not a "false" CORRECTION. CORRECTION means gameLM erred; AGENT_ERROR
    means the agent erred while editing a correct gameLM response.
 
@@ -112,6 +122,17 @@ Agent's final response: Thank you for the details. To proceed, they will need to
 
 Agent's stated reason: I believe the response is incorrect, as we can only assist with a user's own account and not on behalf of someone else's.`,
     assistant: `{"verdict":"CORRECTION","confidence":93,"reasoning":"gameLM attempted to service a third party's account on behalf of someone else. Account actions and access assistance can only be provided to the account holder directly — gameLM bypassed the identity verification requirement entirely."}`,
+  },
+
+  {
+    user: `Player message: Hi I signed up last week using a referral link from one of your affiliates and I still haven't received my welcome free bets.
+
+gameLM suggested response: Thanks for reaching out! I checked your account and I can see your registration is complete. I don't see an active welcome bonus attached to your account at the moment. Could you let me know if you entered a promotional code at signup? That will help me look into what offer you may have qualified for.
+
+Agent's final response: Thanks for reaching out! I can see your account was registered through one of our affiliate partners — that qualifies you for our affiliate welcome offer. Your free bets will be credited once your first qualifying wager of $25 or more on odds of -200 or longer settles. I've flagged your account with our promotions team to confirm this within 24 hours.
+
+Agent's stated reason: gameLM does not recognize that a user who registers through an affiliate link is automatically enrolled in the affiliate welcome offer. I can see the affiliate registration on the account and the player qualifies for the offer once their first qualifying wager settles.`,
+    assistant: `{"verdict":"CORRECTION","confidence":90,"reasoning":"gameLM told the player they had no active bonus and asked them to confirm a promo code — missing that affiliate registrations automatically qualify for a welcome offer. The agent corrected wrong product information (gameLM's claim that no bonus was attached) using account-level knowledge about the affiliate enrollment. This is a product-information error, not a style preference."}`,
   },
 
   // ── ENHANCEMENT ─────────────────────────────────────────────────────────────
@@ -208,6 +229,16 @@ Agent's final response: I have raised this to my trading team, and they will rev
 
 Agent's stated reason: User is verified`,
     assistant: `{"verdict":"AGENT_ERROR","confidence":85,"reasoning":"gameLM correctly withheld service because the player had not passed verification — they supplied incorrect details in the pre-chat form. The agent's stated reason 'User is verified' is contradicted by the conversation: the agent serviced an unverified player and skipped a required identity check. gameLM was right; the agent's edit introduced the error, so this is AGENT_ERROR rather than a CORRECTION of gameLM."}`,
+  },
+  {
+    user: `Player message: I still haven't received my withdrawal from last week. Can you please check on it?
+
+gameLM suggested response: I checked your account, Marcus. I can see your withdrawal request for $200 submitted on June 12 to your Venmo account is currently being processed by our payments team. Withdrawals typically complete within 24–48 hours. This one appears to have been slightly delayed — I've flagged it to our payments team for an expedited review. Is there anything else I can help you with today?
+
+Agent's final response: I checked your account, Marcus. I can see your withdrawal request for $85 submitted on June 9 to your PayNearMe account is currently being processed by our payments team. Withdrawals typically complete within 24–48 hours. This one appears to have been slightly delayed — I've flagged it to our payments team for an expedited review. Is there anything else I can help you with today?
+
+Agent's stated reason: Updated the withdrawal details.`,
+    assistant: `{"verdict":"AGENT_ERROR","confidence":88,"reasoning":"gameLM correctly identified the player's pending withdrawal ($200, June 12, Venmo). The agent's edit changed the amount, date, and payment method to values that do not match the player's actual pending withdrawal — a mechanical data-entry error, not a deliberate correction. The sent response now contains wrong account information. gameLM was correct; the agent introduced the error."}`,
   },
 ]
 
