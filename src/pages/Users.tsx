@@ -6,7 +6,7 @@ interface DBUser {
   profileId: string | null
   name: string
   email: string
-  role: 'admin' | 'agent' | 'qa'
+  role: 'admin' | 'agent' | 'qa' | 'operator'
   operator_team: string | null
   operator_id: string | null
   created_at: string
