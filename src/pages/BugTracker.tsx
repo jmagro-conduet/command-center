@@ -6,6 +6,7 @@ import { useOperator } from '../context/OperatorContext'
 // ── Types ───────────────────────────────────────────────────────────────────
 interface BugReport {
   id: string
+  ticket_id: string | null
   ticket_number: string | null
   player_input: string | null
   suggested_response: string | null
@@ -23,6 +24,7 @@ interface BugReport {
 interface FormState {
   mode: 'copilot' | 'full_auto' | ''
   severity: 'low' | 'medium' | 'high' | 'critical' | ''
+  ticketId: string
   ticketNumber: string
   playerInput: string
   suggestedResponse: string
@@ -64,7 +66,7 @@ const MODE_CONFIG: Record<string, { label: string; color: string; bg: string }> 
 }
 
 const EMPTY_FORM: FormState = {
-  mode: '', severity: '', ticketNumber: '', playerInput: '',
+  mode: '', severity: '', ticketId: '', ticketNumber: '', playerInput: '',
   suggestedResponse: '', expectedOutcome: '', actualOutcome: '',
   failingComponent: '', additionalContext: '',
 }
@@ -109,7 +111,8 @@ function failLabel(val: string | null) {
 function buildCopyText(bug: BugReport): string {
   const lines: string[] = [
     `Bug ${shortId(bug.id)} | ${MODE_CONFIG[bug.mode]?.label ?? bug.mode} | ${SEVERITY_CONFIG[bug.severity]?.label ?? bug.severity} | ${STATUS_CONFIG[bug.status]?.label ?? bug.status}`,
-    bug.ticket_number ? `Ticket: #${bug.ticket_number}` : '',
+    bug.ticket_id     ? `Ticket ID: ${bug.ticket_id}` : '',
+    bug.ticket_number ? `Ticket #: ${bug.ticket_number}` : '',
     `Reported by: ${bug.reported_by ?? 'Unknown'} | ${fmtDate(bug.created_at)}`,
     '',
   ]
@@ -175,6 +178,7 @@ export default function BugTracker() {
     setSubmitting(true)
     await supabase.from('bug_reports').insert({
       operator_id:        selectedOperator?.id ?? null,
+      ticket_id:          form.ticketId.trim()          || null,
       ticket_number:      form.ticketNumber.trim()      || null,
       player_input:       form.playerInput.trim()       || null,
       suggested_response: form.suggestedResponse.trim() || null,
@@ -207,10 +211,10 @@ export default function BugTracker() {
 
   // Export CSV (admin)
   function exportCSV() {
-    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Additional Context', 'Reported By', 'Date']
+    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket ID', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Additional Context', 'Reported By', 'Date']
     const rows = filteredBugs.map(b => [
       shortId(b.id), MODE_CONFIG[b.mode]?.label ?? b.mode, b.severity, b.status,
-      b.ticket_number ?? '', failLabel(b.failing_component),
+      b.ticket_id ?? '', b.ticket_number ?? '', failLabel(b.failing_component),
       b.expected_outcome, b.actual_outcome,
       b.player_input ?? '', b.suggested_response ?? '',
       b.additional_context ?? '', b.reported_by ?? '', fmtDate(b.created_at),
@@ -304,8 +308,17 @@ export default function BugTracker() {
             </div>
           </div>
 
-          {/* Row 2: Ticket # + Failing component */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          {/* Row 2: Ticket ID + Ticket # + Failing component */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div>
+              <label style={labelStyle}>Ticket ID</label>
+              <input
+                value={form.ticketId}
+                onChange={e => setForm(f => ({ ...f, ticketId: e.target.value }))}
+                placeholder="Internal UUID"
+                style={{ ...inputStyle, height: 40 }}
+              />
+            </div>
             <div>
               <label style={labelStyle}>Ticket number</label>
               <input
@@ -522,7 +535,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
 }) {
   // Table header
   const cols = isAdmin
-    ? '80px 100px 90px 100px 1fr 130px 110px 90px'
+    ? '80px 100px 90px 100px 1fr 130px 140px 100px 90px'
     : '80px 100px 90px 1fr 90px'
 
   return (
@@ -533,7 +546,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
         background: 'rgba(0,0,0,0.01)',
       }}>
         {(isAdmin
-          ? ['ID', 'Mode', 'Severity', 'Status', 'Failing Component', 'Reported By', 'Ticket #', 'Date']
+          ? ['ID', 'Mode', 'Severity', 'Status', 'Failing Component', 'Reported By', 'Ticket ID', 'Ticket #', 'Date']
           : ['ID', 'Mode', 'Severity', 'Failing Component', 'Date']
         ).map(h => (
           <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
@@ -570,6 +583,9 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
                 <>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {bug.reported_by ?? '—'}
+                  </span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {bug.ticket_id ?? '—'}
                   </span>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
                     {bug.ticket_number ? `#${bug.ticket_number}` : '—'}
