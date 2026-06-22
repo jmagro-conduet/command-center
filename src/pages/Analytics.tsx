@@ -169,12 +169,13 @@ function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number) 
     const majority = counts['Majority edit'] ?? 0
     const partial  = counts['Partial edit']  ?? 0
     const noResp   = counts['No response']   ?? 0
+    const qd = perfect + majority + partial
     return {
       name, email, total: tickets.size, issueTotal: total,
       avg: parseFloat((tickets.size / days).toFixed(1)),
-      perfect:  pct(perfect, total),
-      majority: pct(majority, total),
-      partial:  pct(partial, total),
+      perfect:  pct(perfect, qd),
+      majority: pct(majority, qd),
+      partial:  pct(partial, qd),
       noResp:   pct(noResp, total),
     }
   }).sort((a, b) => b.total - a.total)
@@ -412,14 +413,15 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
     const majority = rows.filter(r => r.issueType === 'Majority edit').length
     const partial  = rows.filter(r => r.issueType === 'Partial edit').length
     const noResp   = rows.filter(r => r.issueType === 'No response').length
+    const qd = perfect + majority + partial
     return {
       tickets: tickets.size,
       issues:  total,
       avgPerTicket: tickets.size ? (total / tickets.size).toFixed(1) : '0',
       avgPerDay:    (tickets.size / days).toFixed(1),
-      perfectPct:  pct(perfect, total).toFixed(1),
-      majorityPct: pct(majority, total).toFixed(1),
-      partialPct:  pct(partial, total).toFixed(1),
+      perfectPct:  pct(perfect, qd).toFixed(1),
+      majorityPct: pct(majority, qd).toFixed(1),
+      partialPct:  pct(partial, qd).toFixed(1),
       noRespPct:   pct(noResp, total).toFixed(1),
     }
   }, [rows, days])
