@@ -4,6 +4,7 @@ import {
 } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { useOperator } from '../context/OperatorContext'
+import { useAuth } from '../context/AuthContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Row {
@@ -218,6 +219,8 @@ const STATUS_COLOR: Record<string, string> = { ready: '#166534', almost: '#854d0
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ExecutiveSummary() {
   const { selectedOperator } = useOperator()
+  const { user } = useAuth()
+  const isOperator = user?.role === 'operator'
   const [rows, setRows]         = useState<Row[]>([])
   const [loading, setLoading]   = useState(true)
   const [zdTotal, setZdTotal]   = useState<number | null>(null)
@@ -527,8 +530,8 @@ export default function ExecutiveSummary() {
               <div key={c.name}>
                 {/* Main row */}
                 <div
-                  style={{ display: 'grid', gridTemplateColumns: '1.4fr 60px 80px 90px 1.3fr 70px 32px', padding: '10px 4px', alignItems: 'center', borderBottom: isExpanded ? 'none' : '1px solid rgba(0,0,0,0.04)', cursor: 'pointer' }}
-                  onClick={() => {
+                  style={{ display: 'grid', gridTemplateColumns: `1.4fr 60px 80px 90px 1.3fr 70px${isOperator ? '' : ' 32px'}`, padding: '10px 4px', alignItems: 'center', borderBottom: isExpanded ? 'none' : '1px solid rgba(0,0,0,0.04)', cursor: isOperator ? 'default' : 'pointer' }}
+                  onClick={isOperator ? undefined : () => {
                     const next = isExpanded ? null : c.name
                     setExpandedCat(next)
                     if (next && !insightsCache[c.name]) fetchInsights(c)
@@ -549,12 +552,14 @@ export default function ExecutiveSummary() {
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color }}>
                     {c.status === 'ready' ? '✓ Ready' : c.status === 'low-data' ? 'Low data' : c.status === 'almost' ? 'Almost' : 'Not ready'}
                   </span>
-                  {/* Expand chevron */}
-                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </span>
+                  {/* Expand chevron — hidden for operator-role users */}
+                  {!isOperator && (
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </span>
+                  )}
                 </div>
 
                 {/* Expanded insights panel */}
