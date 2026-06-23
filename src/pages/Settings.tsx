@@ -298,7 +298,9 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
         .eq('is_active', true)
         .eq('operator_id', selectedOperator?.id ?? '')
         .order('created_at', { ascending: false }),
-      supabase.from('eval_regression_runs').select('*').order('run_at', { ascending: false }).limit(1),
+      supabase.from('eval_regression_runs').select('*')
+        .eq('operator_id', selectedOperator?.id ?? '')
+        .order('run_at', { ascending: false }).limit(1),
     ])
     setGoldCases(casesRes.data ?? [])
     setLastRun(runRes.data?.[0] ?? null)
@@ -323,10 +325,14 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   }
 
   async function runRegression() {
+    if (!selectedOperator?.id) {
+      setRegressionError('Select an operator before running a regression.')
+      return
+    }
     setRegressionRunning(true)
     setRegressionError('')
     const { error } = await supabase.functions.invoke('regression-runner', {
-      body: { triggered_by: 'manual' },
+      body: { triggered_by: 'manual', operator_id: selectedOperator.id },
     })
     if (error) {
       setRegressionError(error.message ?? 'Regression run failed')
@@ -752,7 +758,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
       {isAdmin && activeTab === 'evals' && (
         <>
           {/* Gold case counts */}
-          <SectionCard title="Gold Case Library" subtitle="Curated examples with known-correct outputs used as regression anchors.">
+          <SectionCard title={`Gold Case Library — ${selectedOperator?.name ?? 'no operator selected'}`} subtitle="Curated examples with known-correct outputs used as regression anchors. Scoped to the selected operator.">
             {regressionLoading ? (
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
             ) : (() => {
@@ -1001,7 +1007,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
           </SectionCard>
 
           {/* Regression runner */}
-          <SectionCard title="Run Regression" subtitle="Runs all active gold cases through the live eval models and checks for regressions. Typically 1–3 min.">
+          <SectionCard title="Run Regression" subtitle={`Runs ${selectedOperator?.name ?? 'the selected operator'}'s active gold cases through the live eval models and checks for regressions. Typically 1–3 min.`}>
             {regressionError && (
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginBottom: 12 }}>
                 ❌ {regressionError}

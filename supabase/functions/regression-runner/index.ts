@@ -55,9 +55,10 @@ interface RunResult {
   reasoning: string
 }
 
-async function fetchGoldCases(evalType?: string): Promise<GoldCase[]> {
+async function fetchGoldCases(evalType?: string, operatorId?: string): Promise<GoldCase[]> {
   let url = `${SUPABASE_URL}/rest/v1/eval_gold_cases?is_active=eq.true&select=*`
-  if (evalType) url += `&eval_type=eq.${evalType}`
+  if (evalType)   url += `&eval_type=eq.${evalType}`
+  if (operatorId) url += `&operator_id=eq.${operatorId}`
   const res = await fetch(url, { headers: sbHeaders })
   return res.json()
 }
@@ -252,11 +253,12 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const body: { eval_type?: string; triggered_by?: string } = await req.json().catch(() => ({}))
+    const body: { eval_type?: string; triggered_by?: string; operator_id?: string } = await req.json().catch(() => ({}))
     const evalType    = body.eval_type
+    const operatorId  = body.operator_id
     const triggeredBy = body.triggered_by ?? 'manual'
 
-    const allCases = await fetchGoldCases(evalType)
+    const allCases = await fetchGoldCases(evalType, operatorId)
     if (!Array.isArray(allCases) || allCases.length === 0) {
       return new Response(
         JSON.stringify({ error: 'No active gold cases found' }),
@@ -307,6 +309,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         triggered_by: triggeredBy,
         eval_type:    evalType ?? null,
+        operator_id:  operatorId ?? null,
         total_cases:  total,
         passed,
         failed,
