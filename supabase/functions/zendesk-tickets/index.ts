@@ -59,8 +59,15 @@ Deno.serve(async (req: Request) => {
       return d.count ?? 0
     }
 
+    // Category tags excluded from adoption counts — these are operational, not
+    // genuine player-support volume, so counting them unfairly tanks an agent's
+    // adoption rate (e.g. internal "Other::Test Ticket" conversations handled in
+    // Zendesk but never meant to be logged in the Command Center).
+    const EXCLUDED_CATEGORY_TAGS = ['other__test_ticket']
+    const exclusion = EXCLUDED_CATEGORY_TAGS.map(t => `-tags:${t}`).join(' ')
+
     const dateClause = `created>=${start_date} created<=${end_date}`
-    const baseFilter = `type:ticket via:native_messaging ${dateClause}`
+    const baseFilter = `type:ticket via:native_messaging ${dateClause} ${exclusion}`.trim()
 
     // 1. Team total — single count, no pagination needed
     const totalCount = await zdCount(baseFilter)
