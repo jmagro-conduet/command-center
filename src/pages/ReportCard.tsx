@@ -434,14 +434,20 @@ async function fetchAllEvals(operatorId: string | null, since: string | null): P
 async function attachReviews(rows: EvalRow[]): Promise<EvalRow[]> {
   if (rows.length === 0) return rows
   const ids = rows.map(r => r.id)
-  const byId = new Map<string, Partial<Record<EvalType, RowReview>>>()
-  for (let i = 0; i < ids.length; i += 1000) {
-    const chunk = ids.slice(i, i + 1000)
-    const { data } = await supabase
+  // Chunk the id list (PostgREST .in() cap) and fetch chunks in parallel rather
+  // than sequentially — matters for high-volume operators with >1000 rows.
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += 1000) chunks.push(ids.slice(i, i + 1000))
+  const results = await Promise.all(chunks.map(chunk =>
+    supabase
       .from('ticket_issue_reviews')
       .select('ticket_issue_id,eval_type,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at')
       .in('ticket_issue_id', chunk)
-    data?.forEach((rev: any) => {
+      .then(r => r.data ?? [])
+  ))
+  const byId = new Map<string, Partial<Record<EvalType, RowReview>>>()
+  for (const data of results) {
+    for (const rev of data as any[]) {
       const existing = byId.get(rev.ticket_issue_id) ?? {}
       existing[rev.eval_type as EvalType] = {
         status:         rev.review_status,
@@ -452,7 +458,7 @@ async function attachReviews(rows: EvalRow[]): Promise<EvalRow[]> {
         reviewedAt:     rev.reviewed_at,
       }
       byId.set(rev.ticket_issue_id, existing)
-    })
+    }
   }
   if (byId.size === 0) return rows
   return rows.map(row => {

@@ -38,10 +38,16 @@ async function fetchAllIssues(operatorId: string | null) {
   const PAGE = 1000
   const all: any[] = []
   let from = 0
+  // Server-side cap: the widest range selector is "Last Quarter" (90d), so fetch ~105d
+  // (90 + buffer for logged_at vs created_at skew) instead of the entire table. The range
+  // selector then filters this set client-side without re-fetching. Avoids pulling all
+  // history on every load, which grew linearly with ticket volume.
+  const sinceStr = cutoff(105).toISOString()
   while (true) {
     let q = supabase
       .from('ticket_issues')
       .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, agent_email, created_at)')
+      .gte('created_at', sinceStr)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)

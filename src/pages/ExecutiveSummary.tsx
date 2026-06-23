@@ -131,9 +131,15 @@ function latestVerRows(rows: Row[], verKey: 'accVer' | 'qVer', ranKey: 'accRanAt
 async function fetchIssues(operatorId: string | null): Promise<Row[]> {
   const PAGE = 1000, all: any[] = []
   let from = 0
+  // Server-side cap: this page's widest lookback is the 12-week (84d) trend chart;
+  // KPIs use 30d + prior 30d (60d). Fetch ~100d instead of the entire table — the
+  // `date` field is created_at-first, so this cannot drop any in-window row.
+  const since = new Date(); since.setDate(since.getDate() - 100)
+  const sinceStr = since.toISOString()
   while (true) {
     let q = supabase.from('ticket_issues')
       .select('id, issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, eval_verdict, theme_tag, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
+      .gte('created_at', sinceStr)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
