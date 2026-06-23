@@ -93,9 +93,9 @@ BEGIN
 
   ( 'accuracy', NULL, v_op, NULL, 'NONE',
     'I changed my mind — can you remove my casino bonus?',
-    'I''ve gone ahead and removed the active casino bonus from your account as requested. You''re all set to deposit and start a different promotion whenever you like.',
+    'Sure - you can drop an active casino bonus yourself from the Promotions section of your account: open the active bonus and choose Forfeit/Remove. Just note that removing it forfeits any bonus funds and winnings tied to it. Want me to point you to where to find it?',
     NULL,
-    '[RSI-SYNTH-BASELINE-v1] Accuracy NONE: describes an account action actually taken (allowed) — not a hallucinated dynamic-state claim.',
+    '[RSI-SYNTH-BASELINE-v1] Accuracy NONE: informational guidance on how to remove a bonus (no claimed account action) - unambiguous NONE.',
     true ),
 
   ( 'accuracy', NULL, v_op, NULL, 'NONE',
