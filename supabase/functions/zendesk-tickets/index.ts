@@ -59,11 +59,21 @@ Deno.serve(async (req: Request) => {
       return d.count ?? 0
     }
 
-    // Category tags excluded from adoption counts — these are operational, not
-    // genuine player-support volume, so counting them unfairly tanks an agent's
-    // adoption rate (e.g. internal "Other::Test Ticket" conversations handled in
-    // Zendesk but never meant to be logged in the Command Center).
-    const EXCLUDED_CATEGORY_TAGS = ['other__test_ticket']
+    // Category tags excluded from adoption counts — operational "Other::" buckets,
+    // not genuine gameLM-eligible player support. Counting them inflates the ZD
+    // denominator and unfairly tanks adoption rate. Verified each tag matches in ZD
+    // search (combined exclusion = sum of individual counts, no overlap).
+    const EXCLUDED_CATEGORY_TAGS = [
+      'other__test_ticket',               // internal/QA test conversations
+      'other__spam',                      // phishing / junk
+      'other__disconnected_call',         // no real conversation handled
+      'other__disconnected_call/chat',
+      'other__duplicate/merged_tickets',  // not distinct, loggable work
+      'other__wrong_number',
+      'other__outbound_call',             // agent-initiated, not inbound support
+      'other__outbound_call_disconnected',
+      'other__outbound_tweet',
+    ]
     const exclusion = EXCLUDED_CATEGORY_TAGS.map(t => `-tags:${t}`).join(' ')
 
     const dateClause = `created>=${start_date} created<=${end_date}`
