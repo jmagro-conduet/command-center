@@ -54,6 +54,40 @@ interface EvalRow {
   accuracyPromptVersion: string | null
   qualityPromptVersion:  string | null
   editPromptVersion:     string | null
+  // Per-eval-type human reviews (from ticket_issue_reviews). A single row can be
+  // shown in the accuracy AND quality tabs simultaneously, so each eval type
+  // carries its own independent review state — never share a flat field.
+  reviews?: Partial<Record<EvalType, RowReview>>
+}
+
+type EvalType = 'edit' | 'accuracy' | 'quality'
+
+interface RowReview {
+  status:         'pending' | 'confirmed' | 'dismissed'
+  notes:          string | null
+  correctVerdict: string | null
+  context:        string | null
+  reviewedBy:     string | null
+  reviewedAt:     string | null
+}
+
+// Resolve the human review for a given eval type. Edit reviews predate the
+// ticket_issue_reviews table, so fall back to the legacy flat columns that
+// mapEvalRow still hydrates from ticket_issues.
+function reviewOf(r: EvalRow, evalType: EvalType): RowReview | null {
+  const rev = r.reviews?.[evalType]
+  if (rev) return rev
+  if (evalType === 'edit' && r.reviewStatus) {
+    return {
+      status:         r.reviewStatus,
+      notes:          r.reviewNotes,
+      correctVerdict: r.reviewCorrectVerdict,
+      context:        r.reviewContext,
+      reviewedBy:     r.reviewedBy,
+      reviewedAt:     r.reviewedAt,
+    }
+  }
+  return null
 }
 
 interface TicketRow {
@@ -210,12 +244,17 @@ function VerdictBadge({ verdict, small }: { verdict: Verdict; small?: boolean })
   )
 }
 
-// QA quick-filter — a row is "QA'd" once a human confirmed or dismissed it.
-function isQAd(r: EvalRow) { return r.reviewStatus === 'confirmed' || r.reviewStatus === 'dismissed' }
+// QA quick-filter — a row is "QA'd" once a human confirmed or dismissed it for
+// the given eval type. Each tab passes its own eval type so accuracy, quality
+// and edit reviews never bleed across tabs.
+function isQAd(r: EvalRow, evalType: EvalType) {
+  const s = reviewOf(r, evalType)?.status
+  return s === 'confirmed' || s === 'dismissed'
+}
 type QAStatus = 'all' | 'qad' | 'pending'
-function applyQA(rows: EvalRow[], s: QAStatus): EvalRow[] {
-  if (s === 'qad')     return rows.filter(isQAd)
-  if (s === 'pending') return rows.filter(r => !isQAd(r))
+function applyQA(rows: EvalRow[], s: QAStatus, evalType: EvalType): EvalRow[] {
+  if (s === 'qad')     return rows.filter(r => isQAd(r, evalType))
+  if (s === 'pending') return rows.filter(r => !isQAd(r, evalType))
   return rows
 }
 function QAFilter({ value, onChange, qad, pending }: { value: QAStatus; onChange: (v: QAStatus) => void; qad: number; pending: number }) {
@@ -386,32 +425,40 @@ async function fetchAllEvals(operatorId: string | null, since: string | null): P
     if (data.length < PAGE) break
     from += PAGE
   }
-  const rows = all.map(mapEvalRow)
-  if (rows.length > 0) {
-    const ids = rows.map(r => r.id)
-    const { data: reviews } = await supabase
+  return attachReviews(all.map(mapEvalRow))
+}
+
+// Hydrate per-eval-type human reviews onto rows from ticket_issue_reviews.
+// Fetches ALL eval types (not just 'edit') so accuracy and quality reviews
+// persist across reloads. Each row gets a `reviews` map keyed by eval type.
+async function attachReviews(rows: EvalRow[]): Promise<EvalRow[]> {
+  if (rows.length === 0) return rows
+  const ids = rows.map(r => r.id)
+  const byId = new Map<string, Partial<Record<EvalType, RowReview>>>()
+  for (let i = 0; i < ids.length; i += 1000) {
+    const chunk = ids.slice(i, i + 1000)
+    const { data } = await supabase
       .from('ticket_issue_reviews')
-      .select('ticket_issue_id,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at')
-      .in('ticket_issue_id', ids)
-      .eq('eval_type', 'edit')
-    if (reviews && reviews.length > 0) {
-      const reviewMap = new Map(reviews.map(r => [r.ticket_issue_id, r]))
-      return rows.map(row => {
-        const rev = reviewMap.get(row.id)
-        if (!rev) return row
-        return {
-          ...row,
-          reviewStatus:         (rev.review_status         as any) ?? row.reviewStatus,
-          reviewNotes:          rev.review_notes            ?? row.reviewNotes,
-          reviewCorrectVerdict: rev.review_correct_verdict  ?? row.reviewCorrectVerdict,
-          reviewContext:        rev.review_context          ?? row.reviewContext,
-          reviewedBy:           rev.reviewed_by             ?? row.reviewedBy,
-          reviewedAt:           rev.reviewed_at             ?? row.reviewedAt,
-        }
-      })
-    }
+      .select('ticket_issue_id,eval_type,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at')
+      .in('ticket_issue_id', chunk)
+    data?.forEach((rev: any) => {
+      const existing = byId.get(rev.ticket_issue_id) ?? {}
+      existing[rev.eval_type as EvalType] = {
+        status:         rev.review_status,
+        notes:          rev.review_notes,
+        correctVerdict: rev.review_correct_verdict,
+        context:        rev.review_context,
+        reviewedBy:     rev.reviewed_by,
+        reviewedAt:     rev.reviewed_at,
+      }
+      byId.set(rev.ticket_issue_id, existing)
+    })
   }
-  return rows
+  if (byId.size === 0) return rows
+  return rows.map(row => {
+    const reviews = byId.get(row.id)
+    return reviews ? { ...row, reviews } : row
+  })
 }
 
 // Fetches all issues that have been scored by eval-accuracy or eval-quality,
@@ -435,7 +482,7 @@ async function fetchAllScoredIssues(operatorId: string | null, since: string | n
     if (data.length < PAGE) break
     from += PAGE
   }
-  return all.map(mapEvalRow)
+  return attachReviews(all.map(mapEvalRow))
 }
 
 function mapEvalRow(r: any): EvalRow {
@@ -521,39 +568,45 @@ function downloadBlob(content: string, filename: string, type: string) {
   URL.revokeObjectURL(url)
 }
 
-function exportJSONL(rows: EvalRow[], filename = 'training_data.jsonl') {
+function exportJSONL(rows: EvalRow[], evalType: EvalType, filename = 'training_data.jsonl') {
   const esc = (s: string) => s.replace(/"/g, '\\"')
-  const lines = rows.map(r => JSON.stringify({
-    messages: [
-      { role: 'user', content: `Player: "${esc(r.customerInput)}"\n\ngameLM suggested response: "${esc(r.suggestedResponse)}"` },
-      { role: 'assistant', content: [
-          r.accuracyErrorClass ? `ERROR_CLASS: ${r.accuracyErrorClass}` : null,
-          r.accuracyEvidence   ? `EVIDENCE: ${r.accuracyEvidence}` : null,
-          r.qualityScore !== null ? `QUALITY_SCORE: ${r.qualityScore}` : null,
-        ].filter(Boolean).join('\n') || '(no eval output)',
-      },
-    ],
-    human_verdict:    r.reviewStatus,
-    correct_verdict:  r.reviewCorrectVerdict,
-    override_context: r.reviewContext,
-    theme:            r.themeTag,
-    notes:            r.reviewNotes,
-    ticket:           r.ticketNumber,
-    agent:            r.agentName,
-    category:         r.category,
-  }))
+  const lines = rows.map(r => {
+    const rev = reviewOf(r, evalType)
+    return JSON.stringify({
+      messages: [
+        { role: 'user', content: `Player: "${esc(r.customerInput)}"\n\ngameLM suggested response: "${esc(r.suggestedResponse)}"` },
+        { role: 'assistant', content: [
+            r.accuracyErrorClass ? `ERROR_CLASS: ${r.accuracyErrorClass}` : null,
+            r.accuracyEvidence   ? `EVIDENCE: ${r.accuracyEvidence}` : null,
+            r.qualityScore !== null ? `QUALITY_SCORE: ${r.qualityScore}` : null,
+          ].filter(Boolean).join('\n') || '(no eval output)',
+        },
+      ],
+      human_verdict:    rev?.status         ?? null,
+      correct_verdict:  rev?.correctVerdict ?? null,
+      override_context: rev?.context        ?? null,
+      theme:            r.themeTag,
+      notes:            rev?.notes          ?? null,
+      ticket:           r.ticketNumber,
+      agent:            r.agentName,
+      category:         r.category,
+    })
+  })
   downloadBlob(lines.join('\n'), filename, 'application/x-jsonlines')
 }
 
-function exportCSV(rows: EvalRow[], filename = 'qa_export.csv') {
+function exportCSV(rows: EvalRow[], evalType: EvalType, filename = 'qa_export.csv') {
   const q = (v: string | null | undefined) => `"${(v ?? '').replace(/"/g, '""')}"`
   const header = 'ticket_number,agent,category,theme,player_message,suggested_response,accuracy_class,quality_score,review_status,correct_verdict,override_context,notes'
-  const body   = rows.map(r => [
-    r.ticketNumber, r.agentName, r.category, r.themeTag ?? '',
-    q(r.customerInput), q(r.suggestedResponse),
-    r.accuracyErrorClass ?? '', r.qualityScore?.toFixed(2) ?? '',
-    r.reviewStatus ?? '', r.reviewCorrectVerdict ?? '', q(r.reviewContext), q(r.reviewNotes),
-  ].join(','))
+  const body   = rows.map(r => {
+    const rev = reviewOf(r, evalType)
+    return [
+      r.ticketNumber, r.agentName, r.category, r.themeTag ?? '',
+      q(r.customerInput), q(r.suggestedResponse),
+      r.accuracyErrorClass ?? '', r.qualityScore?.toFixed(2) ?? '',
+      rev?.status ?? '', rev?.correctVerdict ?? '', q(rev?.context), q(rev?.notes),
+    ].join(',')
+  })
   downloadBlob([header, ...body].join('\n'), filename, 'text/csv')
 }
 
@@ -575,10 +628,10 @@ function exportEditEvalJSONL(rows: EvalRow[], filename = 'edit_eval_qa.jsonl') {
       },
     ],
     claude_verdict:   r.evalVerdict,
-    human_review:     r.reviewStatus,
-    correct_verdict:  r.reviewCorrectVerdict,
-    override_context: r.reviewContext,
-    notes:            r.reviewNotes,
+    human_review:     reviewOf(r, 'edit')?.status         ?? null,
+    correct_verdict:  reviewOf(r, 'edit')?.correctVerdict ?? null,
+    override_context: reviewOf(r, 'edit')?.context        ?? null,
+    notes:            reviewOf(r, 'edit')?.notes          ?? null,
     ticket:           r.ticketNumber,
     agent:            r.agentName,
     category:         r.category,
@@ -590,13 +643,16 @@ function exportEditEvalJSONL(rows: EvalRow[], filename = 'edit_eval_qa.jsonl') {
 function exportEditEvalCSV(rows: EvalRow[], filename = 'edit_eval_qa.csv') {
   const q = (v: string | null | undefined) => `"${(v ?? '').replace(/"/g, '""')}"`
   const header = 'ticket_number,agent,category,issue_type,claude_verdict,confidence,eval_reasoning,review_status,correct_verdict,override_context,review_notes,player_message,suggested_response,final_edits,agent_reason'
-  const body = rows.filter(r => r.evalVerdict).map(r => [
-    r.ticketNumber, q(r.agentName), q(r.category), q(r.issueType),
-    r.evalVerdict ?? '', r.evalConfidence,
-    q(r.evalReasoning), r.reviewStatus ?? '',
-    r.reviewCorrectVerdict ?? '', q(r.reviewContext), q(r.reviewNotes),
-    q(r.customerInput), q(r.suggestedResponse), q(r.finalEdits), q(r.reasoning),
-  ].join(','))
+  const body = rows.filter(r => r.evalVerdict).map(r => {
+    const rev = reviewOf(r, 'edit')
+    return [
+      r.ticketNumber, q(r.agentName), q(r.category), q(r.issueType),
+      r.evalVerdict ?? '', r.evalConfidence,
+      q(r.evalReasoning), rev?.status ?? '',
+      rev?.correctVerdict ?? '', q(rev?.context), q(rev?.notes),
+      q(r.customerInput), q(r.suggestedResponse), q(r.finalEdits), q(r.reasoning),
+    ].join(',')
+  })
   downloadBlob([header, ...body].join('\n'), filename, 'text/csv')
 }
 
@@ -794,19 +850,20 @@ function ReviewActions({
   verdictOptions, evalType,
 }: {
   row: EvalRow
-  onUpdate?: (id: string, update: ReviewUpdate) => void
+  onUpdate?: (id: string, evalType: EvalType, update: ReviewUpdate) => void
   confirmLabel?: string
   dismissLabel?: string
   verdictOptions?: string[]
-  evalType: 'edit' | 'accuracy' | 'quality'
+  evalType: EvalType
 }) {
-  const [notes,           setNotes]           = useState(row.reviewNotes         ?? '')
-  const [correctVerdict,  setCorrectVerdict]  = useState(row.reviewCorrectVerdict ?? '')
-  const [context,         setContext]         = useState(row.reviewContext        ?? '')
+  const existing = reviewOf(row, evalType)
+  const [notes,           setNotes]           = useState(existing?.notes          ?? '')
+  const [correctVerdict,  setCorrectVerdict]  = useState(existing?.correctVerdict ?? '')
+  const [context,         setContext]         = useState(existing?.context        ?? '')
   const [status,          setStatus]          = useState<'pending' | 'confirmed' | 'dismissed'>(
-    (row.reviewStatus as 'pending' | 'confirmed' | 'dismissed') ?? 'pending'
+    existing?.status ?? 'pending'
   )
-  const [showOverride, setShowOverride] = useState(row.reviewStatus === 'dismissed')
+  const [showOverride, setShowOverride] = useState(existing?.status === 'dismissed')
   const [saving,       setSaving]       = useState(false)
   // App auth lives on authClient (AuthContext), not supabase.auth — so use the
   // AuthContext user for reviewer attribution. supabase.auth.getUser() is null here.
@@ -826,7 +883,7 @@ function ReviewActions({
     }, { onConflict: 'ticket_issue_id,eval_type' })
     setStatus('confirmed')
     setShowOverride(false)
-    onUpdate?.(row.id, { status: 'confirmed', notes, correctVerdict: null, context: null })
+    onUpdate?.(row.id, evalType, { status: 'confirmed', notes, correctVerdict: null, context: null })
     setSaving(false)
   }
 
@@ -843,7 +900,7 @@ function ReviewActions({
       reviewed_at:            new Date().toISOString(),
     }, { onConflict: 'ticket_issue_id,eval_type' })
     setStatus('dismissed')
-    onUpdate?.(row.id, { status: 'dismissed', notes, correctVerdict: correctVerdict || null, context: context || null })
+    onUpdate?.(row.id, evalType, { status: 'dismissed', notes, correctVerdict: correctVerdict || null, context: context || null })
     setSaving(false)
   }
 
@@ -1332,7 +1389,7 @@ function Paginator({ page, total, onPage }: { page: number; total: number; onPag
 
 function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
   rows: EvalRow[]
-  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
+  onReviewUpdate?: (id: string, evalType: EvalType, update: ReviewUpdate) => void
 }) {
   const { user }                        = useAuth()
   const { selectedOperator: operator }  = useOperator()
@@ -1353,7 +1410,7 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
       const errorClasses = [...new Set(issues.map(i => i.accuracyErrorClass).filter(c => c && c !== 'NONE'))] as string[]
       const pendingReview = issues.filter(i =>
         i.accuracyErrorClass && i.accuracyErrorClass !== 'NONE' &&
-        (!i.reviewStatus || i.reviewStatus === 'pending')
+        !isQAd(i, 'accuracy')
       ).length
       const latestDate = issues.reduce((max, i) => {
         const d = i.accuracyRanAt ?? ''
@@ -1506,7 +1563,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   rows: EvalRow[]
   agentFilter?: string
   priorRows?: EvalRow[]
-  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
+  onReviewUpdate?: (id: string, evalType: EvalType, update: ReviewUpdate) => void
 }) {
   const [expanded,         setExpanded]         = useState<string | null>(null)
   const [viewMode,         setViewMode]         = useState<'issue' | 'ticket'>('issue')
@@ -1529,9 +1586,9 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   })()
   // QA counts over the evaluated set (before the QA filter is applied)
   const qaEvald   = scopedPreQA.filter(r => r.accuracyRanAt !== null)
-  const qaQad     = qaEvald.filter(isQAd).length
+  const qaQad     = qaEvald.filter(r => isQAd(r, 'accuracy')).length
   const qaPending = qaEvald.length - qaQad
-  const scoped    = applyQA(scopedPreQA, qaFilter)
+  const scoped    = applyQA(scopedPreQA, qaFilter, 'accuracy')
 
   const withEval    = scoped.filter(r => r.accuracyRanAt !== null)
   const total       = withEval.length
@@ -1542,7 +1599,7 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   // Review queue: any flagged error not yet reviewed by a human
   const reviewQueue = withEval.filter(r =>
     r.accuracyErrorClass && r.accuracyErrorClass !== 'NONE' &&
-    (!r.reviewStatus || r.reviewStatus === 'pending')
+    !isQAd(r, 'accuracy')
   )
   const allResults  = withEval
 
@@ -1728,10 +1785,10 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
               agentFilter={agentFil} onAgentChange={setAgentFil} />
           )}
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => exportJSONL(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportJSONL(exportRows, 'accuracy')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
               Export JSONL
             </button>
-            <button onClick={() => exportCSV(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportCSV(exportRows, 'accuracy')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
               Export CSV
             </button>
           </div>
@@ -1798,8 +1855,11 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   rows: EvalRow[]
   agentFilter?: string
   priorRows?: EvalRow[]
-  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
+  onReviewUpdate?: (id: string, evalType: EvalType, update: ReviewUpdate) => void
 }) {
+  const { user }                        = useAuth()
+  const { selectedOperator: operator }  = useOperator()
+  const isAdmin                         = user?.role === 'admin'
   const [expanded,       setExpanded]       = useState<string | null>(null)
   const [viewMode,       setViewMode]       = useState<'issue' | 'ticket'>('issue')
   const [subTab,         setSubTab]         = useState<'below' | 'passing'>('below')
@@ -1807,6 +1867,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   const [agentFil,       setAgentFil]       = useState('')
   const [qaFilter,       setQaFilter]       = useState<QAStatus>('all')
   const [page,           setPage]           = useState(1)
+  const [promoted,       setPromoted]       = useState<Set<string>>(new Set())
 
   // Reset page when the active list changes
   useEffect(() => { setPage(1); setExpanded(null) }, [subTab, categoryFilter, agentFil, qaFilter, viewMode])
@@ -1818,9 +1879,9 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
     return r
   })()
   const qaEvald   = scopedPreQA.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
-  const qaQad     = qaEvald.filter(isQAd).length
+  const qaQad     = qaEvald.filter(r => isQAd(r, 'quality')).length
   const qaPending = qaEvald.length - qaQad
-  const scoped    = applyQA(scopedPreQA, qaFilter)
+  const scoped    = applyQA(scopedPreQA, qaFilter, 'quality')
 
   const withEval = scoped.filter(r => r.qualityRanAt !== null && r.qualityScore !== null)
 
@@ -1946,6 +2007,40 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
               ))}
             </div>
             <ReviewActions row={r} onUpdate={onReviewUpdate} evalType="quality" />
+            {isAdmin && r.qualityRanAt && (
+              <div style={{ marginTop: 10 }}>
+                {promoted.has(r.id) ? (
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>✓ Added to gold set</span>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const { error } = await supabase.from('eval_gold_cases').upsert({
+                        eval_type:          'quality',
+                        ticket_issue_id:    r.id,
+                        player_input:       r.customerInput,
+                        suggested_response: r.suggestedResponse,
+                        notes:              [
+                          r.qualityScore !== null ? `Quality score: ${r.qualityScore.toFixed(2)}/5` : null,
+                          r.qualityFlagReason && r.qualityFlagReason !== 'None' ? `Flag: ${r.qualityFlagReason}` : null,
+                        ].filter(Boolean).join(' · ') || null,
+                        operator_id:        operator?.id ?? null,
+                      }, { onConflict: 'ticket_issue_id,eval_type' })
+                      if (!error) setPromoted(p => new Set([...p, r.id]))
+                    }}
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                      color: '#9B59D0', background: 'rgba(155,89,208,0.07)',
+                      border: '1px solid rgba(155,89,208,0.2)', borderRadius: 8,
+                      padding: '4px 12px', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.07)')}
+                  >
+                    ★ Promote to gold set
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2064,10 +2159,10 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
                 agentFilter={agentFil} onAgentChange={setAgentFil} />
             )}
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => exportJSONL(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+              <button onClick={() => exportJSONL(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
                 Export JSONL
               </button>
-              <button onClick={() => exportCSV(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+              <button onClick={() => exportCSV(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
                 Export CSV
               </button>
             </div>
@@ -2110,7 +2205,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
 
 function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
   rows: EvalRow[]
-  onReviewUpdate?: (id: string, update: ReviewUpdate) => void
+  onReviewUpdate?: (id: string, evalType: EvalType, update: ReviewUpdate) => void
 }) {
   const { user }                        = useAuth()
   const { selectedOperator: operator }  = useOperator()
@@ -2123,9 +2218,9 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
   const [qaFilter,       setQaFilter]       = useState<QAStatus>('all')
 
   const evalRows = rows.filter(r => r.evalVerdict !== null)
-  const qaQad     = evalRows.filter(isQAd).length
+  const qaQad     = evalRows.filter(r => isQAd(r, 'edit')).length
   const qaPending = evalRows.length - qaQad
-  const qaRows    = useMemo(() => applyQA(evalRows, qaFilter), [evalRows, qaFilter])
+  const qaRows    = useMemo(() => applyQA(evalRows, qaFilter, 'edit'), [evalRows, qaFilter])
 
   const categories = useMemo(() => [...new Set(evalRows.map(r => r.category).filter(Boolean))].sort(), [evalRows])
 
@@ -2265,7 +2360,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                                 const { error } = await supabase.from('eval_gold_cases').upsert({
                                   eval_type:         'edit',
                                   ticket_issue_id:   r.id,
-                                  expected_verdict:  r.reviewCorrectVerdict ?? r.evalVerdict,
+                                  expected_verdict:  reviewOf(r, 'edit')?.correctVerdict ?? r.evalVerdict,
                                   player_input:      r.customerInput,
                                   suggested_response: r.suggestedResponse,
                                   final_edits:       r.finalEdits,
@@ -2309,7 +2404,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
 
 // ── Agent Drilldown ────────────────────────────────────────────────────────────
 
-function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void; onReviewUpdate?: (id: string, update: ReviewUpdate) => void }) {
+function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { rows: EvalRow[]; tickets: TicketRow[]; agentName: string; onBack: () => void; onReviewUpdate?: (id: string, evalType: EvalType, update: ReviewUpdate) => void }) {
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'evals' | 'accuracy' | 'quality' | 'completeness' | 'wins'>('evals')
 
@@ -2715,10 +2810,10 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
               agentFilter={agentFil} onAgentChange={setAgentFil} />
           )}
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => exportJSONL(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportJSONL(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
               Export JSONL
             </button>
-            <button onClick={() => exportCSV(exportRows)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportCSV(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
               Export CSV
             </button>
           </div>
@@ -2860,15 +2955,20 @@ export default function ReportCard() {
   const [latestOnly, setLatestOnly]       = useState(true)
 
   // Update local state when a review action is saved
-  const handleReviewUpdate = (id: string, update: ReviewUpdate) => {
+  const handleReviewUpdate = (id: string, evalType: EvalType, update: ReviewUpdate) => {
     const patch = (r: EvalRow) => r.id === id
       ? { ...r,
-          reviewStatus:         update.status,
-          reviewNotes:          update.notes || null,
-          reviewCorrectVerdict: update.correctVerdict,
-          reviewContext:        update.context,
-          reviewedBy:           user?.email ?? null,
-          reviewedAt:           new Date().toISOString(),
+          reviews: {
+            ...r.reviews,
+            [evalType]: {
+              status:         update.status,
+              notes:          update.notes || null,
+              correctVerdict: update.correctVerdict,
+              context:        update.context,
+              reviewedBy:     user?.email ?? null,
+              reviewedAt:     new Date().toISOString(),
+            } as RowReview,
+          },
         }
       : r
     setAllRows(prev       => prev.map(patch))
