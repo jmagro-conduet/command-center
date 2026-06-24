@@ -303,9 +303,7 @@ export default function Learn() {
         {/* Written content (shown below embed if both exist) */}
         {readTarget.content && (
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28 }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-              {readTarget.content}
-            </div>
+            <MarkdownView text={readTarget.content} />
           </div>
         )}
 
@@ -587,6 +585,88 @@ export default function Learn() {
       )}
     </div>
   )
+}
+
+// ── Lightweight Markdown renderer for KB article content ──────────────────────
+// Supports # / ## / ### headings, **bold**, `code`, - and 1. lists, > callouts,
+// --- rules, and | pipe | tables. Single newlines inside a paragraph are kept as
+// line breaks, so legacy plain-text articles still render correctly.
+function renderInline(text: string, kp: string): React.ReactNode[] {
+  const out: React.ReactNode[] = []
+  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g
+  let last = 0, m: RegExpExecArray | null, i = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index))
+    const t = m[0]
+    if (t.startsWith('**')) out.push(<strong key={`${kp}b${i}`} style={{ fontWeight: 700 }}>{t.slice(2, -2)}</strong>)
+    else out.push(<code key={`${kp}c${i}`} style={{ fontFamily: 'monospace', fontSize: '0.92em', background: 'rgba(0,0,0,0.05)', padding: '1px 5px', borderRadius: 4 }}>{t.slice(1, -1)}</code>)
+    last = m.index + t.length; i++
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
+function MarkdownView({ text }: { text: string }) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n')
+  const blocks: React.ReactNode[] = []
+  let i = 0, key = 0
+  const isRow = (l: string) => /^\s*\|.*\|\s*$/.test(l)
+  const isSep = (l: string) => /^\s*\|?[\s:|-]+\|?\s*$/.test(l) && l.includes('-')
+  const isSpecial = (l: string) =>
+    /^\s*$/.test(l) || /^(#{1,3})\s+/.test(l) || /^\s*(---+|===+)\s*$/.test(l) ||
+    /^\s*[-*]\s+/.test(l) || /^\s*\d+\.\s+/.test(l) || /^\s*>\s?/.test(l) || isRow(l)
+
+  while (i < lines.length) {
+    const line = lines[i]
+    if (/^\s*$/.test(line)) { i++; continue }
+
+    const h = line.match(/^(#{1,3})\s+(.*)$/)
+    if (h) {
+      const lvl = h[1].length
+      const size = lvl === 1 ? 22 : lvl === 2 ? 17 : 14
+      blocks.push(<div key={key++} style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 600, color: '#000', fontSize: size, margin: lvl === 1 ? '4px 0 12px' : '22px 0 8px' }}>{renderInline(h[2], `h${key}`)}</div>)
+      i++; continue
+    }
+    if (/^\s*(---+|===+)\s*$/.test(line)) { blocks.push(<hr key={key++} style={{ border: 'none', borderTop: '1.5px solid rgba(0,0,0,0.1)', margin: '18px 0' }} />); i++; continue }
+
+    if (isRow(line) && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const header = line.split('|').slice(1, -1).map(s => s.trim())
+      i += 2
+      const rows: string[][] = []
+      while (i < lines.length && isRow(lines[i])) { rows.push(lines[i].split('|').slice(1, -1).map(s => s.trim())); i++ }
+      blocks.push(
+        <table key={key++} style={{ borderCollapse: 'collapse', width: '100%', margin: '12px 0', fontFamily: 'Inter, sans-serif', fontSize: 13 }}>
+          <thead><tr>{header.map((c, ci) => <th key={ci} style={{ textAlign: 'left', padding: '8px 12px', borderBottom: '2px solid rgba(0,0,0,0.12)', color: '#58595B', fontWeight: 600 }}>{renderInline(c, `th${key}_${ci}`)}</th>)}</tr></thead>
+          <tbody>{rows.map((r, ri) => <tr key={ri}>{r.map((c, ci) => <td key={ci} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(0,0,0,0.07)', color: '#000', verticalAlign: 'top' }}>{renderInline(c, `td${key}_${ri}_${ci}`)}</td>)}</tr>)}</tbody>
+        </table>
+      )
+      continue
+    }
+
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items: string[] = []
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, '')); i++ }
+      blocks.push(<ul key={key++} style={{ margin: '8px 0', paddingLeft: 22, fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((it, ii) => <li key={ii} style={{ marginBottom: 4 }}>{renderInline(it, `ul${key}_${ii}`)}</li>)}</ul>)
+      continue
+    }
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: string[] = []
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*\d+\.\s+/, '')); i++ }
+      blocks.push(<ol key={key++} style={{ margin: '8px 0', paddingLeft: 22, fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((it, ii) => <li key={ii} style={{ marginBottom: 4 }}>{renderInline(it, `ol${key}_${ii}`)}</li>)}</ol>)
+      continue
+    }
+    if (/^\s*>\s?/.test(line)) {
+      const items: string[] = []
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) { items.push(lines[i].replace(/^\s*>\s?/, '')); i++ }
+      blocks.push(<blockquote key={key++} style={{ margin: '12px 0', padding: '12px 16px', borderLeft: '3px solid #9B59D0', background: 'rgba(155,89,208,0.06)', borderRadius: '0 8px 8px 0', fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((l, li) => <span key={li}>{renderInline(l, `bq${key}_${li}`)}{li < items.length - 1 ? <br /> : null}</span>)}</blockquote>)
+      continue
+    }
+
+    const para: string[] = []
+    while (i < lines.length && !isSpecial(lines[i])) { para.push(lines[i]); i++ }
+    blocks.push(<p key={key++} style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.8, margin: '0 0 12px' }}>{para.map((l, li) => <span key={li}>{renderInline(l, `p${key}_${li}`)}{li < para.length - 1 ? <br /> : null}</span>)}</p>)
+  }
+  return <>{blocks}</>
 }
 
 function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
