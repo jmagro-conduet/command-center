@@ -15,6 +15,7 @@ interface KBArticle {
   file_url:  string | null
   file_name: string | null
   file_type: string | null
+  operator_id: string | null
 }
 
 type View = 'list' | 'create' | 'edit' | 'read'
@@ -102,6 +103,7 @@ export default function Learn() {
   const [formFileUrl,  setFormFileUrl]  = useState('')
   const [formFileName, setFormFileName] = useState('')
   const [formFileType, setFormFileType] = useState('')
+  const [formGlobal,   setFormGlobal]   = useState(false)
 
   // upload state
   const [uploading,    setUploading]    = useState(false)
@@ -116,7 +118,7 @@ export default function Learn() {
     const opId = selectedOperator?.id ?? null
     let q = supabase
       .from('kb_articles')
-      .select('id, title, content, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type')
+      .select('id, title, content, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type, operator_id')
       .order('updated_at', { ascending: false })
     // Show operator-specific articles + global articles (operator_id = null).
     // When no operator is selected, show everything.
@@ -131,6 +133,7 @@ export default function Learn() {
     setEditTarget(null)
     setFormTitle(''); setFormCat('General'); setFormBody('')
     setFormFileUrl(''); setFormFileName(''); setFormFileType('')
+    setFormGlobal(false)
     setUploadError(''); setUploadPct(0)
     setView('create')
   }
@@ -139,6 +142,7 @@ export default function Learn() {
     setEditTarget(a)
     setFormTitle(a.title); setFormCat(a.category); setFormBody(a.content)
     setFormFileUrl(a.file_url ?? ''); setFormFileName(a.file_name ?? ''); setFormFileType(a.file_type ?? '')
+    setFormGlobal(a.operator_id === null)
     setUploadError(''); setUploadPct(0)
     setView('edit')
   }
@@ -193,7 +197,9 @@ export default function Learn() {
       file_url:     formFileUrl  || null,
       file_name:    formFileName || null,
       file_type:    formFileType || null,
-      operator_id:  selectedOperator?.id ?? null,
+      // Global docs (operator_id null) are visible to every client; otherwise
+      // scope to the active operator.
+      operator_id:  formGlobal ? null : (selectedOperator?.id ?? null),
     }
     if (editTarget) {
       const { error } = await supabase.from('kb_articles').update(payload).eq('id', editTarget.id)
@@ -353,6 +359,37 @@ export default function Learn() {
                 {CATEGORIES.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* Visibility / scope */}
+          <div>
+            <label style={labelStyle}>Visibility</label>
+            <button
+              type="button"
+              onClick={() => setFormGlobal(g => !g)}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              <span style={{
+                width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                border: formGlobal ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
+                background: formGlobal ? '#9B59D0' : '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+              }}>
+                {formGlobal && (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                )}
+              </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+                Global doc — visible to all clients
+              </span>
+            </button>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 6 }}>
+              {formGlobal
+                ? 'This article will appear in Learn for every client.'
+                : `Scoped to ${selectedOperator?.name ?? 'the selected client'} only.`}
+            </p>
           </div>
 
           {/* File upload */}
@@ -594,6 +631,13 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
               padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em',
               background: 'rgba(0,0,0,0.06)', color: '#58595B',
             }}>{ftLabel}</span>
+          )}
+          {isAdmin && article.operator_id === null && (
+            <span style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700,
+              padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em',
+              background: 'rgba(155,89,208,0.12)', color: '#9B59D0',
+            }}>Global</span>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
