@@ -145,7 +145,9 @@ interface SettingsProps {
 
 export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  // Admin Settings (users / evals / config tabs) are SuperAdmin-only. Regular
+  // admins keep all their other features but see only the personal "general" tab.
+  const isAdmin = !!user?.isSuperAdmin
   const { selectedOperator } = useOperator()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(isAdmin ? initialTab : 'general')

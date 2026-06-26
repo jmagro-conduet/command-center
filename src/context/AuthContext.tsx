@@ -6,8 +6,25 @@ export interface AppUser {
   email: string
   name: string
   role: 'admin' | 'agent' | 'qa' | 'operator'
+  // SuperAdmins are the only role allowed into Admin Settings. They are a
+  // superset of admin: we normalize role to 'admin' here so every existing
+  // admin check keeps working, and expose isSuperAdmin for the Settings gate.
+  isSuperAdmin: boolean
   operatorTeam: string | null
   operatorId: string | null
+}
+
+function toAppUser(profile: any): AppUser {
+  const isSuperAdmin = profile.role === 'superadmin'
+  return {
+    id:           profile.id,
+    email:        profile.email,
+    name:         profile.name,
+    role:         (isSuperAdmin ? 'admin' : profile.role) as AppUser['role'],
+    isSuperAdmin,
+    operatorTeam: profile.operator_team,
+    operatorId:   profile.operator_id ?? null,
+  }
 }
 
 interface AuthContextValue {
@@ -40,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user?.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: profile.operator_id ?? null })
+          setUser(toAppUser(profile))
         }
       }
       setLoading(false)
@@ -52,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session.user.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: profile.operator_id ?? null })
+          setUser(toAppUser(profile))
         }
       }
     })

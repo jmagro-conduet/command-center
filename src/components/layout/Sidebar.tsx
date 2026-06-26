@@ -203,6 +203,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const initial    = user?.name ? user.name[0].toUpperCase() : '?'
   const isAdmin    = user?.role === 'admin'
   const isOperator = user?.role === 'operator'
+  const isSuperAdmin = !!user?.isSuperAdmin
 
   return (
     <div className="app-sidebar" style={{
@@ -470,7 +471,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
 
         {!isOperator && <button
           onClick={() => onNavigate('settings')}
-          title={collapsed ? (isAdmin ? 'Admin settings' : 'Settings') : undefined}
+          title={collapsed ? (isSuperAdmin ? 'Admin settings' : 'Settings') : undefined}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -500,7 +501,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
           }}>
             <SettingsIcon />
           </span>
-          {!collapsed && (isAdmin ? 'Admin settings' : 'Settings')}
+          {!collapsed && (isSuperAdmin ? 'Admin settings' : 'Settings')}
         </button>}
 
         <button

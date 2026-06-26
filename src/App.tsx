@@ -63,9 +63,10 @@ function AppShell() {
   if (recoveryMode) return <ResetPasswordPage updatePassword={updatePassword} />
   if (!user) return <Login />
 
-  const isAdmin    = user?.role === 'admin'
-  const isQA       = user?.role === 'qa'
-  const isOperator = user?.role === 'operator'
+  const isAdmin      = user?.role === 'admin'
+  const isQA         = user?.role === 'qa'
+  const isOperator   = user?.role === 'operator'
+  const isSuperAdmin = !!user?.isSuperAdmin
 
   function renderPage() {
     if (isOperator) return <ExecutiveSummary key={pageKey} />
@@ -80,7 +81,7 @@ function AppShell() {
       case 'analytics':   return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
       case 'report-card': return (isAdmin || isQA) ? <ReportCard key={pageKey} /> : <LogTicket key={pageKey} />
       case 'bug-tracker': return <BugTracker key={pageKey} />
-      case 'users':       return isAdmin ? <Settings key={pageKey} initialTab="users" /> : <LogTicket key={pageKey} />
+      case 'users':       return isSuperAdmin ? <Settings key={pageKey} initialTab="users" /> : <LogTicket key={pageKey} />
       case 'learn':       return <Learn       key={pageKey} />
       case 'settings':    return isAdmin ? <Settings key={pageKey} /> : <Settings key={pageKey} />
     }
