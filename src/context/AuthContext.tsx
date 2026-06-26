@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.user?.email) {
       const profile = await loadUser(session.user.email)
       if (profile) {
-        setUser({ id: profile.id, email: profile.email, name: profile.name, role: profile.role, operatorTeam: profile.operator_team, operatorId: profile.operator_id ?? null })
+        setUser(toAppUser(profile))
       }
     }
     return { error: null }
