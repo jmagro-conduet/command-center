@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
 import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
 import Users from './Users'
+import EvalReport from './EvalReport'
 
-type SettingsTab = 'general' | 'users' | 'evals' | 'config'
+type SettingsTab = 'general' | 'users' | 'evals' | 'config' | 'report'
 
 interface Team { id: string; name: string }
 
@@ -725,7 +726,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             {isAdmin ? 'Admin settings' : 'Settings'}
           </h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
-            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? `Operator-specific configuration for ${selectedOperator?.name ?? 'the selected operator'}` : 'Configure your Command Center preferences'}
+            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? `Operator-specific configuration for ${selectedOperator?.name ?? 'the selected operator'}` : activeTab === 'report' ? 'Engineering triage analysis of the eval findings — what to investigate and fix' : 'Configure your Command Center preferences'}
           </p>
         </div>
 
@@ -736,7 +737,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             background: 'rgba(0,0,0,0.05)', borderRadius: 12,
             alignSelf: 'flex-start',
           }}>
-            {(['general', 'users', 'evals', 'config'] as SettingsTab[]).map(tab => (
+            {(['general', 'users', 'evals', 'config', 'report'] as SettingsTab[]).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -749,7 +750,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   transition: 'all 0.15s',
                 }}
               >
-                {tab === 'general' ? 'General' : tab === 'users' ? 'Users' : tab === 'evals' ? 'Evals' : 'Config'}
+                {tab === 'general' ? 'General' : tab === 'users' ? 'Users' : tab === 'evals' ? 'Evals' : tab === 'config' ? 'Config' : 'Report'}
               </button>
             ))}
           </div>
@@ -1321,6 +1322,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
       {/* ── Users tab ───────────────────────────────────────────────────────── */}
       {isAdmin && activeTab === 'users' && <Users />}
+      {isAdmin && activeTab === 'report' && <EvalReport />}
 
       {/* ── General tab ─────────────────────────────────────────────────────── */}
       {activeTab === 'general' && <>
