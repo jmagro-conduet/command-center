@@ -43,6 +43,7 @@ interface Row {
   id: string
   issueType: string
   ticket: string
+  externalTicketId: string
   agent: string
   agentEmail: string
   agentTeam: string
@@ -153,7 +154,7 @@ export default function Submissions() {
     let q = supabase
       .from('ticket_issues')
       .select(
-        `id, issue_type, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
+        `id, issue_type, external_ticket_id, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
          tickets!inner ( ticket_number, agent_name, agent_email, agent_team, ticket_category )`,
         { count: 'exact' }
       )
@@ -196,6 +197,7 @@ export default function Submissions() {
         id:                ti.id,
         issueType:         ti.issue_type ?? '',
         ticket:            ti.tickets?.ticket_number ?? '',
+        externalTicketId:  ti.external_ticket_id ?? '',
         agent:             ti.tickets?.agent_name ?? '',
         agentEmail:        ti.tickets?.agent_email ?? '',
         agentTeam:         ti.tickets?.agent_team ?? '',
@@ -252,7 +254,7 @@ export default function Submissions() {
       let q = supabase
         .from('ticket_issues')
         .select(`
-          issue_type, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
+          issue_type, external_ticket_id, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
           tickets!inner ( ticket_number, agent_name, agent_email, agent_team, ticket_category )
         `)
       if (opId)     q = q.eq('operator_id', opId)
@@ -268,7 +270,7 @@ export default function Submissions() {
     }
 
     const header = [
-      'Timestamp', 'Agent', 'Email', 'Team', 'Ticket', 'Category', 'Issue type',
+      'Timestamp', 'Agent', 'Email', 'Team', 'Ticket', 'Ticket ID', 'Category', 'Issue type',
       'Customer Input', 'Suggested Response', 'Reasoning', 'Final Edits', 'Notes',
     ].map(csvField).join(',')
 
@@ -276,7 +278,7 @@ export default function Submissions() {
       const t = ti.tickets ?? {}
       return [
         ti.logged_at ? formatSourceTimestamp(ti.logged_at) : '',
-        t.agent_name, t.agent_email, t.agent_team, t.ticket_number, t.ticket_category,
+        t.agent_name, t.agent_email, t.agent_team, t.ticket_number, ti.external_ticket_id, t.ticket_category,
         ti.issue_type, ti.customer_input, ti.suggested_response,
         ti.reasoning, ti.final_edits, ti.issue_comment,
       ].map(csvField).join(',')
@@ -594,6 +596,7 @@ function SubmissionModal({
 
   const meta: { label: string; value: string }[] = [
     { label: 'Ticket',    value: row.ticket },
+    { label: 'Ticket ID', value: row.externalTicketId },
     { label: 'Agent',     value: row.agent },
     { label: 'Email',     value: row.agentEmail },
     { label: 'Team',      value: row.agentTeam },
