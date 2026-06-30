@@ -4,10 +4,12 @@ import { useOperator } from '../context/OperatorContext'
 import { useAuth } from '../context/AuthContext'
 
 // Engineering triage report — one focused LLM analysis per eval section, generated
-// on demand (no cost/load unless a SuperAdmin clicks Generate). Lives in the
-// Admin Settings → Report tab; fully separate from the Report Card.
+// on demand (no cost/load unless a SuperAdmin clicks Generate). Its own top-level page
+// (moved out of Admin Settings → Report tab once it needed room for a data-window
+// toggle and report history). Fully separate from the Report Card.
 
 type SectionKey = 'corrections' | 'enhancements' | 'accuracy' | 'quality'
+type WindowMode = 'latest' | '90d' | 'all'
 
 interface Finding {
   title: string; theme: string; severity: string
@@ -22,12 +24,14 @@ interface Synthesis {
 }
 interface SectionResult {
   loading: boolean; error: string | null
+  id?: string; windowMode?: WindowMode; isHistorical?: boolean
   generatedAt?: string; generatedBy?: string | null; aggregates?: any; synthesis?: Synthesis
 }
 interface Drill {
   section: SectionKey; finding: Finding
   loading: boolean; error: string | null; rows: any[]
 }
+interface HistoryEntry { id: string; generated_at: string; generated_by: string | null }
 
 // Columns we pull for the drill-down instances (superset across sections).
 // external_ticket_id = the logged gameLM Ticket ID, so engineers can trace each
@@ -39,6 +43,12 @@ const SECTIONS: { key: SectionKey; label: string; blurb: string }[] = [
   { key: 'enhancements', label: 'Enhancements (nice-to-have)', blurb: 'Where gameLM was OK but incomplete and the agent added value — track as backlog, not bugs.' },
   { key: 'accuracy',     label: 'Response Accuracy',         blurb: 'Regulatory (P1A), hallucination (P1B), and account-data (P2) errors.' },
   { key: 'quality',      label: 'Response Quality',          blurb: 'The five quality dimensions — what drags scores below bar.' },
+]
+
+const WINDOW_OPTIONS: { key: WindowMode; label: string; blurb: string }[] = [
+  { key: 'latest', label: 'Latest data only', blurb: 'Only tickets logged since this section’s own last generated report (first run falls back to all-time).' },
+  { key: '90d',    label: 'Last 90 days',     blurb: 'Trailing 90-day window — keeps the narrative current and lets fixed issues age out.' },
+  { key: 'all',    label: 'All time',         blurb: 'Full history — best for a first deep dive on an operator.' },
 ]
 
 const SEV: Record<string, { bg: string; color: string; label: string }> = {
@@ -57,55 +67,121 @@ const EMPTY_RESULTS: Record<SectionKey, SectionResult> = {
   quality:      { loading: false, error: null },
 }
 
+const EMPTY_FLAGS = { corrections: false, enhancements: false, accuracy: false, quality: false }
+const EMPTY_HISTORY: Record<SectionKey, HistoryEntry[] | null> = { corrections: null, enhancements: null, accuracy: null, quality: null }
+
 export default function EvalReport() {
   const { selectedOperator } = useOperator()
   const { user } = useAuth()
+  const [windowMode, setWindowMode] = useState<WindowMode>('90d')
   const [results, setResults] = useState<Record<SectionKey, SectionResult>>(EMPTY_RESULTS)
   const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
     corrections: false, enhancements: false, accuracy: false, quality: false,
   })
   const [loadingStored, setLoadingStored] = useState(false)
   const [drill, setDrill] = useState<Drill | null>(null)
+  const [historyOpen, setHistoryOpen] = useState<Record<SectionKey, boolean>>(EMPTY_FLAGS)
+  const [historyLoading, setHistoryLoading] = useState<Record<SectionKey, boolean>>(EMPTY_FLAGS)
+  const [historyLists, setHistoryLists] = useState<Record<SectionKey, HistoryEntry[] | null>>(EMPTY_HISTORY)
 
   const toggleSection = (k: SectionKey) => setCollapsed(c => ({ ...c, [k]: !c[k] }))
 
-  // Load the last shared snapshot for this operator — fast, no LLM call. Every SuperAdmin
-  // sees the same stored report until someone regenerates it.
-  useEffect(() => {
+  // Load each section's latest snapshot for the current operator + window — fast, no LLM
+  // call. Every SuperAdmin sees the same stored report for a given window until someone
+  // regenerates it. Each window keeps its own independent history (see migration).
+  async function loadForWindow(wm: WindowMode) {
     const op = selectedOperator?.id
-    setResults(EMPTY_RESULTS)
-    setDrill(null)
-    if (!op) return
-    let cancelled = false
+    if (!op) { setResults(EMPTY_RESULTS); return }
     setLoadingStored(true)
-    ;(async () => {
-      const { data } = await supabase
-        .from('eval_triage_reports')
-        .select('section,aggregates,synthesis,generated_at,generated_by')
-        .eq('operator_id', op)
-      if (cancelled) return
-      if (data?.length) {
-        setResults(prev => {
-          const next = { ...prev }
-          for (const row of data) {
-            if (row.section in next) next[row.section as SectionKey] = {
-              loading: false, error: null, aggregates: row.aggregates,
-              synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by,
-            }
-          }
-          return next
-        })
-        // Stored reports start collapsed so the page opens as a clean overview.
-        setCollapsed(prev => {
-          const next = { ...prev }
-          for (const row of data) if (row.section in next) next[row.section as SectionKey] = true
-          return next
-        })
+    const { data } = await supabase
+      .from('eval_triage_reports')
+      .select('id,section,aggregates,synthesis,generated_at,generated_by')
+      .eq('operator_id', op)
+      .eq('window_mode', wm)
+      .order('generated_at', { ascending: false })
+      .limit(100)
+    const next = { ...EMPTY_RESULTS }
+    const seen = new Set<string>()
+    for (const row of data ?? []) {
+      const k = row.section as SectionKey
+      if (k in next && !seen.has(k)) {
+        seen.add(k)
+        next[k] = {
+          loading: false, error: null, id: row.id, windowMode: wm, isHistorical: false,
+          aggregates: row.aggregates, synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by,
+        }
       }
-      setLoadingStored(false)
-    })()
-    return () => { cancelled = true }
-  }, [selectedOperator?.id])
+    }
+    setResults(next)
+    // Stored reports start collapsed so the page opens as a clean overview.
+    setCollapsed(prev => {
+      const c = { ...prev }
+      for (const k of seen) if (k in c) c[k as SectionKey] = true
+      return c
+    })
+    setHistoryOpen(EMPTY_FLAGS)
+    setHistoryLists(EMPTY_HISTORY)
+    setLoadingStored(false)
+  }
+
+  useEffect(() => {
+    setDrill(null)
+    loadForWindow(windowMode)
+  }, [selectedOperator?.id, windowMode])
+
+  async function toggleHistory(section: SectionKey) {
+    if (historyOpen[section]) { setHistoryOpen(h => ({ ...h, [section]: false })); return }
+    setHistoryOpen(h => ({ ...h, [section]: true }))
+    if (historyLists[section] || !selectedOperator?.id) return
+    setHistoryLoading(h => ({ ...h, [section]: true }))
+    const { data } = await supabase
+      .from('eval_triage_reports')
+      .select('id,generated_at,generated_by')
+      .eq('operator_id', selectedOperator.id)
+      .eq('section', section)
+      .eq('window_mode', windowMode)
+      .order('generated_at', { ascending: false })
+      .limit(20)
+    setHistoryLists(h => ({ ...h, [section]: data ?? [] }))
+    setHistoryLoading(h => ({ ...h, [section]: false }))
+  }
+
+  async function viewHistoricalRow(section: SectionKey, id: string) {
+    const { data } = await supabase
+      .from('eval_triage_reports')
+      .select('id,aggregates,synthesis,generated_at,generated_by')
+      .eq('id', id)
+      .single()
+    if (!data) return
+    setResults(r => ({
+      ...r,
+      [section]: {
+        loading: false, error: null, id: data.id, windowMode, isHistorical: true,
+        aggregates: data.aggregates, synthesis: data.synthesis, generatedAt: data.generated_at, generatedBy: data.generated_by,
+      },
+    }))
+    setCollapsed(c => ({ ...c, [section]: false }))
+    setHistoryOpen(h => ({ ...h, [section]: false }))
+  }
+
+  async function backToLatest(section: SectionKey) {
+    if (!selectedOperator?.id) return
+    const { data } = await supabase
+      .from('eval_triage_reports')
+      .select('id,aggregates,synthesis,generated_at,generated_by')
+      .eq('operator_id', selectedOperator.id)
+      .eq('section', section)
+      .eq('window_mode', windowMode)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+    const row = data?.[0]
+    setResults(r => ({
+      ...r,
+      [section]: row
+        ? { loading: false, error: null, id: row.id, windowMode, isHistorical: false, aggregates: row.aggregates, synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by }
+        : { loading: false, error: null },
+    }))
+  }
 
   async function openDrill(section: SectionKey, finding: Finding) {
     if (!selectedOperator?.id) return
@@ -131,14 +207,22 @@ export default function EvalReport() {
     }
     setResults(r => ({ ...r, [section]: { ...r[section], loading: true, error: null } }))
     const { data, error } = await supabase.functions.invoke('eval-triage-report', {
-      body: { operator_id: selectedOperator.id, section, generated_by: user?.name ?? user?.email ?? null },
+      body: { operator_id: selectedOperator.id, section, window_mode: windowMode, generated_by: user?.name ?? user?.email ?? null },
     })
     if (error || data?.error) {
       setResults(r => ({ ...r, [section]: { ...r[section], loading: false, error: data?.error ?? error?.message ?? 'Generation failed.' } }))
       return
     }
-    setResults(r => ({ ...r, [section]: { loading: false, error: null, generatedAt: data.generated_at, generatedBy: data.generated_by, aggregates: data.aggregates, synthesis: data.synthesis } }))
+    setResults(r => ({
+      ...r,
+      [section]: {
+        loading: false, error: null, windowMode, isHistorical: false,
+        generatedAt: data.generated_at, generatedBy: data.generated_by, aggregates: data.aggregates, synthesis: data.synthesis,
+      },
+    }))
     setCollapsed(c => ({ ...c, [section]: false })) // expand the section you just generated
+    setHistoryOpen(h => ({ ...h, [section]: false }))
+    setHistoryLists(h => ({ ...h, [section]: null })) // stale — will refetch next time History is opened
   }
 
   // Expand/collapse-all control state (only meaningful once a section is generated).
@@ -156,13 +240,36 @@ export default function EvalReport() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={card}>
         <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 4 }}>
-          Engineering Triage Report — {selectedOperator?.name ?? 'no operator selected'}
+          Eval Reports — {selectedOperator?.name ?? 'no operator selected'}
         </p>
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6 }}>
           A focused LLM analysis per eval section: the patterns, likely root causes, and what to investigate to drive failures down.
-          The last generated report is shared across all SuperAdmins — regenerate any section to refresh it against recent data.
+          The last generated report for the selected window is shared across all SuperAdmins — regenerate any section to refresh it.
           Hand this to engineering alongside the Report Card numbers.
         </p>
+
+        <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
+          {WINDOW_OPTIONS.map(w => (
+            <button
+              key={w.key}
+              onClick={() => setWindowMode(w.key)}
+              title={w.blurb}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500,
+                padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+                border: `1.5px solid ${windowMode === w.key ? '#9B59D0' : 'rgba(0,0,0,0.12)'}`,
+                background: windowMode === w.key ? 'rgba(155,89,208,0.08)' : '#fff',
+                color: windowMode === w.key ? '#9B59D0' : '#58595B',
+              }}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#aaa', marginTop: 6 }}>
+          {WINDOW_OPTIONS.find(w => w.key === windowMode)?.blurb}
+        </p>
+
         {loadingStored && (
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', marginTop: 8 }}>Loading saved reports…</p>
         )}
@@ -210,29 +317,95 @@ export default function EvalReport() {
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>{s.blurb}</p>
                 {res.generatedAt && (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                    Last generated {new Date(res.generatedAt).toLocaleString()}{res.generatedBy ? ` · by ${res.generatedBy}` : ''}
+                    {res.isHistorical ? 'Generated' : 'Last generated'} {new Date(res.generatedAt).toLocaleString()}{res.generatedBy ? ` · by ${res.generatedBy}` : ''}
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => generate(s.key)}
-                disabled={res.loading}
-                style={{
-                  flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                  padding: '8px 16px', borderRadius: 10, border: 'none', whiteSpace: 'nowrap',
-                  background: res.loading ? 'rgba(0,0,0,0.1)' : '#000', color: res.loading ? 'rgba(0,0,0,0.4)' : '#fff',
-                  cursor: res.loading ? 'default' : 'pointer', transition: 'all 0.15s',
-                }}
-              >
-                {res.loading ? 'Analyzing…' : syn ? '↻ Regenerate' : 'Generate analysis'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                {res.generatedAt && (
+                  <button
+                    onClick={() => toggleHistory(s.key)}
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B',
+                      background: historyOpen[s.key] ? 'rgba(0,0,0,0.06)' : 'transparent',
+                      padding: '8px 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)',
+                      whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    {historyOpen[s.key] ? 'Hide history' : 'History'}
+                  </button>
+                )}
+                <button
+                  onClick={() => generate(s.key)}
+                  disabled={res.loading}
+                  style={{
+                    flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    padding: '8px 16px', borderRadius: 10, border: 'none', whiteSpace: 'nowrap',
+                    background: res.loading ? 'rgba(0,0,0,0.1)' : '#000', color: res.loading ? 'rgba(0,0,0,0.4)' : '#fff',
+                    cursor: res.loading ? 'default' : 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  {res.loading ? 'Analyzing…' : syn ? '↻ Regenerate' : 'Generate analysis'}
+                </button>
+              </div>
             </div>
+
+            {historyOpen[s.key] && (
+              <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                  Past reports — {WINDOW_OPTIONS.find(w => w.key === windowMode)?.label}
+                </p>
+                {historyLoading[s.key] ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>Loading…</p>
+                ) : !historyLists[s.key]?.length ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>No history yet for this window.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {historyLists[s.key]!.map(h => {
+                      const isCurrent = h.id === res.id
+                      return (
+                        <button
+                          key={h.id}
+                          onClick={() => !isCurrent && viewHistoricalRow(s.key, h.id)}
+                          disabled={isCurrent}
+                          style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            fontFamily: 'Inter, sans-serif', fontSize: 12.5, padding: '6px 10px', borderRadius: 8,
+                            border: 'none', background: isCurrent ? 'rgba(155,89,208,0.08)' : 'transparent',
+                            color: isCurrent ? '#9B59D0' : '#000', cursor: isCurrent ? 'default' : 'pointer', textAlign: 'left',
+                          }}
+                          onMouseEnter={!isCurrent ? e => (e.currentTarget.style.background = 'rgba(0,0,0,0.04)') : undefined}
+                          onMouseLeave={!isCurrent ? e => (e.currentTarget.style.background = 'transparent') : undefined}
+                        >
+                          <span>{new Date(h.generated_at).toLocaleString()}{h.generated_by ? ` · ${h.generated_by}` : ''}</span>
+                          {isCurrent && <span style={{ fontSize: 11, fontWeight: 600 }}>Viewing</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {res.error && (
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>❌ {res.error}</p>
             )}
             {res.loading && (
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0' }}>Reading the eval data and synthesizing… (10–30s)</p>
+            )}
+
+            {res.isHistorical && !res.loading && !isCollapsed && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 14px', borderRadius: 8, background: 'rgba(202,138,4,0.08)', border: '1px solid rgba(202,138,4,0.2)', marginBottom: 14 }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#854d0e' }}>
+                  Viewing a past report — not the latest for this window.
+                </span>
+                <button
+                  onClick={() => backToLatest(s.key)}
+                  style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  Back to latest →
+                </button>
+              </div>
             )}
 
             {/* Deterministic layer — shown once data is in (even if synthesis failed), hidden when collapsed */}

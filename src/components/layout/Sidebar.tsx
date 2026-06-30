@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   Ticket, Megaphone, Trophy, CalendarDays, Inbox, LayoutDashboard,
-  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft,
+  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
@@ -20,6 +20,7 @@ export type Page =
   | 'users'
   | 'learn'
   | 'settings'
+  | 'eval-reports'
 
 interface NavItem {
   id: Page
@@ -41,6 +42,7 @@ const SettingsIcon    = () => <Settings {...ICON} />
 const ExecSummaryIcon = () => <LayoutDashboard {...ICON} />
 const ReportCardIcon  = () => <ClipboardCheck {...ICON} />
 const BugTrackerIcon  = () => <Bug {...ICON} />
+const EvalReportsIcon = () => <FileSearch {...ICON} />
 const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.8} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
@@ -95,11 +97,15 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const [operatorDropOpen, setOperatorDropOpen] = useState(false)
   const { user, signOut }                   = useAuth()
   const { operators, selectedOperator, setSelectedOperator } = useOperator()
-  const navItems   = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : user?.role === 'operator' ? OPERATOR_NAV : AGENT_NAV
   const initial    = user?.name ? user.name[0].toUpperCase() : '?'
   const isAdmin    = user?.role === 'admin'
   const isOperator = user?.role === 'operator'
   const isSuperAdmin = !!user?.isSuperAdmin
+  const baseNav = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : user?.role === 'operator' ? OPERATOR_NAV : AGENT_NAV
+  // SuperAdmins get an extra top-level item — the eval triage report builder is its
+  // own page now (moved out of Admin Settings) since it needs room for a data-window
+  // toggle and report history, not just a settings sub-tab.
+  const navItems = isSuperAdmin ? [...baseNav, { id: 'eval-reports' as const, label: 'Eval Reports', icon: <EvalReportsIcon /> }] : baseNav
 
   return (
     <div className="app-sidebar" style={{
