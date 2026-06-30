@@ -434,16 +434,29 @@ async function fetchAllEvals(operatorId: string | null, since: string | null): P
 async function attachReviews(rows: EvalRow[]): Promise<EvalRow[]> {
   if (rows.length === 0) return rows
   const ids = rows.map(r => r.id)
-  // Chunk the id list (PostgREST .in() cap) and fetch chunks in parallel rather
-  // than sequentially — matters for high-volume operators with >1000 rows.
+  // Chunk the id list and fetch chunks in parallel — matters for high-volume
+  // operators with >CHUNK rows. The real constraint isn't a PostgREST row cap,
+  // it's URL length: a .in() filter with 1000 UUIDs produces a ~37KB query
+  // string, which the API gateway rejects with a 400 — and that 400 was being
+  // swallowed silently (`.then(r => r.data ?? [])`), so every review for
+  // whichever chunk failed just vanished on reload. Measured the actual cutoff
+  // against this project (2026-06-30): 600 ids (~22KB) succeeds, 700 (~26KB)
+  // fails. 400 keeps every chunk's URL comfortably under that with margin for
+  // future growth. Any operator with >400 reviewed tickets (BetSaracen, at
+  // 1073) was silently losing the first 1000-id chunk's worth of reviews on
+  // every single load — that's the "reviews don't save" bug.
+  const CHUNK = 400
   const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += 1000) chunks.push(ids.slice(i, i + 1000))
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK))
   const results = await Promise.all(chunks.map(chunk =>
     supabase
       .from('ticket_issue_reviews')
       .select('ticket_issue_id,eval_type,review_status,review_notes,review_correct_verdict,review_context,reviewed_by,reviewed_at')
       .in('ticket_issue_id', chunk)
-      .then(r => r.data ?? [])
+      .then(r => {
+        if (r.error) console.error('attachReviews: chunk fetch failed, reviews for these tickets will appear unreviewed', r.error)
+        return r.data ?? []
+      })
   ))
   const byId = new Map<string, Partial<Record<EvalType, RowReview>>>()
   for (const data of results) {
