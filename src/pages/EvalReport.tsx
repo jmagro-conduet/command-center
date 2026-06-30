@@ -30,7 +30,9 @@ interface Drill {
 }
 
 // Columns we pull for the drill-down instances (superset across sections).
-const DRILL_COLS = 'id,created_at,theme_tag,customer_input,suggested_response,eval_verdict,reasoning,final_edits,accuracy_error_class,accuracy_evidence,accuracy_reasoning,quality_score,quality_flag_reason'
+// external_ticket_id = the logged gameLM Ticket ID, so engineers can trace each
+// analyzed instance back to its source ticket.
+const DRILL_COLS = 'id,created_at,theme_tag,external_ticket_id,customer_input,suggested_response,eval_verdict,reasoning,final_edits,accuracy_error_class,accuracy_evidence,accuracy_reasoning,quality_score,quality_flag_reason'
 
 const SECTIONS: { key: SectionKey; label: string; blurb: string }[] = [
   { key: 'corrections',  label: 'Corrections (must-fix)',   blurb: 'Where gameLM was factually wrong and a human had to correct it — requires an engineering fix.' },
@@ -304,6 +306,7 @@ function InstanceCard({ section, r }: { section: SectionKey; r: any }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         {badge && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: 'rgba(155,89,208,0.1)', color: '#9B59D0' }}>{badge}</span>}
         {r.theme_tag && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: 100 }}>{r.theme_tag}</span>}
+        {r.external_ticket_id && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.08)', padding: '2px 8px', borderRadius: 100 }}>Ticket {r.external_ticket_id}</span>}
         <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
       </div>
       <TextBlock label="Player" value={r.customer_input} />
