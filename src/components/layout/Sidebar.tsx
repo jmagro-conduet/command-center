@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import {
+  Ticket, Megaphone, Trophy, CalendarDays, Inbox, LayoutDashboard,
+  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft,
+} from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
 
@@ -23,132 +27,24 @@ interface NavItem {
   icon: React.ReactNode
 }
 
-function TicketIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="5" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M2 10h20" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M7 15h4M7 13h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function BulletinIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M5 5h14M5 9h14M5 13h8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-      <circle cx="18" cy="17" r="4" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M18 15.5v1.5l1 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function EventsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="4" width="18" height="17" rx="3" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-      <path d="M7 13h2v2H7z" fill="currentColor"/>
-      <path d="M11 13h2v2h-2z" fill="currentColor"/>
-    </svg>
-  )
-}
-
-function SubmissionsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function AnalyticsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M3 17l4-5 4 3 4-6 4 4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 21h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function LeaderboardIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="11" width="4" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.7"/>
-      <rect x="10" y="6"  width="4" height="15" rx="1.5" stroke="currentColor" strokeWidth="1.7"/>
-      <rect x="18" y="3"  width="4" height="18" rx="1.5" stroke="currentColor" strokeWidth="1.7"/>
-    </svg>
-  )
-}
-
-function LearnIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M4 19V7a2 2 0 012-2h12a2 2 0 012 2v12" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M4 19a2 2 0 002 2h12a2 2 0 002-2" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M9 7v14M9 11h6M9 14h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function SettingsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function ExecSummaryIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M3 21h18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-      <rect x="4" y="12" width="4" height="6" rx="1" stroke="currentColor" strokeWidth="1.7"/>
-      <rect x="10" y="8" width="4" height="10" rx="1" stroke="currentColor" strokeWidth="1.7"/>
-      <rect x="16" y="4" width="4" height="14" rx="1" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M5 9l4-3 4 2 5-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"/>
-    </svg>
-  )
-}
-
-function ReportCardIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.7"/>
-      <path d="M7 8h4M7 12h6M7 16h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      <path d="M15 13l1.5 1.5L19 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function BugTrackerIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-      <path d="M9 3h6M8 6c0-1.105.895-2 2-2h4a2 2 0 012 2v1a4 4 0 01-4 4h0a4 4 0 01-4-4V6z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 7H5a1 1 0 00-1 1v1a3 3 0 003 3M16 7h3a1 1 0 011 1v1a3 3 0 01-3 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-      <path d="M6 21h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" stroke="currentColor" strokeWidth="1.7"/>
-    </svg>
-  )
-}
-
-function SignOutIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
-      <path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
+// Nav icons — lucide-react (modern, consistent open-source set). Wrapper names kept
+// stable so the NAV arrays below don't change. 18px / 1.8 stroke matches the prior look.
+const ICON = { size: 18, strokeWidth: 1.8 } as const
+const TicketIcon      = () => <Ticket {...ICON} />
+const BulletinIcon    = () => <Megaphone {...ICON} />
+const EventsIcon      = () => <CalendarDays {...ICON} />
+const SubmissionsIcon = () => <Inbox {...ICON} />
+const AnalyticsIcon   = () => <LineChart {...ICON} />
+const LeaderboardIcon = () => <Trophy {...ICON} />
+const LearnIcon       = () => <GraduationCap {...ICON} />
+const SettingsIcon    = () => <Settings {...ICON} />
+const ExecSummaryIcon = () => <LayoutDashboard {...ICON} />
+const ReportCardIcon  = () => <ClipboardCheck {...ICON} />
+const BugTrackerIcon  = () => <Bug {...ICON} />
+const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.8} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }}>
-      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
+  return <ChevronLeft size={16} strokeWidth={1.8} style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }} />
 }
 
 const AGENT_NAV: NavItem[] = [
