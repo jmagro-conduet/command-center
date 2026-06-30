@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Ticket, Megaphone, Trophy, CalendarDays, Inbox, LayoutDashboard,
+  Ticket, Megaphone, Trophy, Inbox, LayoutDashboard,
   LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
@@ -33,7 +33,6 @@ interface NavItem {
 const ICON = { size: 18, strokeWidth: 1.8 } as const
 const TicketIcon      = () => <Ticket {...ICON} />
 const BulletinIcon    = () => <Megaphone {...ICON} />
-const EventsIcon      = () => <CalendarDays {...ICON} />
 const SubmissionsIcon = () => <Inbox {...ICON} />
 const AnalyticsIcon   = () => <LineChart {...ICON} />
 const LeaderboardIcon = () => <Trophy {...ICON} />
@@ -60,12 +59,12 @@ const AGENT_NAV: NavItem[] = [
 // Feature-flagged pages (not shown in nav but Page type kept for routing)
 // 'report' — hidden until reporting feature is ready
 // 'users'  — moved to bottom section (under Settings)
+// 'events' — sunset 2026-06-30, unused; Page type + route kept in case it's revived
 
 const ADMIN_NAV: NavItem[] = [
   { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
   { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
   { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
-  { id: 'events',      label: 'Events',      icon: <EventsIcon /> },
   { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
   { id: 'executive-summary', label: 'Executive Summary', icon: <ExecSummaryIcon /> },
   { id: 'analytics',   label: 'Analytics',   icon: <AnalyticsIcon /> },
