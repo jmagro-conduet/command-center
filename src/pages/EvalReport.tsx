@@ -61,8 +61,13 @@ export default function EvalReport() {
   const { selectedOperator } = useOperator()
   const { user } = useAuth()
   const [results, setResults] = useState<Record<SectionKey, SectionResult>>(EMPTY_RESULTS)
+  const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
+    corrections: false, enhancements: false, accuracy: false, quality: false,
+  })
   const [loadingStored, setLoadingStored] = useState(false)
   const [drill, setDrill] = useState<Drill | null>(null)
+
+  const toggleSection = (k: SectionKey) => setCollapsed(c => ({ ...c, [k]: !c[k] }))
 
   // Load the last shared snapshot for this operator — fast, no LLM call. Every SuperAdmin
   // sees the same stored report until someone regenerates it.
@@ -88,6 +93,12 @@ export default function EvalReport() {
               synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by,
             }
           }
+          return next
+        })
+        // Stored reports start collapsed so the page opens as a clean overview.
+        setCollapsed(prev => {
+          const next = { ...prev }
+          for (const row of data) if (row.section in next) next[row.section as SectionKey] = true
           return next
         })
       }
@@ -127,7 +138,17 @@ export default function EvalReport() {
       return
     }
     setResults(r => ({ ...r, [section]: { loading: false, error: null, generatedAt: data.generated_at, generatedBy: data.generated_by, aggregates: data.aggregates, synthesis: data.synthesis } }))
+    setCollapsed(c => ({ ...c, [section]: false })) // expand the section you just generated
   }
+
+  // Expand/collapse-all control state (only meaningful once a section is generated).
+  const generatedKeys = SECTIONS.filter(s => results[s.key].synthesis).map(s => s.key)
+  const allCollapsed = generatedKeys.length > 0 && generatedKeys.every(k => collapsed[k])
+  const setAll = (val: boolean) => setCollapsed(c => {
+    const next = { ...c }
+    for (const k of generatedKeys) next[k] = val
+    return next
+  })
 
   if (drill) return <DrillView drill={drill} onBack={() => setDrill(null)} />
 
@@ -145,17 +166,47 @@ export default function EvalReport() {
         {loadingStored && (
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', marginTop: 8 }}>Loading saved reports…</p>
         )}
+        {generatedKeys.length > 1 && (
+          <button
+            onClick={() => setAll(!allCollapsed)}
+            style={{
+              marginTop: 12, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#9B59D0',
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer', transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+          >
+            {allCollapsed ? 'Expand all sections' : 'Collapse all sections'}
+          </button>
+        )}
       </div>
 
       {SECTIONS.map(s => {
         const res = results[s.key]
         const syn = res.synthesis
+        const isCollapsed = !!syn && collapsed[s.key]
+        const findingCount = syn?.findings?.length ?? 0
         return (
           <div key={s.key} style={card}>
             {/* Section header + generate */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: syn || res.error || res.aggregates ? 16 : 0 }}>
-              <div>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>{s.label}</p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: (syn && !isCollapsed) || res.error || (res.aggregates && !isCollapsed) ? 16 : 0 }}>
+              <div
+                onClick={syn ? () => toggleSection(s.key) : undefined}
+                style={{ cursor: syn ? 'pointer' : 'default', flex: 1, minWidth: 0 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {syn && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#58595B', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }}>
+                      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>{s.label}</p>
+                  {isCollapsed && findingCount > 0 && (
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.08)', padding: '2px 8px', borderRadius: 100 }}>
+                      {findingCount} finding{findingCount === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </div>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>{s.blurb}</p>
                 {res.generatedAt && (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 4 }}>
@@ -184,12 +235,12 @@ export default function EvalReport() {
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0' }}>Reading the eval data and synthesizing… (10–30s)</p>
             )}
 
-            {/* Deterministic layer — always shown once data is in, even if synthesis failed */}
-            {res.aggregates && !res.loading && (
+            {/* Deterministic layer — shown once data is in (even if synthesis failed), hidden when collapsed */}
+            {res.aggregates && !res.loading && !isCollapsed && (
               <div style={{ marginBottom: syn ? 14 : 0 }}><AggregateStrip section={s.key} agg={res.aggregates} /></div>
             )}
 
-            {syn && !res.loading && (
+            {syn && !res.loading && !isCollapsed && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {syn.error && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#c2410c' }}>⚠ {syn.error} The numbers above are still accurate.</p>}
 
