@@ -103,8 +103,16 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const baseNav = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : user?.role === 'operator' ? OPERATOR_NAV : AGENT_NAV
   // SuperAdmins get an extra top-level item — the eval triage report builder is its
   // own page now (moved out of Admin Settings) since it needs room for a data-window
-  // toggle and report history, not just a settings sub-tab.
-  const navItems = isSuperAdmin ? [...baseNav, { id: 'eval-reports' as const, label: 'Eval Reports', icon: <EvalReportsIcon /> }] : baseNav
+  // toggle and report history, not just a settings sub-tab. Slotted right after Report
+  // Card since they're both eval-driven views; falls back to appending at the end for
+  // any nav (e.g. agent/operator) that doesn't have a Report Card item to anchor on.
+  const navItems = (() => {
+    if (!isSuperAdmin) return baseNav
+    const evalReportsItem: NavItem = { id: 'eval-reports', label: 'Eval Reports', icon: <EvalReportsIcon /> }
+    const idx = baseNav.findIndex(i => i.id === 'report-card')
+    if (idx === -1) return [...baseNav, evalReportsItem]
+    return [...baseNav.slice(0, idx + 1), evalReportsItem, ...baseNav.slice(idx + 1)]
+  })()
 
   return (
     <div className="app-sidebar" style={{
