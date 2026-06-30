@@ -6,27 +6,36 @@ import { useOperator } from '../context/OperatorContext'
 // on demand (no cost/load unless a SuperAdmin clicks Generate). Lives in the
 // Admin Settings → Report tab; fully separate from the Report Card.
 
-type SectionKey = 'corrections' | 'accuracy' | 'quality'
+type SectionKey = 'corrections' | 'enhancements' | 'accuracy' | 'quality'
 
 interface Finding {
   title: string; theme: string; severity: string
   evidence: string; likely_root_cause: string; recommended_investigation: string
+  instance_filter?: { themes?: string[]; error_class?: string }
 }
 interface Priority { rank: number; issue: string; why_it_matters: string; suggested_fix: string }
 interface Synthesis {
   headline?: string; executive_summary?: string
   findings?: Finding[]; top_priorities?: Priority[]
-  parse_error?: boolean; raw?: string; error?: string
+  error?: string
 }
 interface SectionResult {
   loading: boolean; error: string | null
   generatedAt?: string; aggregates?: any; synthesis?: Synthesis
 }
+interface Drill {
+  section: SectionKey; finding: Finding
+  loading: boolean; error: string | null; rows: any[]
+}
+
+// Columns we pull for the drill-down instances (superset across sections).
+const DRILL_COLS = 'id,created_at,theme_tag,customer_input,suggested_response,eval_verdict,reasoning,final_edits,accuracy_error_class,accuracy_evidence,accuracy_reasoning,quality_score,quality_flag_reason'
 
 const SECTIONS: { key: SectionKey; label: string; blurb: string }[] = [
-  { key: 'corrections', label: 'Corrections & Enhancements', blurb: 'Where human agents had to fix or improve gameLM’s suggestion (Edit eval).' },
-  { key: 'accuracy',    label: 'Response Accuracy',          blurb: 'Regulatory (P1A), hallucination (P1B), and account-data (P2) errors.' },
-  { key: 'quality',     label: 'Response Quality',           blurb: 'The five quality dimensions — what drags scores below bar.' },
+  { key: 'corrections',  label: 'Corrections (must-fix)',   blurb: 'Where gameLM was factually wrong and a human had to correct it — requires an engineering fix.' },
+  { key: 'enhancements', label: 'Enhancements (nice-to-have)', blurb: 'Where gameLM was OK but incomplete and the agent added value — track as backlog, not bugs.' },
+  { key: 'accuracy',     label: 'Response Accuracy',         blurb: 'Regulatory (P1A), hallucination (P1B), and account-data (P2) errors.' },
+  { key: 'quality',      label: 'Response Quality',          blurb: 'The five quality dimensions — what drags scores below bar.' },
 ]
 
 const SEV: Record<string, { bg: string; color: string; label: string }> = {
@@ -41,10 +50,29 @@ const card: React.CSSProperties = { background: '#fff', borderRadius: 16, border
 export default function EvalReport() {
   const { selectedOperator } = useOperator()
   const [results, setResults] = useState<Record<SectionKey, SectionResult>>({
-    corrections: { loading: false, error: null },
-    accuracy:    { loading: false, error: null },
-    quality:     { loading: false, error: null },
+    corrections:  { loading: false, error: null },
+    enhancements: { loading: false, error: null },
+    accuracy:     { loading: false, error: null },
+    quality:      { loading: false, error: null },
   })
+  const [drill, setDrill] = useState<Drill | null>(null)
+
+  async function openDrill(section: SectionKey, finding: Finding) {
+    if (!selectedOperator?.id) return
+    setDrill({ section, finding, loading: true, error: null, rows: [] })
+    let q = supabase.from('ticket_issues').select(DRILL_COLS).eq('operator_id', selectedOperator.id)
+    const themes = finding.instance_filter?.themes ?? []
+    if (themes.length) q = q.in('theme_tag', themes)
+    if (section === 'corrections') q = q.eq('eval_verdict', 'CORRECTION')
+    else if (section === 'enhancements') q = q.eq('eval_verdict', 'ENHANCEMENT')
+    else if (section === 'accuracy') {
+      const ec = finding.instance_filter?.error_class
+      q = ec ? q.eq('accuracy_error_class', ec) : q.in('accuracy_error_class', ['P1A', 'P1B', 'P2'])
+    } else if (section === 'quality') q = q.lt('quality_score', 3.5)
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(60)
+    if (error) { setDrill(d => d && { ...d, loading: false, error: error.message }); return }
+    setDrill(d => d && { ...d, loading: false, rows: data ?? [] })
+  }
 
   async function generate(section: SectionKey) {
     if (!selectedOperator?.id) {
@@ -61,6 +89,8 @@ export default function EvalReport() {
     }
     setResults(r => ({ ...r, [section]: { loading: false, error: null, generatedAt: data.generated_at, aggregates: data.aggregates, synthesis: data.synthesis } }))
   }
+
+  if (drill) return <DrillView drill={drill} onBack={() => setDrill(null)} />
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -80,7 +110,7 @@ export default function EvalReport() {
         return (
           <div key={s.key} style={card}>
             {/* Section header + generate */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: syn || res.error ? 16 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: syn || res.error || res.aggregates ? 16 : 0 }}>
               <div>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>{s.label}</p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>{s.blurb}</p>
@@ -111,13 +141,14 @@ export default function EvalReport() {
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0' }}>Reading the eval data and synthesizing… (10–30s)</p>
             )}
 
+            {/* Deterministic layer — always shown once data is in, even if synthesis failed */}
+            {res.aggregates && !res.loading && (
+              <div style={{ marginBottom: syn ? 14 : 0 }}><AggregateStrip section={s.key} agg={res.aggregates} /></div>
+            )}
+
             {syn && !res.loading && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {syn.parse_error && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#c2410c' }}>⚠ The model returned malformed output — try Regenerate.</p>}
-                {syn.error && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>{syn.error}</p>}
-
-                {/* Aggregates strip */}
-                {res.aggregates && <AggregateStrip section={s.key} agg={res.aggregates} />}
+                {syn.error && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#c2410c' }}>⚠ {syn.error} The numbers above are still accurate.</p>}
 
                 {/* Headline + summary */}
                 {syn.headline && (
@@ -132,8 +163,15 @@ export default function EvalReport() {
                 {/* Findings */}
                 {(syn.findings ?? []).map((f, i) => {
                   const sev = SEV[f.severity?.toLowerCase()] ?? SEV.low
+                  const canDrill = (f.instance_filter?.themes?.length ?? 0) > 0
                   return (
-                    <div key={i} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div
+                      key={i}
+                      onClick={canDrill ? () => openDrill(s.key, f) : undefined}
+                      style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '12px 14px', cursor: canDrill ? 'pointer' : 'default', transition: 'all 0.15s' }}
+                      onMouseEnter={canDrill ? e => { e.currentTarget.style.borderColor = '#CEA4FF'; e.currentTarget.style.background = 'rgba(155,89,208,0.03)' } : undefined}
+                      onMouseLeave={canDrill ? e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'; e.currentTarget.style.background = 'transparent' } : undefined}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: sev.bg, color: sev.color }}>{sev.label}</span>
                         <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13.5, fontWeight: 600, color: '#000' }}>{f.title}</span>
@@ -142,6 +180,11 @@ export default function EvalReport() {
                       <FieldLine label="Evidence" value={f.evidence} />
                       <FieldLine label="Likely root cause" value={f.likely_root_cause} />
                       <FieldLine label="Investigate" value={f.recommended_investigation} accent />
+                      {canDrill && (
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', marginTop: 8 }}>
+                          View analyzed tickets ({f.instance_filter!.themes!.join(', ')}{f.instance_filter?.error_class ? ` · ${f.instance_filter.error_class}` : ''}) →
+                        </p>
+                      )}
                     </div>
                   )
                 })}
@@ -173,6 +216,80 @@ export default function EvalReport() {
   )
 }
 
+function DrillView({ drill, onBack }: { drill: Drill; onBack: () => void }) {
+  const { section, finding, loading, error, rows } = drill
+  const sev = SEV[finding.severity?.toLowerCase()] ?? SEV.low
+  const ifl = finding.instance_filter
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={card}>
+        <button
+          onClick={onBack}
+          style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 12 }}
+        >← Back to report</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: sev.bg, color: sev.color }}>{sev.label}</span>
+          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>{finding.title}</span>
+        </div>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#58595B', lineHeight: 1.6 }}>
+          The analyzed tickets behind this finding — filtered by theme {(ifl?.themes ?? []).map(t => `“${t}”`).join(', ')}
+          {ifl?.error_class ? ` and ${ifl.error_class}` : ''}. Validate that the pattern holds; if it doesn’t, the insight is off.
+        </p>
+        {!loading && !error && (
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 6 }}>
+            {rows.length} ticket{rows.length === 1 ? '' : 's'}{rows.length === 60 ? ' (showing most recent 60)' : ''}
+          </p>
+        )}
+      </div>
+
+      {loading && <div style={card}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0' }}>Pulling the underlying tickets…</p></div>}
+      {error && <div style={card}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>❌ {error}</p></div>}
+      {!loading && !error && rows.length === 0 && (
+        <div style={card}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>No matching tickets — the finding’s theme filter may not line up with the stored theme tags.</p></div>
+      )}
+
+      {!loading && rows.map(r => <InstanceCard key={r.id} section={section} r={r} />)}
+    </div>
+  )
+}
+
+function InstanceCard({ section, r }: { section: SectionKey; r: any }) {
+  let badge = ''
+  if (section === 'corrections' || section === 'enhancements') badge = r.eval_verdict
+  else if (section === 'accuracy') badge = r.accuracy_error_class
+  else if (section === 'quality') badge = `${r.quality_score}/5`
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        {badge && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: 'rgba(155,89,208,0.1)', color: '#9B59D0' }}>{badge}</span>}
+        {r.theme_tag && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: 100 }}>{r.theme_tag}</span>}
+        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
+      </div>
+      <TextBlock label="Player" value={r.customer_input} />
+      <TextBlock label="gameLM suggested" value={r.suggested_response} />
+      {(section === 'corrections' || section === 'enhancements') && <>
+        <TextBlock label={section === 'corrections' ? 'Agent fix' : 'Agent addition'} value={r.final_edits} accent />
+        <TextBlock label="Why the agent edited" value={r.reasoning} />
+      </>}
+      {section === 'accuracy' && <>
+        <TextBlock label="Flagged text (evidence)" value={r.accuracy_evidence} accent />
+        <TextBlock label="Eval reasoning" value={r.accuracy_reasoning} />
+      </>}
+      {section === 'quality' && <TextBlock label="Flag reason" value={r.quality_flag_reason} accent />}
+    </div>
+  )
+}
+
+function TextBlock({ label, value, accent }: { label: string; value?: string; accent?: boolean }) {
+  if (!value) return null
+  return (
+    <div style={{ marginTop: 8 }}>
+      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: accent ? '#9B59D0' : '#58595B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>{label}</p>
+      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.6, whiteSpace: 'pre-wrap', background: accent ? 'rgba(155,89,208,0.05)' : 'rgba(0,0,0,0.02)', borderRadius: 8, padding: '8px 12px' }}>{value}</p>
+    </div>
+  )
+}
+
 function FieldLine({ label, value, accent }: { label: string; value?: string; accent?: boolean }) {
   if (!value) return null
   return (
@@ -190,7 +307,7 @@ function AggregateStrip({ section, agg }: { section: SectionKey; agg: any }) {
     </div>
   )
   const items: React.ReactNode[] = []
-  if (section === 'corrections' && agg.byVerdict) {
+  if ((section === 'corrections' || section === 'enhancements') && agg.byVerdict) {
     items.push(stat('Edited', agg.ran))
     for (const k of ['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'AGENT_ERROR']) if (agg.byVerdict[k]) items.push(stat(k.toLowerCase(), agg.byVerdict[k]))
   } else if (section === 'accuracy' && agg.byClass) {
