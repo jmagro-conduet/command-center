@@ -5,11 +5,14 @@ import { useAuth } from '../context/AuthContext'
 
 // Engineering triage report — one focused LLM analysis per eval section, generated
 // on demand (no cost/load unless a SuperAdmin clicks Generate). Its own top-level page
-// (moved out of Admin Settings → Report tab once it needed room for a data-window
-// toggle and report history). Fully separate from the Report Card.
+// (moved out of Admin Settings → Report tab). Generate/Regenerate opens a modal to pick
+// the date range to analyze (a preset or a custom from/to); History lists every past run
+// for a section as one flat timeline, each tagged with the range it used — there's no
+// separate "latest per window" lookup, just the newest row overall. Fully separate from
+// the Report Card.
 
 type SectionKey = 'corrections' | 'enhancements' | 'accuracy' | 'quality'
-type WindowMode = 'latest' | '90d' | 'all'
+type PresetKey = 'today' | '7d' | '30d' | '90d' | 'all'
 
 interface Finding {
   title: string; theme: string; severity: string
@@ -24,14 +27,15 @@ interface Synthesis {
 }
 interface SectionResult {
   loading: boolean; error: string | null
-  id?: string; windowMode?: WindowMode; isHistorical?: boolean
+  id?: string; rangeLabel?: string; isHistorical?: boolean
   generatedAt?: string; generatedBy?: string | null; aggregates?: any; synthesis?: Synthesis
 }
 interface Drill {
   section: SectionKey; finding: Finding
   loading: boolean; error: string | null; rows: any[]
 }
-interface HistoryEntry { id: string; generated_at: string; generated_by: string | null }
+interface HistoryEntry { id: string; generated_at: string; generated_by: string | null; range_label: string | null }
+interface RangeSelection { preset: PresetKey | 'custom'; customFrom?: string; customTo?: string }
 
 // Columns we pull for the drill-down instances (superset across sections).
 // external_ticket_id = the logged gameLM Ticket ID, so engineers can trace each
@@ -45,11 +49,15 @@ const SECTIONS: { key: SectionKey; label: string; blurb: string }[] = [
   { key: 'quality',      label: 'Response Quality',          blurb: 'The five quality dimensions — what drags scores below bar.' },
 ]
 
-const WINDOW_OPTIONS: { key: WindowMode; label: string; blurb: string }[] = [
-  { key: 'latest', label: 'Latest data only', blurb: 'Only tickets logged since this section’s own last generated report (first run falls back to all-time).' },
-  { key: '90d',    label: 'Last 90 days',     blurb: 'Trailing 90-day window — keeps the narrative current and lets fixed issues age out.' },
-  { key: 'all',    label: 'All time',         blurb: 'Full history — best for a first deep dive on an operator.' },
+const PRESETS: { key: PresetKey; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: '7d',    label: 'Last 7 days' },
+  { key: '30d',   label: 'Last 30 days' },
+  { key: '90d',   label: 'Last 90 days' },
+  { key: 'all',   label: 'All time' },
 ]
+
+const DEFAULT_SELECTION: RangeSelection = { preset: 'all' }
 
 const SEV: Record<string, { bg: string; color: string; label: string }> = {
   critical: { bg: 'rgba(229,62,62,0.1)',   color: '#c53030', label: 'Critical' },
@@ -69,11 +77,39 @@ const EMPTY_RESULTS: Record<SectionKey, SectionResult> = {
 
 const EMPTY_FLAGS = { corrections: false, enhancements: false, accuracy: false, quality: false }
 const EMPTY_HISTORY: Record<SectionKey, HistoryEntry[] | null> = { corrections: null, enhancements: null, accuracy: null, quality: null }
+const DEFAULT_SELECTIONS: Record<SectionKey, RangeSelection> = {
+  corrections: DEFAULT_SELECTION, enhancements: DEFAULT_SELECTION, accuracy: DEFAULT_SELECTION, quality: DEFAULT_SELECTION,
+}
+
+function fmtShort(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// Resolves a UI selection (preset or custom from/to) into concrete ISO bounds plus a
+// display label that gets stored verbatim on the report row — so History always shows
+// exactly what was analyzed, even if "Last 7 days" would resolve differently today.
+function resolveRange(sel: RangeSelection): { start: string | null; end: string | null; label: string } {
+  const now = new Date()
+  if (sel.preset === 'custom') {
+    const from = sel.customFrom ? new Date(`${sel.customFrom}T00:00:00`) : null
+    const to = sel.customTo ? new Date(`${sel.customTo}T23:59:59.999`) : null
+    const label = from && to ? `${fmtShort(from)} – ${fmtShort(to)}, ${to.getFullYear()}` : 'Custom range'
+    return { start: from ? from.toISOString() : null, end: to ? to.toISOString() : null, label }
+  }
+  if (sel.preset === 'all') return { start: null, end: null, label: 'All time' }
+  if (sel.preset === 'today') {
+    const start = new Date(now); start.setHours(0, 0, 0, 0)
+    return { start: start.toISOString(), end: null, label: `Today (${fmtShort(now)})` }
+  }
+  const days = sel.preset === '7d' ? 7 : sel.preset === '30d' ? 30 : 90
+  const start = new Date(now); start.setDate(start.getDate() - days); start.setHours(0, 0, 0, 0)
+  const presetLabel = PRESETS.find(p => p.key === sel.preset)!.label
+  return { start: start.toISOString(), end: null, label: `${presetLabel} (${fmtShort(start)} – ${fmtShort(now)})` }
+}
 
 export default function EvalReport() {
   const { selectedOperator } = useOperator()
   const { user } = useAuth()
-  const [windowMode, setWindowMode] = useState<WindowMode>('90d')
   const [results, setResults] = useState<Record<SectionKey, SectionResult>>(EMPTY_RESULTS)
   const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
     corrections: false, enhancements: false, accuracy: false, quality: false,
@@ -83,21 +119,22 @@ export default function EvalReport() {
   const [historyOpen, setHistoryOpen] = useState<Record<SectionKey, boolean>>(EMPTY_FLAGS)
   const [historyLoading, setHistoryLoading] = useState<Record<SectionKey, boolean>>(EMPTY_FLAGS)
   const [historyLists, setHistoryLists] = useState<Record<SectionKey, HistoryEntry[] | null>>(EMPTY_HISTORY)
+  const [genModal, setGenModal] = useState<{ section: SectionKey; selection: RangeSelection } | null>(null)
+  const [lastSelection, setLastSelection] = useState<Record<SectionKey, RangeSelection>>(DEFAULT_SELECTIONS)
 
   const toggleSection = (k: SectionKey) => setCollapsed(c => ({ ...c, [k]: !c[k] }))
 
-  // Load each section's latest snapshot for the current operator + window — fast, no LLM
-  // call. Every SuperAdmin sees the same stored report for a given window until someone
-  // regenerates it. Each window keeps its own independent history (see migration).
-  async function loadForWindow(wm: WindowMode) {
+  // Load each section's single most recent report — fast, no LLM call, no window
+  // filter (one flat timeline per section). Every SuperAdmin sees the same latest
+  // snapshot until someone regenerates it.
+  async function loadLatest() {
     const op = selectedOperator?.id
     if (!op) { setResults(EMPTY_RESULTS); return }
     setLoadingStored(true)
     const { data } = await supabase
       .from('eval_triage_reports')
-      .select('id,section,aggregates,synthesis,generated_at,generated_by')
+      .select('id,section,aggregates,synthesis,generated_at,generated_by,range_label')
       .eq('operator_id', op)
-      .eq('window_mode', wm)
       .order('generated_at', { ascending: false })
       .limit(100)
     const next = { ...EMPTY_RESULTS }
@@ -107,7 +144,7 @@ export default function EvalReport() {
       if (k in next && !seen.has(k)) {
         seen.add(k)
         next[k] = {
-          loading: false, error: null, id: row.id, windowMode: wm, isHistorical: false,
+          loading: false, error: null, id: row.id, rangeLabel: row.range_label, isHistorical: false,
           aggregates: row.aggregates, synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by,
         }
       }
@@ -126,8 +163,8 @@ export default function EvalReport() {
 
   useEffect(() => {
     setDrill(null)
-    loadForWindow(windowMode)
-  }, [selectedOperator?.id, windowMode])
+    loadLatest()
+  }, [selectedOperator?.id])
 
   async function toggleHistory(section: SectionKey) {
     if (historyOpen[section]) { setHistoryOpen(h => ({ ...h, [section]: false })); return }
@@ -136,12 +173,11 @@ export default function EvalReport() {
     setHistoryLoading(h => ({ ...h, [section]: true }))
     const { data } = await supabase
       .from('eval_triage_reports')
-      .select('id,generated_at,generated_by')
+      .select('id,generated_at,generated_by,range_label')
       .eq('operator_id', selectedOperator.id)
       .eq('section', section)
-      .eq('window_mode', windowMode)
       .order('generated_at', { ascending: false })
-      .limit(20)
+      .limit(30)
     setHistoryLists(h => ({ ...h, [section]: data ?? [] }))
     setHistoryLoading(h => ({ ...h, [section]: false }))
   }
@@ -149,14 +185,14 @@ export default function EvalReport() {
   async function viewHistoricalRow(section: SectionKey, id: string) {
     const { data } = await supabase
       .from('eval_triage_reports')
-      .select('id,aggregates,synthesis,generated_at,generated_by')
+      .select('id,aggregates,synthesis,generated_at,generated_by,range_label')
       .eq('id', id)
       .single()
     if (!data) return
     setResults(r => ({
       ...r,
       [section]: {
-        loading: false, error: null, id: data.id, windowMode, isHistorical: true,
+        loading: false, error: null, id: data.id, rangeLabel: data.range_label, isHistorical: true,
         aggregates: data.aggregates, synthesis: data.synthesis, generatedAt: data.generated_at, generatedBy: data.generated_by,
       },
     }))
@@ -168,17 +204,16 @@ export default function EvalReport() {
     if (!selectedOperator?.id) return
     const { data } = await supabase
       .from('eval_triage_reports')
-      .select('id,aggregates,synthesis,generated_at,generated_by')
+      .select('id,aggregates,synthesis,generated_at,generated_by,range_label')
       .eq('operator_id', selectedOperator.id)
       .eq('section', section)
-      .eq('window_mode', windowMode)
       .order('generated_at', { ascending: false })
       .limit(1)
     const row = data?.[0]
     setResults(r => ({
       ...r,
       [section]: row
-        ? { loading: false, error: null, id: row.id, windowMode, isHistorical: false, aggregates: row.aggregates, synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by }
+        ? { loading: false, error: null, id: row.id, rangeLabel: row.range_label, isHistorical: false, aggregates: row.aggregates, synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by }
         : { loading: false, error: null },
     }))
   }
@@ -200,14 +235,24 @@ export default function EvalReport() {
     setDrill(d => d && { ...d, loading: false, rows: data ?? [] })
   }
 
-  async function generate(section: SectionKey) {
+  function openGenerateModal(section: SectionKey) {
+    setGenModal({ section, selection: lastSelection[section] ?? DEFAULT_SELECTION })
+  }
+
+  async function generate(section: SectionKey, selection: RangeSelection) {
     if (!selectedOperator?.id) {
       setResults(r => ({ ...r, [section]: { loading: false, error: 'Select an operator first.' } }))
       return
     }
+    const range = resolveRange(selection)
+    setLastSelection(s => ({ ...s, [section]: selection }))
     setResults(r => ({ ...r, [section]: { ...r[section], loading: true, error: null } }))
     const { data, error } = await supabase.functions.invoke('eval-triage-report', {
-      body: { operator_id: selectedOperator.id, section, window_mode: windowMode, generated_by: user?.name ?? user?.email ?? null },
+      body: {
+        operator_id: selectedOperator.id, section,
+        range_start: range.start, range_end: range.end, range_label: range.label,
+        generated_by: user?.name ?? user?.email ?? null,
+      },
     })
     if (error || data?.error) {
       setResults(r => ({ ...r, [section]: { ...r[section], loading: false, error: data?.error ?? error?.message ?? 'Generation failed.' } }))
@@ -216,7 +261,7 @@ export default function EvalReport() {
     setResults(r => ({
       ...r,
       [section]: {
-        loading: false, error: null, windowMode, isHistorical: false,
+        loading: false, error: null, rangeLabel: data.range_label, isHistorical: false,
         generatedAt: data.generated_at, generatedBy: data.generated_by, aggregates: data.aggregates, synthesis: data.synthesis,
       },
     }))
@@ -244,30 +289,8 @@ export default function EvalReport() {
         </p>
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6 }}>
           A focused LLM analysis per eval section: the patterns, likely root causes, and what to investigate to drive failures down.
-          The last generated report for the selected window is shared across all SuperAdmins — regenerate any section to refresh it.
+          Generate or Regenerate to pick a date range to analyze — the latest run is shared across all SuperAdmins; open History to browse every prior run.
           Hand this to engineering alongside the Report Card numbers.
-        </p>
-
-        <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
-          {WINDOW_OPTIONS.map(w => (
-            <button
-              key={w.key}
-              onClick={() => setWindowMode(w.key)}
-              title={w.blurb}
-              style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500,
-                padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
-                border: `1.5px solid ${windowMode === w.key ? '#9B59D0' : 'rgba(0,0,0,0.12)'}`,
-                background: windowMode === w.key ? 'rgba(155,89,208,0.08)' : '#fff',
-                color: windowMode === w.key ? '#9B59D0' : '#58595B',
-              }}
-            >
-              {w.label}
-            </button>
-          ))}
-        </div>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#aaa', marginTop: 6 }}>
-          {WINDOW_OPTIONS.find(w => w.key === windowMode)?.blurb}
         </p>
 
         {loadingStored && (
@@ -317,7 +340,8 @@ export default function EvalReport() {
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>{s.blurb}</p>
                 {res.generatedAt && (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                    {res.isHistorical ? 'Generated' : 'Last generated'} {new Date(res.generatedAt).toLocaleString()}{res.generatedBy ? ` · by ${res.generatedBy}` : ''}
+                    {res.isHistorical ? 'Generated' : 'Last generated'} {new Date(res.generatedAt).toLocaleString()}
+                    {res.rangeLabel ? ` · ${res.rangeLabel}` : ''}{res.generatedBy ? ` · by ${res.generatedBy}` : ''}
                   </p>
                 )}
               </div>
@@ -336,7 +360,7 @@ export default function EvalReport() {
                   </button>
                 )}
                 <button
-                  onClick={() => generate(s.key)}
+                  onClick={() => openGenerateModal(s.key)}
                   disabled={res.loading}
                   style={{
                     flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
@@ -353,12 +377,12 @@ export default function EvalReport() {
             {historyOpen[s.key] && (
               <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.06)' }}>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                  Past reports — {WINDOW_OPTIONS.find(w => w.key === windowMode)?.label}
+                  Past reports
                 </p>
                 {historyLoading[s.key] ? (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>Loading…</p>
                 ) : !historyLists[s.key]?.length ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>No history yet for this window.</p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>No history yet.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {historyLists[s.key]!.map(h => {
@@ -369,7 +393,7 @@ export default function EvalReport() {
                           onClick={() => !isCurrent && viewHistoricalRow(s.key, h.id)}
                           disabled={isCurrent}
                           style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
                             fontFamily: 'Inter, sans-serif', fontSize: 12.5, padding: '6px 10px', borderRadius: 8,
                             border: 'none', background: isCurrent ? 'rgba(155,89,208,0.08)' : 'transparent',
                             color: isCurrent ? '#9B59D0' : '#000', cursor: isCurrent ? 'default' : 'pointer', textAlign: 'left',
@@ -377,8 +401,8 @@ export default function EvalReport() {
                           onMouseEnter={!isCurrent ? e => (e.currentTarget.style.background = 'rgba(0,0,0,0.04)') : undefined}
                           onMouseLeave={!isCurrent ? e => (e.currentTarget.style.background = 'transparent') : undefined}
                         >
-                          <span>{new Date(h.generated_at).toLocaleString()}{h.generated_by ? ` · ${h.generated_by}` : ''}</span>
-                          {isCurrent && <span style={{ fontSize: 11, fontWeight: 600 }}>Viewing</span>}
+                          <span>{new Date(h.generated_at).toLocaleString()}{h.range_label ? ` · ${h.range_label}` : ''}{h.generated_by ? ` · ${h.generated_by}` : ''}</span>
+                          {isCurrent && <span style={{ fontSize: 11, fontWeight: 600, flexShrink: 0 }}>Viewing</span>}
                         </button>
                       )
                     })}
@@ -397,7 +421,7 @@ export default function EvalReport() {
             {res.isHistorical && !res.loading && !isCollapsed && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 14px', borderRadius: 8, background: 'rgba(202,138,4,0.08)', border: '1px solid rgba(202,138,4,0.2)', marginBottom: 14 }}>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#854d0e' }}>
-                  Viewing a past report — not the latest for this window.
+                  Viewing a past report — not the latest.
                 </span>
                 <button
                   onClick={() => backToLatest(s.key)}
@@ -479,6 +503,110 @@ export default function EvalReport() {
           </div>
         )
       })}
+
+      {genModal && (
+        <GenerateModal
+          sectionLabel={SECTIONS.find(s => s.key === genModal.section)!.label}
+          selection={genModal.selection}
+          onChange={sel => setGenModal(m => m && { ...m, selection: sel })}
+          onConfirm={() => { generate(genModal.section, genModal.selection); setGenModal(null) }}
+          onCancel={() => setGenModal(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function GenerateModal({ sectionLabel, selection, onChange, onConfirm, onCancel }: {
+  sectionLabel: string; selection: RangeSelection
+  onChange: (sel: RangeSelection) => void; onConfirm: () => void; onCancel: () => void
+}) {
+  const preview = resolveRange(selection)
+  const customIncomplete = selection.preset === 'custom' && (!selection.customFrom || !selection.customTo)
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onCancel}
+    >
+      <div style={{ ...card, width: 420, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>
+          What data should this cover?
+        </p>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#58595B', marginBottom: 14 }}>{sectionLabel}</p>
+
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {PRESETS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => onChange({ preset: p.key })}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500, padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+                border: `1.5px solid ${selection.preset === p.key ? '#9B59D0' : 'rgba(0,0,0,0.12)'}`,
+                background: selection.preset === p.key ? 'rgba(155,89,208,0.08)' : '#fff',
+                color: selection.preset === p.key ? '#9B59D0' : '#58595B',
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            onClick={() => onChange({ preset: 'custom', customFrom: selection.customFrom, customTo: selection.customTo })}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500, padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+              border: `1.5px solid ${selection.preset === 'custom' ? '#9B59D0' : 'rgba(0,0,0,0.12)'}`,
+              background: selection.preset === 'custom' ? 'rgba(155,89,208,0.08)' : '#fff',
+              color: selection.preset === 'custom' ? '#9B59D0' : '#58595B',
+            }}
+          >
+            Custom range…
+          </button>
+        </div>
+
+        {selection.preset === 'custom' && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#58595B', display: 'block', marginBottom: 4 }}>From</label>
+              <input
+                type="date" value={selection.customFrom ?? ''}
+                onChange={e => onChange({ ...selection, customFrom: e.target.value })}
+                style={{ width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '7px 10px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#58595B', display: 'block', marginBottom: 4 }}>To</label>
+              <input
+                type="date" value={selection.customTo ?? ''}
+                onChange={e => onChange({ ...selection, customTo: e.target.value })}
+                style={{ width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '7px 10px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box' }}
+              />
+            </div>
+          </div>
+        )}
+
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#aaa', marginBottom: 18 }}>
+          Will analyze: <strong style={{ color: '#58595B' }}>{customIncomplete ? 'pick both dates' : preview.label}</strong>
+        </p>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onCancel}
+            style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B', background: 'transparent', border: 'none', padding: '8px 14px', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={customIncomplete}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '8px 18px', borderRadius: 10, border: 'none',
+              background: customIncomplete ? 'rgba(0,0,0,0.1)' : '#000', color: customIncomplete ? 'rgba(0,0,0,0.4)' : '#fff',
+              cursor: customIncomplete ? 'default' : 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            Run analysis
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
