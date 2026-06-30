@@ -32,6 +32,7 @@ const ISSUE_TYPES = [
 
 interface GamLMResponse {
   id: number
+  ticketId: string
   customerInput: string
   suggestedResponse: string
   issueType: string
@@ -48,6 +49,7 @@ interface TabState {
   otherDetail: string
   notes: string
   responses: GamLMResponse[]
+  draftTicketId: string
   draftCustomer: string
   draftSuggested: string
   draftIssueType: string
@@ -60,7 +62,7 @@ function newTab(id: number): TabState {
   return {
     id,
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
-    draftCustomer: '', draftSuggested: '', draftIssueType: '',
+    draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
   }
 }
@@ -136,6 +138,7 @@ export default function LogTicket() {
     updateActive({
       responses: [...active.responses, {
         id:                Date.now(),
+        ticketId:          active.draftTicketId,
         customerInput:     active.draftCustomer,
         suggestedResponse: active.draftSuggested,
         issueType:         active.draftIssueType,
@@ -144,7 +147,7 @@ export default function LogTicket() {
         enhancementNote:   active.draftEnhancementNote,
         loggedAt:          new Date().toISOString(),
       }],
-      draftCustomer: '', draftSuggested: '', draftIssueType: '',
+      draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
       draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
     })
   }
@@ -211,6 +214,7 @@ export default function LogTicket() {
       const type = ISSUE_TYPES.find(t => t.value === r.issueType)
       return {
         ticket_id:          ticket.id,
+        external_ticket_id: r.ticketId?.trim() || null,
         issue_type:         type?.dbLabel ?? r.issueType,
         customer_input:     r.customerInput,
         suggested_response: r.suggestedResponse || null,
@@ -445,6 +449,23 @@ export default function LogTicket() {
         </h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+                Ticket ID
+              </label>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
+            </div>
+            <input
+              value={active.draftTicketId ?? ''}
+              onChange={e => updateActive({ draftTicketId: e.target.value })}
+              placeholder="gameLM ticket / conversation ID for this response…"
+              style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+            />
+          </div>
+
           <Field label="Customer input" required>
             <textarea
               value={active.draftCustomer}
@@ -626,6 +647,11 @@ export default function LogTicket() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#9B59D0', marginBottom: 2 }}>
                           Response {i + 1} · {type?.label}
+                          {r.ticketId?.trim() && (
+                            <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.5)', marginLeft: 6 }}>
+                              · ID {r.ticketId.trim()}
+                            </span>
+                          )}
                           {r.loggedAt && (
                             <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)', marginLeft: 6 }}>
                               · Added {formatTime(r.loggedAt)}
