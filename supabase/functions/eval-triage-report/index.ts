@@ -193,6 +193,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}))
     const operatorId: string = body.operator_id
     const section: string = body.section
+    const generatedBy: string | null = body.generated_by ?? null
     if (!operatorId) return json({ error: 'operator_id is required' }, 400)
     if (!SECTIONS.includes(section as Section)) return json({ error: `section must be ${SECTIONS.join(' | ')}` }, 400)
 
@@ -231,9 +232,24 @@ Deno.serve(async (req: Request) => {
       synthesis = { error: `Anthropic API ${aiRes.status}`, body: (await aiRes.text()).slice(0, 800) }
     }
 
+    const generated_at = new Date().toISOString()
+
+    // Persist a shared snapshot so all SuperAdmins see the same report without re-running.
+    // Best-effort: only store a clean synthesis (don't overwrite a good report with an error),
+    // and never let a persistence failure (e.g. table not yet created) break the response.
+    if (synthesis && !synthesis.error) {
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/eval_triage_reports`, {
+          method: 'POST',
+          headers: { ...sb, Prefer: 'resolution=merge-duplicates' },
+          body: JSON.stringify({ operator_id: operatorId, section, aggregates: built.aggregates, synthesis, generated_at, generated_by: generatedBy }),
+        })
+      } catch { /* persistence is best-effort */ }
+    }
+
     // Aggregates are deterministic and returned regardless of synthesis outcome —
     // the page stays useful even if the narrative call fails.
-    return json({ section, generated_at: new Date().toISOString(), aggregates: built.aggregates, synthesis })
+    return json({ section, generated_at, aggregates: built.aggregates, synthesis, generated_by: generatedBy })
   } catch (err: unknown) {
     return json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500)
   }

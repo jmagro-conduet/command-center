@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useOperator } from '../context/OperatorContext'
+import { useAuth } from '../context/AuthContext'
 
 // Engineering triage report — one focused LLM analysis per eval section, generated
 // on demand (no cost/load unless a SuperAdmin clicks Generate). Lives in the
@@ -21,7 +22,7 @@ interface Synthesis {
 }
 interface SectionResult {
   loading: boolean; error: string | null
-  generatedAt?: string; aggregates?: any; synthesis?: Synthesis
+  generatedAt?: string; generatedBy?: string | null; aggregates?: any; synthesis?: Synthesis
 }
 interface Drill {
   section: SectionKey; finding: Finding
@@ -47,15 +48,51 @@ const SEV: Record<string, { bg: string; color: string; label: string }> = {
 
 const card: React.CSSProperties = { background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 22 }
 
+const EMPTY_RESULTS: Record<SectionKey, SectionResult> = {
+  corrections:  { loading: false, error: null },
+  enhancements: { loading: false, error: null },
+  accuracy:     { loading: false, error: null },
+  quality:      { loading: false, error: null },
+}
+
 export default function EvalReport() {
   const { selectedOperator } = useOperator()
-  const [results, setResults] = useState<Record<SectionKey, SectionResult>>({
-    corrections:  { loading: false, error: null },
-    enhancements: { loading: false, error: null },
-    accuracy:     { loading: false, error: null },
-    quality:      { loading: false, error: null },
-  })
+  const { user } = useAuth()
+  const [results, setResults] = useState<Record<SectionKey, SectionResult>>(EMPTY_RESULTS)
+  const [loadingStored, setLoadingStored] = useState(false)
   const [drill, setDrill] = useState<Drill | null>(null)
+
+  // Load the last shared snapshot for this operator — fast, no LLM call. Every SuperAdmin
+  // sees the same stored report until someone regenerates it.
+  useEffect(() => {
+    const op = selectedOperator?.id
+    setResults(EMPTY_RESULTS)
+    setDrill(null)
+    if (!op) return
+    let cancelled = false
+    setLoadingStored(true)
+    ;(async () => {
+      const { data } = await supabase
+        .from('eval_triage_reports')
+        .select('section,aggregates,synthesis,generated_at,generated_by')
+        .eq('operator_id', op)
+      if (cancelled) return
+      if (data?.length) {
+        setResults(prev => {
+          const next = { ...prev }
+          for (const row of data) {
+            if (row.section in next) next[row.section as SectionKey] = {
+              loading: false, error: null, aggregates: row.aggregates,
+              synthesis: row.synthesis, generatedAt: row.generated_at, generatedBy: row.generated_by,
+            }
+          }
+          return next
+        })
+      }
+      setLoadingStored(false)
+    })()
+    return () => { cancelled = true }
+  }, [selectedOperator?.id])
 
   async function openDrill(section: SectionKey, finding: Finding) {
     if (!selectedOperator?.id) return
@@ -79,15 +116,15 @@ export default function EvalReport() {
       setResults(r => ({ ...r, [section]: { loading: false, error: 'Select an operator first.' } }))
       return
     }
-    setResults(r => ({ ...r, [section]: { loading: true, error: null } }))
+    setResults(r => ({ ...r, [section]: { ...r[section], loading: true, error: null } }))
     const { data, error } = await supabase.functions.invoke('eval-triage-report', {
-      body: { operator_id: selectedOperator.id, section },
+      body: { operator_id: selectedOperator.id, section, generated_by: user?.name ?? user?.email ?? null },
     })
     if (error || data?.error) {
-      setResults(r => ({ ...r, [section]: { loading: false, error: data?.error ?? error?.message ?? 'Generation failed.' } }))
+      setResults(r => ({ ...r, [section]: { ...r[section], loading: false, error: data?.error ?? error?.message ?? 'Generation failed.' } }))
       return
     }
-    setResults(r => ({ ...r, [section]: { loading: false, error: null, generatedAt: data.generated_at, aggregates: data.aggregates, synthesis: data.synthesis } }))
+    setResults(r => ({ ...r, [section]: { loading: false, error: null, generatedAt: data.generated_at, generatedBy: data.generated_by, aggregates: data.aggregates, synthesis: data.synthesis } }))
   }
 
   if (drill) return <DrillView drill={drill} onBack={() => setDrill(null)} />
@@ -100,8 +137,12 @@ export default function EvalReport() {
         </p>
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6 }}>
           A focused LLM analysis per eval section: the patterns, likely root causes, and what to investigate to drive failures down.
-          Generated on demand — each section is independent. Hand this to engineering alongside the Report Card numbers.
+          The last generated report is shared across all SuperAdmins — regenerate any section to refresh it against recent data.
+          Hand this to engineering alongside the Report Card numbers.
         </p>
+        {loadingStored && (
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', marginTop: 8 }}>Loading saved reports…</p>
+        )}
       </div>
 
       {SECTIONS.map(s => {
@@ -116,7 +157,7 @@ export default function EvalReport() {
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>{s.blurb}</p>
                 {res.generatedAt && (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 4 }}>
-                    Generated {new Date(res.generatedAt).toLocaleString()}
+                    Last generated {new Date(res.generatedAt).toLocaleString()}{res.generatedBy ? ` · by ${res.generatedBy}` : ''}
                   </p>
                 )}
               </div>
