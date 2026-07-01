@@ -92,12 +92,17 @@ export default function Onboarding() {
     const list = data ?? []
     setQuizzes(list)
 
+    // Source-article picker: same visibility rule as Learn itself — this operator's
+    // own articles plus global ones, not every operator's articles.
+    let artQ = supabase.from('kb_articles').select('id,title,content').order('title')
+    if (opId) artQ = (artQ as any).or(`operator_id.eq.${opId},operator_id.is.null`)
+
     if (list.length) {
       const ids = list.map(q => q.id)
       const [{ data: qs }, { data: atts }, { data: arts }] = await Promise.all([
         supabase.from('quiz_questions').select('id,quiz_id').in('quiz_id', ids),
         user ? supabase.from('quiz_attempts').select('id,quiz_id,user_name,user_email,score_pct,passed,completed_at').eq('user_id', user.id).in('quiz_id', ids).order('completed_at', { ascending: false }) : Promise.resolve({ data: [] }),
-        supabase.from('kb_articles').select('id,title,content').order('title'),
+        artQ,
       ])
       const counts: Record<string, number> = {}
       for (const row of qs ?? []) counts[row.quiz_id] = (counts[row.quiz_id] ?? 0) + 1
@@ -108,7 +113,7 @@ export default function Onboarding() {
       setArticles(arts ?? [])
     } else {
       setQuestionCounts({}); setMyAttempts({})
-      const { data: arts } = await supabase.from('kb_articles').select('id,title,content').order('title')
+      const { data: arts } = await artQ
       setArticles(arts ?? [])
     }
     setLoading(false)
