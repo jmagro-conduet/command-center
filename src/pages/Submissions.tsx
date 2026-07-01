@@ -122,6 +122,10 @@ export default function Submissions() {
   const [selected,    setSelected]    = useState<Row | null>(null)
   const [hoveredId,   setHoveredId]   = useState<string | null>(null)
 
+  // Checked rows for "export just these" — keyed by id, storing the full Row so the
+  // selection survives page navigation (rows[] gets replaced on every page fetch).
+  const [checkedRows, setCheckedRows] = useState<Map<string, Row>>(new Map())
+
   // Load distinct filter options — re-runs when operator changes
   useEffect(() => {
     async function paginate(col: string) {
@@ -234,6 +238,27 @@ export default function Submissions() {
 
   function refresh() { setRefreshKey(k => k + 1) }
 
+  function toggleChecked(row: Row) {
+    setCheckedRows(prev => {
+      const next = new Map(prev)
+      if (next.has(row.id)) next.delete(row.id)
+      else next.set(row.id, row)
+      return next
+    })
+  }
+
+  function toggleCheckAllVisible() {
+    setCheckedRows(prev => {
+      const allVisibleChecked = rows.length > 0 && rows.every(r => prev.has(r.id))
+      const next = new Map(prev)
+      if (allVisibleChecked) rows.forEach(r => next.delete(r.id))
+      else rows.forEach(r => next.set(r.id, r))
+      return next
+    })
+  }
+
+  function clearChecked() { setCheckedRows(new Map()) }
+
   function handleUpdated(updated: Row) {
     setRows(prev => prev.map(r => r.id === updated.id ? updated : r))
     setSelected(updated)
@@ -246,6 +271,30 @@ export default function Submissions() {
     refresh()
   }
 
+  function downloadRowsAsCSV(exportRows: Row[], filenamePrefix: string) {
+    const header = [
+      'Timestamp', 'Agent', 'Email', 'Team', 'Ticket', 'Ticket ID', 'Category', 'Issue type',
+      'Customer Input', 'Suggested Response', 'Reasoning', 'Final Edits', 'Notes',
+    ].map(csvField).join(',')
+
+    const csvRows = exportRows.map(r => [
+      r.loggedAt ? formatSourceTimestamp(r.loggedAt) : '',
+      r.agent, r.agentEmail, r.agentTeam, r.ticket, r.externalTicketId, r.category,
+      r.issueType, r.customerInput, r.suggestedResponse,
+      r.reasoning, r.finalEdits, r.notes,
+    ].map(csvField).join(','))
+
+    const blob = new Blob(['﻿' + [header, ...csvRows].join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url
+    a.download = `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Full filtered export — re-fetches every matching row (can span many pages),
+  // ignoring what's currently loaded on screen.
   async function exportCSV() {
     const PAGE = 1000
     const all: any[] = []
@@ -254,7 +303,7 @@ export default function Submissions() {
       let q = supabase
         .from('ticket_issues')
         .select(`
-          issue_type, external_ticket_id, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
+          id, issue_type, external_ticket_id, logged_at, customer_input, suggested_response, reasoning, final_edits, issue_comment,
           tickets!inner ( ticket_number, agent_name, agent_email, agent_team, ticket_category )
         `)
       if (opId)     q = q.eq('operator_id', opId)
@@ -269,28 +318,33 @@ export default function Submissions() {
       from += PAGE
     }
 
-    const header = [
-      'Timestamp', 'Agent', 'Email', 'Team', 'Ticket', 'Ticket ID', 'Category', 'Issue type',
-      'Customer Input', 'Suggested Response', 'Reasoning', 'Final Edits', 'Notes',
-    ].map(csvField).join(',')
+    const mapped: Row[] = all.map((ti: any) => ({
+      id:                ti.id,
+      issueType:         ti.issue_type ?? '',
+      ticket:            ti.tickets?.ticket_number ?? '',
+      externalTicketId:  ti.external_ticket_id ?? '',
+      agent:             ti.tickets?.agent_name ?? '',
+      agentEmail:        ti.tickets?.agent_email ?? '',
+      agentTeam:         ti.tickets?.agent_team ?? '',
+      category:          normalizeCategory(ti.tickets?.ticket_category ?? ''),
+      date:              '',
+      loggedAt:          ti.logged_at ?? null,
+      customerInput:     ti.customer_input ?? '',
+      suggestedResponse: ti.suggested_response ?? '',
+      reasoning:         ti.reasoning ?? '',
+      finalEdits:        ti.final_edits ?? '',
+      notes:             ti.issue_comment ?? '',
+    }))
 
-    const csvRows = all.map((ti: any) => {
-      const t = ti.tickets ?? {}
-      return [
-        ti.logged_at ? formatSourceTimestamp(ti.logged_at) : '',
-        t.agent_name, t.agent_email, t.agent_team, t.ticket_number, ti.external_ticket_id, t.ticket_category,
-        ti.issue_type, ti.customer_input, ti.suggested_response,
-        ti.reasoning, ti.final_edits, ti.issue_comment,
-      ].map(csvField).join(',')
-    })
+    downloadRowsAsCSV(mapped, 'gamelm_feedback')
+  }
 
-    const blob = new Blob(['﻿' + [header, ...csvRows].join('\r\n')], { type: 'text/csv;charset=utf-8' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url
-    a.download = `gamelm_feedback_${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  // Export just the hand-picked rows — no re-fetch, uses what's already in state
+  // (checkedRows caches the full Row at check-time so it survives page navigation).
+  function exportChecked() {
+    const exportRows = Array.from(checkedRows.values())
+    if (exportRows.length === 0) return
+    downloadRowsAsCSV(exportRows, 'gamelm_feedback_selected')
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -308,19 +362,46 @@ export default function Submissions() {
             View and manage all ticket submissions
           </p>
         </div>
-        <button
-          onClick={exportCSV}
-          style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-            padding: '9px 16px', borderRadius: 10,
-            border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
-            transition: 'all 0.15s', cursor: 'pointer',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-        >
-          Export CSV
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {checkedRows.size > 0 && (
+            <>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                {checkedRows.size} selected
+              </span>
+              <button
+                onClick={clearChecked}
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px' }}
+              >
+                Clear
+              </button>
+              <button
+                onClick={exportChecked}
+                style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '9px 16px', borderRadius: 10, border: 'none',
+                  background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+              >
+                Export selected ({checkedRows.size})
+              </button>
+            </>
+          )}
+          <button
+            onClick={exportCSV}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              padding: '9px 16px', borderRadius: 10,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
+              transition: 'all 0.15s', cursor: 'pointer',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+          >
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -401,10 +482,17 @@ export default function Submissions() {
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         {/* Header row */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '130px 1fr 160px 180px 1fr',
-          padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)',
+          display: 'grid', gridTemplateColumns: '28px 130px 1fr 160px 180px 1fr',
+          padding: '12px 20px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.07)',
           background: 'rgba(0,0,0,0.015)',
         }}>
+          <input
+            type="checkbox"
+            checked={rows.length > 0 && rows.every(r => checkedRows.has(r.id))}
+            onChange={toggleCheckAllVisible}
+            title="Select all on this page"
+            style={{ cursor: 'pointer', accentColor: '#9B59D0' }}
+          />
           {['Ticket', 'Agent', 'Issue type', 'Category', 'Date'].map(h => (
             <span key={h} style={{
               fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
@@ -443,13 +531,20 @@ export default function Submissions() {
                 onMouseLeave={() => setHoveredId(null)}
                 style={{
                   position: 'relative',
-                  display: 'grid', gridTemplateColumns: '130px 1fr 160px 180px 1fr',
+                  display: 'grid', gridTemplateColumns: '28px 130px 1fr 160px 180px 1fr',
                   padding: '13px 20px', alignItems: 'center',
                   borderBottom: i < rows.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                   transition: 'background 0.1s', cursor: 'pointer',
                   background: isHovered ? 'rgba(206,164,255,0.06)' : 'transparent',
                 }}
               >
+                <input
+                  type="checkbox"
+                  checked={checkedRows.has(s.id)}
+                  onClick={e => e.stopPropagation()}
+                  onChange={() => toggleChecked(s)}
+                  style={{ cursor: 'pointer', accentColor: '#9B59D0' }}
+                />
                 <span style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
                   color: '#9B59D0', textDecoration: 'underline',
