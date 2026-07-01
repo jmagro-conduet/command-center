@@ -34,7 +34,7 @@ interface Attempt {
   passed: boolean
   completed_at: string
 }
-interface ArticleOption { id: string; title: string; content: string }
+interface ArticleOption { id: string; title: string; content: string; file_url: string | null; file_type: string | null }
 type DraftQuestion = Question & { _key: string }
 type View = 'list' | 'create' | 'edit' | 'take' | 'results'
 
@@ -94,7 +94,7 @@ export default function Onboarding() {
 
     // Source-article picker: same visibility rule as Learn itself — this operator's
     // own articles plus global ones, not every operator's articles.
-    let artQ = supabase.from('kb_articles').select('id,title,content').order('title')
+    let artQ = supabase.from('kb_articles').select('id,title,content,file_url,file_type').order('title')
     if (opId) artQ = (artQ as any).or(`operator_id.eq.${opId},operator_id.is.null`)
 
     if (list.length) {
@@ -301,7 +301,7 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
   }, [quiz])
 
   const sourceArticle = articles.find(a => a.id === sourceArticleId)
-  const canGenerate = !!sourceArticle && sourceArticle.content.trim().length >= 200
+  const canGenerate = !!sourceArticle && (sourceArticle.content.trim().length >= 200 || (sourceArticle.file_type === 'application/pdf' && !!sourceArticle.file_url))
 
   function addQuestion() { setQuestions(qs => [...qs, emptyQuestion()]) }
   function removeQuestion(key: string) { setQuestions(qs => qs.filter(q => q._key !== key)) }
@@ -429,7 +429,7 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>Drafting will focus on your title/description above, not just summarize the whole article.</p>
         )}
         {sourceArticleId && !canGenerate && (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>This article has no substantial text content — AI drafting needs written content, not just an uploaded file. Add questions manually.</p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>This article has no typed content and isn't a PDF — DOCX/XLSX/PPTX uploads aren't readable by the model yet. Add questions manually, or add written content to the article.</p>
         )}
         {genError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>❌ {genError}</p>}
 

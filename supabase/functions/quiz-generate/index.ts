@@ -1,9 +1,16 @@
 // quiz-generate
-// Drafts multiple-choice training questions from a Learn article's text content,
-// for the Onboarding quiz builder (SuperAdmin/admin-only UI). The admin reviews,
-// edits, and approves the draft before any question is saved — this only produces
-// a proposal, it never writes to the DB itself. Uses Anthropic structured outputs
+// Drafts multiple-choice training questions from a Learn article, for the
+// Onboarding quiz builder (SuperAdmin/admin-only UI). The admin reviews, edits,
+// and approves the draft before any question is saved — this only produces a
+// proposal, it never writes to the DB itself. Uses Anthropic structured outputs
 // so the response is schema-valid JSON by construction.
+//
+// Source material is either the article's typed content, OR — when there's no
+// substantial typed content but the article is a PDF upload — the PDF itself,
+// passed as a `document` content block with a `url` source. Claude reads PDFs
+// natively (text + layout together), so this needs no separate PDF-parsing
+// library. DOCX/XLSX/PPTX uploads still need typed content; every file-only
+// Learn article in this system today happens to be a PDF.
 import { corsHeaders } from '../_shared/cors.ts'
 
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!
@@ -54,18 +61,30 @@ Deno.serve(async (req: Request) => {
     const quizDescription: string = typeof body.quiz_description === 'string' ? body.quiz_description.trim() : ''
     if (!articleId) return json({ error: 'article_id is required' }, 400)
 
-    const artRes = await fetch(`${SUPABASE_URL}/rest/v1/kb_articles?id=eq.${articleId}&select=title,content`, { headers: sb })
+    const artRes = await fetch(`${SUPABASE_URL}/rest/v1/kb_articles?id=eq.${articleId}&select=title,content,file_url,file_type`, { headers: sb })
     if (!artRes.ok) return json({ error: 'Failed to load the source article' }, 500)
     const rows = await artRes.json()
     const article = rows?.[0]
     if (!article) return json({ error: 'Article not found' }, 404)
-    if (!article.content || article.content.trim().length < 200) {
-      return json({ error: 'This article has no substantial text content to draft questions from — file-only uploads (PDF/DOCX/etc.) aren\'t text-extracted yet. Write the quiz manually, or add written content to the article.' }, 422)
+
+    const hasText = !!article.content && article.content.trim().length >= 200
+    const isPdf = article.file_type === 'application/pdf' && !!article.file_url
+    if (!hasText && !isPdf) {
+      return json({ error: 'This article has no typed content and isn\'t a PDF — DOCX/XLSX/PPTX uploads aren\'t readable by the model yet. Write the quiz manually, or add written content to the article.' }, 422)
     }
 
     const focusLine = (quizTitle || quizDescription)
       ? ` The admin has framed this quiz as: ${quizTitle ? `titled "${quizTitle}"` : ''}${quizTitle && quizDescription ? ', ' : ''}${quizDescription ? `described as "${quizDescription}"` : ''}. Prioritize questions that test that stated focus specifically — don't just summarize the whole article if the focus is narrower than that. Everything you ask must still be verifiably grounded in the article content below; don't invent facts to match the focus.`
       : ''
+
+    // Text content wins when both exist (cheaper, and it's whatever the admin
+    // deliberately typed/pasted); otherwise hand Claude the PDF directly.
+    const userContent: any[] = hasText
+      ? [{ type: 'text', text: `ARTICLE TITLE: ${article.title}\n\nARTICLE CONTENT:\n${article.content}` }]
+      : [
+          { type: 'text', text: `ARTICLE TITLE: ${article.title}\n\nThe article's content is the attached PDF — read it directly.` },
+          { type: 'document', source: { type: 'url', url: article.file_url } },
+        ]
 
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -74,7 +93,7 @@ Deno.serve(async (req: Request) => {
         model: 'claude-opus-4-8',
         max_tokens: 4000,
         system: `You are writing an agent-training quiz for a customer-service team at an iGaming/sports-betting company. Write ${questionCount} multiple-choice questions (4 options each, exactly one correct) that test whether a support agent actually understood and can apply the material — not trivia about wording. Cover the article's distinct points; don't cluster all questions on one section. Plausible-but-wrong distractors, not silly ones. Keep each question and option concise.${focusLine}`,
-        messages: [{ role: 'user', content: `ARTICLE TITLE: ${article.title}\n\nARTICLE CONTENT:\n${article.content}` }],
+        messages: [{ role: 'user', content: userContent }],
         output_config: { format: { type: 'json_schema', schema: SCHEMA } },
       }),
     })
@@ -96,7 +115,7 @@ Deno.serve(async (req: Request) => {
       Array.isArray(q?.options) && q.options.length === 4 &&
       typeof q.correct_index === 'number' && q.correct_index >= 0 && q.correct_index <= 3)
 
-    return json({ questions })
+    return json({ questions, usage: d.usage ?? null })
   } catch (err: unknown) {
     return json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500)
   }
