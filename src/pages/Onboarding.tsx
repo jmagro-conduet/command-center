@@ -315,7 +315,9 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
   async function handleGenerate() {
     if (!sourceArticle) return
     setGenerating(true); setGenError('')
-    const { data, error } = await supabase.functions.invoke('quiz-generate', { body: { article_id: sourceArticle.id, question_count: 8 } })
+    const { data, error } = await supabase.functions.invoke('quiz-generate', {
+      body: { article_id: sourceArticle.id, question_count: 8, quiz_title: title.trim(), quiz_description: description.trim() },
+    })
     if (error || data?.error) {
       setGenError(data?.error ?? error?.message ?? 'Failed to draft questions.')
       setGenerating(false)
@@ -423,6 +425,9 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
             <button onClick={addQuestion} style={secondaryBtn}>+ Add question</button>
           </div>
         </div>
+        {canGenerate && (title.trim() || description.trim()) && (
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>Drafting will focus on your title/description above, not just summarize the whole article.</p>
+        )}
         {sourceArticleId && !canGenerate && (
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>This article has no substantial text content — AI drafting needs written content, not just an uploaded file. Add questions manually.</p>
         )}

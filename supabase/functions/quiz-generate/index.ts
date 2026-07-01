@@ -47,6 +47,11 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}))
     const articleId: string = body.article_id
     const questionCount: number = Math.min(Math.max(parseInt(body.question_count) || 8, 1), 15)
+    // Optional steer: whatever the admin has already typed for the quiz's title/
+    // description. When present, questions are focused on that stated intent
+    // instead of blindly covering the whole article end to end.
+    const quizTitle: string = typeof body.quiz_title === 'string' ? body.quiz_title.trim() : ''
+    const quizDescription: string = typeof body.quiz_description === 'string' ? body.quiz_description.trim() : ''
     if (!articleId) return json({ error: 'article_id is required' }, 400)
 
     const artRes = await fetch(`${SUPABASE_URL}/rest/v1/kb_articles?id=eq.${articleId}&select=title,content`, { headers: sb })
@@ -58,13 +63,17 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'This article has no substantial text content to draft questions from — file-only uploads (PDF/DOCX/etc.) aren\'t text-extracted yet. Write the quiz manually, or add written content to the article.' }, 422)
     }
 
+    const focusLine = (quizTitle || quizDescription)
+      ? ` The admin has framed this quiz as: ${quizTitle ? `titled "${quizTitle}"` : ''}${quizTitle && quizDescription ? ', ' : ''}${quizDescription ? `described as "${quizDescription}"` : ''}. Prioritize questions that test that stated focus specifically — don't just summarize the whole article if the focus is narrower than that. Everything you ask must still be verifiably grounded in the article content below; don't invent facts to match the focus.`
+      : ''
+
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-opus-4-8',
         max_tokens: 4000,
-        system: `You are writing an agent-training quiz for a customer-service team at an iGaming/sports-betting company. Write ${questionCount} multiple-choice questions (4 options each, exactly one correct) that test whether a support agent actually understood and can apply the material — not trivia about wording. Cover the article's distinct points; don't cluster all questions on one section. Plausible-but-wrong distractors, not silly ones. Keep each question and option concise.`,
+        system: `You are writing an agent-training quiz for a customer-service team at an iGaming/sports-betting company. Write ${questionCount} multiple-choice questions (4 options each, exactly one correct) that test whether a support agent actually understood and can apply the material — not trivia about wording. Cover the article's distinct points; don't cluster all questions on one section. Plausible-but-wrong distractors, not silly ones. Keep each question and option concise.${focusLine}`,
         messages: [{ role: 'user', content: `ARTICLE TITLE: ${article.title}\n\nARTICLE CONTENT:\n${article.content}` }],
         output_config: { format: { type: 'json_schema', schema: SCHEMA } },
       }),
