@@ -24,8 +24,13 @@ const SCHEMA = {
         required: ['question', 'options', 'correct_index', 'explanation'],
         properties: {
           question:      { type: 'string', description: 'the question text' },
-          options:       { type: 'array', items: { type: 'string' }, minItems: 4, maxItems: 4, description: 'exactly 4 answer choices' },
-          correct_index: { type: 'integer', minimum: 0, maximum: 3, description: 'index (0-3) of the correct option' },
+          // Anthropic structured-outputs rejects minItems/maxItems other than 0 or 1 for
+          // array schemas — "exactly 4" is enforced via the system prompt instead, with a
+          // defensive filter below in case the model still returns a different count.
+          options:       { type: 'array', items: { type: 'string' }, description: 'exactly 4 answer choices' },
+          // minimum/maximum aren't supported on integer schemas either — enforced by
+          // description + the defensive filter below instead.
+          correct_index: { type: 'integer', description: 'index (0, 1, 2, or 3) of the correct option' },
           explanation:   { type: 'string', description: 'one or two sentences on why that answer is correct, shown to the agent after they answer' },
         },
       },
@@ -76,7 +81,13 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Unexpected non-JSON response. Try again.' }, 502)
     }
 
-    return json({ questions: draft.questions ?? [] })
+    // Defensive: the schema can no longer enforce "exactly 4 options" (see SCHEMA
+    // comment), so drop any malformed question rather than let a bad one into the editor.
+    const questions = (draft.questions ?? []).filter((q: any) =>
+      Array.isArray(q?.options) && q.options.length === 4 &&
+      typeof q.correct_index === 'number' && q.correct_index >= 0 && q.correct_index <= 3)
+
+    return json({ questions })
   } catch (err: unknown) {
     return json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500)
   }
