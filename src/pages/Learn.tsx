@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
+import Onboarding from './Onboarding'
+
+type SubView = 'articles' | 'onboarding'
 
 interface KBArticle {
   id: string
@@ -87,6 +90,7 @@ export default function Learn() {
   const isAdmin = user?.role === 'admin'
   const { selectedOperator } = useOperator()
 
+  const [subView, setSubView]   = useState<SubView>('articles')
   const [articles, setArticles] = useState<KBArticle[]>([])
   const [loading, setLoading]   = useState(true)
   const [filter, setFilter]     = useState('All')
@@ -508,6 +512,24 @@ export default function Learn() {
     )
   }
 
+  // ── Onboarding sub-view ─────────────────────────────────────────────────────
+  if (subView === 'onboarding') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+              SOPs, guides, and resources for the team
+            </p>
+          </div>
+          <SubNavTabs subView={subView} setSubView={setSubView} />
+        </div>
+        <Onboarding />
+      </div>
+    )
+  }
+
   // ── List view ────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -518,9 +540,12 @@ export default function Learn() {
             SOPs, guides, and resources for the team
           </p>
         </div>
-        {isAdmin && (
-          <button onClick={openCreate} style={primaryBtn}>+ New article</button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <SubNavTabs subView={subView} setSubView={setSubView} />
+          {isAdmin && (
+            <button onClick={openCreate} style={primaryBtn}>+ New article</button>
+          )}
+        </div>
       </div>
 
       {/* Search + category filters */}
@@ -583,6 +608,29 @@ export default function Learn() {
           </div>
         ))
       )}
+    </div>
+  )
+}
+
+function SubNavTabs({ subView, setSubView }: { subView: SubView; setSubView: (v: SubView) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 2, padding: 4, background: 'rgba(0,0,0,0.05)', borderRadius: 12, alignSelf: 'flex-start' }}>
+      {(['articles', 'onboarding'] as SubView[]).map(tab => (
+        <button
+          key={tab}
+          onClick={() => setSubView(tab)}
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            padding: '7px 18px', borderRadius: 9, border: 'none', cursor: 'pointer',
+            background: subView === tab ? '#fff' : 'transparent',
+            color: subView === tab ? '#000' : '#58595B',
+            boxShadow: subView === tab ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+            transition: 'all 0.15s',
+          }}
+        >
+          {tab === 'articles' ? 'Articles' : 'Onboarding'}
+        </button>
+      ))}
     </div>
   )
 }
