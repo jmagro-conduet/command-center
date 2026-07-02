@@ -122,16 +122,21 @@ function CreateAccountForm({ onBack, signIn }: {
 }) {
   const [name,      setName]      = useState('')
   const [email,     setEmail]     = useState('')
-  const [team,      setTeam]      = useState('')
+  const [teamId,    setTeamId]    = useState('')
   const [password,  setPassword]  = useState('')
   const [password2, setPassword2] = useState('')
   const [error,     setError]     = useState('')
   const [loading,   setLoading]   = useState(false)
-  const [teams,     setTeams]     = useState<string[]>([])
+  const [teams,     setTeams]     = useState<{ id: string; name: string }[]>([])
+  const [teamsError, setTeamsError] = useState(false)
 
   useEffect(() => {
-    supabase.from('operator_teams').select('name').order('name').then(({ data }) => {
-      setTeams((data ?? []).map((r: any) => r.name))
+    // Query operators directly (not the separate operator_teams table) — this is
+    // what a new user actually needs to be linked to real operator_id, not just a
+    // free-text label, so their session and their tickets are correctly scoped.
+    supabase.from('operators').select('id, name').order('name').then(({ data, error }) => {
+      if (error) { setTeamsError(true); return }
+      setTeams(data ?? [])
     })
   }, [])
 
@@ -157,13 +162,18 @@ function CreateAccountForm({ onBack, signIn }: {
       return
     }
 
-    // Create public.users profile
+    // Create public.users profile — set operator_id (the real FK, used everywhere
+    // for scoping) alongside operator_team (a display label), not just the label
+    // alone. Leaving operator_id null was breaking OperatorContext's operator
+    // lookup for the new agent's entire session (it queries by user.operatorId).
+    const selectedTeam = teams.find(t => t.id === teamId)
     await supabase.from('users').insert([{
       auth_id: data.user.id,
       name: name.trim(),
       email: email.trim().toLowerCase(),
       role: 'agent',
-      operator_team: team || null,
+      operator_team: selectedTeam?.name ?? null,
+      operator_id: selectedTeam?.id ?? null,
     }])
 
     // Sign in immediately
@@ -197,13 +207,18 @@ function CreateAccountForm({ onBack, signIn }: {
         </Field>
 
         <Field label="Team">
-          <select value={team} onChange={e => setTeam(e.target.value)}
-            style={{ ...inputStyle, color: team ? '#000' : '#aaa' }}
+          <select value={teamId} onChange={e => setTeamId(e.target.value)}
+            style={{ ...inputStyle, color: teamId ? '#000' : '#aaa' }}
             onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
             <option value="">Select your team (optional)</option>
-            {teams.map(t => <option key={t} value={t}>{t}</option>)}
+            {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
+          {teamsError && (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 2 }}>
+              Couldn't load the team list — reload the page, or continue and an admin can assign your team afterward.
+            </p>
+          )}
         </Field>
 
         <Field label="Password">
