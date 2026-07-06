@@ -65,6 +65,13 @@ export default function Users() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleting, setDeleting]     = useState(false)
 
+  // Extra operator access (beyond the user's home Operator) — grantable by SuperAdmins
+  const [accessByUser, setAccessByUser] = useState<Map<string, string[]>>(new Map()) // profileId -> granted operator ids
+  const [accessTarget, setAccessTarget] = useState<DBUser | null>(null)
+  const [accessSelected, setAccessSelected] = useState<Set<string>>(new Set())
+  const [accessLoading, setAccessLoading] = useState(false)
+  const [accessSaving, setAccessSaving]   = useState(false)
+
   // Add user modal
   const [addOpen, setAddOpen]         = useState(false)
   const [addName, setAddName]         = useState('')
@@ -77,8 +84,19 @@ export default function Users() {
   const [addError, setAddError]       = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([loadUsers(), loadTeams(), loadOperators()])
+    Promise.all([loadUsers(), loadTeams(), loadOperators(), loadAccessGrants()])
   }, [])
+
+  async function loadAccessGrants() {
+    const { data } = await supabase.from('user_operator_access').select('user_id, operator_id')
+    const map = new Map<string, string[]>()
+    for (const row of data ?? []) {
+      const list = map.get(row.user_id) ?? []
+      list.push(row.operator_id)
+      map.set(row.user_id, list)
+    }
+    setAccessByUser(map)
+  }
 
   async function loadOperators() {
     const { data } = await supabase.from('operators').select('id, name').order('name')
@@ -206,6 +224,52 @@ export default function Users() {
     closeEdit()
   }
 
+  // Ensures a public.users profile row exists for this auth user (role-change/
+  // operator-change handlers already lazily create one via upsert; extra-access
+  // grants need the real profile id as a FK, so do the same here if it's missing).
+  async function ensureProfileId(u: DBUser): Promise<string | null> {
+    if (u.profileId) return u.profileId
+    const { data } = await supabase.from('users').upsert(
+      { email: u.email, name: u.name, role: u.role, operator_team: u.operator_team, operator_id: u.operator_id, auth_id: u.authId },
+      { onConflict: 'email' }
+    ).select('id').single()
+    if (data?.id) {
+      setUsers(us => us.map(x => x.authId === u.authId ? { ...x, profileId: data.id } : x))
+    }
+    return data?.id ?? null
+  }
+
+  async function openManageAccess(u: DBUser) {
+    setAccessLoading(true)
+    setAccessTarget(u)
+    const profileId = await ensureProfileId(u)
+    setAccessSelected(new Set(profileId ? (accessByUser.get(profileId) ?? []) : []))
+    setAccessLoading(false)
+  }
+
+  function toggleAccess(operatorId: string) {
+    setAccessSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(operatorId)) next.delete(operatorId)
+      else next.add(operatorId)
+      return next
+    })
+  }
+
+  async function handleSaveAccess() {
+    if (!accessTarget) return
+    const profileId = await ensureProfileId(accessTarget)
+    if (!profileId) return
+    setAccessSaving(true)
+    // Simplest correct approach for a small per-user set: replace wholesale.
+    await supabase.from('user_operator_access').delete().eq('user_id', profileId)
+    const rows = Array.from(accessSelected).map(operatorId => ({ user_id: profileId, operator_id: operatorId }))
+    if (rows.length > 0) await supabase.from('user_operator_access').insert(rows)
+    setAccessByUser(prev => new Map(prev).set(profileId, Array.from(accessSelected)))
+    setAccessSaving(false)
+    setAccessTarget(null)
+  }
+
   function openAdd() {
     setAddName(''); setAddEmail(''); setAddPassword('')
     setAddRole('agent'); setAddTeam(''); setAddOperatorId('')
@@ -328,7 +392,7 @@ export default function Users() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              {['Member', 'Role', 'Operator', 'Team', 'Joined', ''].map(h => (
+              {['Member', 'Role', 'Operator', 'Team', 'Extra access', 'Joined', ''].map(h => (
                 <th key={h} style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
                   color: '#58595B', textAlign: 'left', padding: '12px 16px',
@@ -404,6 +468,27 @@ export default function Users() {
                     <option value="">No team</option>
                     {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                   </select>
+                </td>
+
+                <td style={{ padding: '14px 16px' }}>
+                  {(() => {
+                    const grantCount = u.profileId ? (accessByUser.get(u.profileId)?.length ?? 0) : 0
+                    return (
+                      <button
+                        onClick={() => openManageAccess(u)}
+                        style={{
+                          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                          padding: '5px 12px', borderRadius: 100, cursor: 'pointer',
+                          border: `1.5px solid ${grantCount > 0 ? 'rgba(155,89,208,0.3)' : 'rgba(0,0,0,0.12)'}`,
+                          background: grantCount > 0 ? 'rgba(155,89,208,0.08)' : '#fff',
+                          color: grantCount > 0 ? '#9B59D0' : '#58595B',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {grantCount > 0 ? `+${grantCount} operator${grantCount === 1 ? '' : 's'}` : 'Manage access'}
+                      </button>
+                    )
+                  })()}
                 </td>
 
                 <td style={{ padding: '14px 16px' }}>
@@ -656,6 +741,74 @@ export default function Users() {
                   cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, transition: 'opacity 0.15s',
                 }}>{saving ? 'Saving…' : 'Save changes'}</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage extra operator access modal */}
+      {accessTarget && (
+        <div
+          onClick={() => !accessSaving && setAccessTarget(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage access</h2>
+              <button onClick={() => setAccessTarget(null)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+            </div>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+              Operators {accessTarget.name} can switch into, on top of their home operator
+              {accessTarget.operator_id ? ` (${operators.find(o => o.id === accessTarget.operator_id)?.name ?? '—'})` : ''}.
+              Useful for QA covering more than one client, or agents dual-logging tickets across operators.
+            </p>
+
+            {accessLoading ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
+                {operators.filter(o => o.id !== accessTarget.operator_id).map(o => {
+                  const checked = accessSelected.has(o.id)
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => toggleAccess(o.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: checked ? 'rgba(155,89,208,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                    >
+                      <span style={{
+                        width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                        border: checked ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
+                        background: checked ? '#9B59D0' : '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {checked && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                      </span>
+                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{o.name}</span>
+                    </button>
+                  )
+                })}
+                {operators.filter(o => o.id !== accessTarget.operator_id).length === 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No other operators exist yet.</p>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 18 }}>
+              <button onClick={() => setAccessTarget(null)} disabled={accessSaving} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+              }}>Cancel</button>
+              <button onClick={handleSaveAccess} disabled={accessSaving || accessLoading} style={{
+                background: '#000', color: '#fff',
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 16px', borderRadius: 10, border: 'none',
+                cursor: accessSaving ? 'not-allowed' : 'pointer', opacity: accessSaving ? 0.6 : 1, transition: 'opacity 0.15s',
+              }}>{accessSaving ? 'Saving…' : 'Save access'}</button>
             </div>
           </div>
         </div>

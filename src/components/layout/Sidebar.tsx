@@ -97,9 +97,11 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const { user, signOut }                   = useAuth()
   const { operators, selectedOperator, setSelectedOperator } = useOperator()
   const initial    = user?.name ? user.name[0].toUpperCase() : '?'
-  const isAdmin    = user?.role === 'admin'
   const isOperator = user?.role === 'operator'
   const isSuperAdmin = !!user?.isSuperAdmin
+  // Anyone (admin, or a QA/agent granted extra operators) who has more than one
+  // operator to choose from gets the switcher — not just admins.
+  const canSwitchOperator = !isOperator && operators.length > 1
   const baseNav = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : user?.role === 'operator' ? OPERATOR_NAV : AGENT_NAV
   // SuperAdmins get an extra top-level item — the eval triage report builder is its
   // own page now (moved out of Admin Settings) since it needs room for a data-window
@@ -260,11 +262,13 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
       {/* Bottom: operator switcher + settings + sign out */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12 }}>
 
-        {/* Operator indicator — admins get a switcher, operator-role gets a locked read-only badge */}
-        {!collapsed && selectedOperator && (isAdmin || isOperator) && (
+        {/* Operator indicator — anyone with 2+ available operators (admin, or a
+            QA/agent granted extra access) gets a switcher; the operator-role
+            (external client logins) always gets a locked read-only badge instead. */}
+        {!collapsed && selectedOperator && (canSwitchOperator || isOperator) && (
           <div style={{ position: 'relative', marginBottom: 6 }}>
-            {/* Admin: full switcher button */}
-            {isAdmin && <button
+            {/* Switcher button — admin, or anyone granted 2+ operators */}
+            {canSwitchOperator && <button
               onClick={() => setOperatorDropOpen(o => !o)}
               style={{
                 width: '100%',
@@ -330,7 +334,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
               </div>
             )}
 
-            {operatorDropOpen && isAdmin && (
+            {operatorDropOpen && canSwitchOperator && (
               <div style={{
                 position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0,
                 background: '#fff', borderRadius: 10,
