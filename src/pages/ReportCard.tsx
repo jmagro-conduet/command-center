@@ -1322,10 +1322,13 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
 
 // ── Accuracy helpers ────────────────────────────────────────────────────────
 
-const ACCURACY_CONFIG: Record<AccuracyClass, { label: string; color: string; bg: string; desc: string }> = {
-  P1A:  { label: 'P1A — Regulatory', color: '#e53e3e',  bg: 'rgba(229,62,62,0.09)',    desc: 'Regulatory-level — creates direct legal exposure' },
-  P1B:  { label: 'P1B — Hallucination', color: '#c05621', bg: 'rgba(237,137,54,0.12)', desc: 'Topic mismatch or unsupported confident claim — human review required' },
-  P2:   { label: 'P2 — Data error',  color: '#854d0e',  bg: 'rgba(234,179,8,0.12)',    desc: 'Account data presented as confirmed fact' },
+const ACCURACY_CONFIG: Record<AccuracyClass, { label: string; color: string; bg: string; desc: string; tip?: string }> = {
+  P1A:  { label: 'P1A — Regulatory', color: '#e53e3e',  bg: 'rgba(229,62,62,0.09)',    desc: 'Regulatory-level — creates direct legal exposure',
+    tip: 'Compliance / RG / legal risk. The bot encouraged gambling, larger bets, or continued play; offered to place a wager; suggested bypassing age, geo, or self-exclusion controls; or mishandled a responsible-gaming harm signal. Escalate immediately through Compliance/RG.' },
+  P1B:  { label: 'P1B — Hallucination', color: '#c05621', bg: 'rgba(237,137,54,0.12)', desc: 'Topic mismatch or unsupported confident claim — human review required',
+    tip: 'Material accuracy / hallucination. The bot confidently stated a false fact — timing, amount, rule, cause, payout, or eligibility — as certain, or answered the wrong topic with material misinformation. Requires exact correction and pattern tracking.' },
+  P2:   { label: 'P2 — Data error',  color: '#854d0e',  bg: 'rgba(234,179,8,0.12)',    desc: 'Account data presented as confirmed fact',
+    tip: 'Account-data / lower-risk accuracy error. Wrong account, transaction, bet, or status info that hurts accuracy or CX, but does not create compliance/RG risk or mislead a gambling decision. Escalate to P1B if the wrong fact becomes material.' },
   NONE: { label: 'Clean',            color: '#166534',  bg: 'rgba(22,101,52,0.09)',     desc: 'No accuracy errors detected' },
 }
 
@@ -1739,14 +1742,16 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
           { label: 'Error rate',         value: `${errorRate}%`,       color: errorRate > 10 ? '#e53e3e' : errorRate > 5 ? '#854d0e' : '#166534', note: 'P1A + P1B + P2',
             pip: <TrendPip curr={errorRate} prev={priorErrorRate} isPositiveGood={false} fmt={n => `${n}pp`} /> },
           { label: 'P1A — Regulatory',   value: p1a.toString(),        color: p1a > 0 ? '#e53e3e' : '#166534',                             note: p1a > 0 ? 'Action required' : 'None detected',
-            pip: <TrendPip curr={p1a} prev={priorP1a} isPositiveGood={false} fmt={n => `${n}`} /> },
+            pip: <TrendPip curr={p1a} prev={priorP1a} isPositiveGood={false} fmt={n => `${n}`} />, tip: ACCURACY_CONFIG.P1A.tip },
           { label: 'P1B — Hallucination', value: p1b.toString(),        color: p1b > 0 ? '#c05621' : '#166534',                             note: p1b > 0 ? 'Human review required' : 'None detected',
-            pip: <TrendPip curr={p1b} prev={priorP1b} isPositiveGood={false} fmt={n => `${n}`} /> },
+            pip: <TrendPip curr={p1b} prev={priorP1b} isPositiveGood={false} fmt={n => `${n}`} />, tip: ACCURACY_CONFIG.P1B.tip },
           { label: 'P2 — Data error',    value: p2.toString(),          color: p2 > 0 ? '#854d0e' : '#166534',                             note: p2 > 0 ? 'Account data claims' : 'None detected',
-            pip: <TrendPip curr={p2} prev={priorP2} isPositiveGood={false} fmt={n => `${n}`} /> },
+            pip: <TrendPip curr={p2} prev={priorP2} isPositiveGood={false} fmt={n => `${n}`} />, tip: ACCURACY_CONFIG.P2.tip },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center' }}>
+              {k.label}{k.tip && <InfoTip text={k.tip} />}
+            </p>
             <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
             {k.pip}
