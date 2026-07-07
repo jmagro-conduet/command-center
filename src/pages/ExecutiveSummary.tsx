@@ -230,7 +230,7 @@ export default function ExecutiveSummary() {
   const [rows, setRows]         = useState<Row[]>([])
   const [loading, setLoading]   = useState(true)
   const [zdTotal, setZdTotal]   = useState<number | null>(null)
-  const [trendPeriod, setTrendPeriod]     = useState<'30d' | 'quarter'>('quarter')
+  const [trendPeriod, setTrendPeriod]     = useState<'14d' | '30d' | 'quarter'>('14d')
   const [expandedCat, setExpandedCat]     = useState<string | null>(null)
   const [showCompliments, setShowCompliments] = useState(false)
   type ComplimentTicket = { id: string; ticketNumber: string; agentName: string; lastMessage: string | null; confidence: number | null; createdAt: string }
@@ -386,8 +386,8 @@ export default function ExecutiveSummary() {
         })
       }
     } else {
-      // 30-day daily buckets
-      const DAYS = 30
+      // Daily buckets — 14 or 30 days
+      const DAYS = trendPeriod === '14d' ? 14 : 30
       const buckets = Array.from({ length: DAYS }, () => [] as Row[])
       for (const r of rows) {
         const age = now - r.date.getTime()
@@ -498,12 +498,12 @@ export default function ExecutiveSummary() {
             title="Is gameLM improving?"
             subtitle={trendPeriod === 'quarter'
               ? 'Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Weekly, last 12 weeks.'
-              : 'Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Daily, last 30 days.'}
+              : `Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Daily, last ${trendPeriod === '14d' ? 14 : 30} days.`}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {/* Period toggle */}
             <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: 8, padding: 3, gap: 2 }}>
-              {(['quarter', '30d'] as const).map(p => (
+              {(['14d', '30d', 'quarter'] as const).map(p => (
                 <button
                   key={p}
                   onClick={() => setTrendPeriod(p)}
@@ -521,7 +521,7 @@ export default function ExecutiveSummary() {
                     boxShadow: trendPeriod === p ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   }}
                 >
-                  {p === 'quarter' ? 'Last quarter' : 'Last 30 days'}
+                  {p === 'quarter' ? 'Last quarter' : p === '30d' ? 'Last 30 days' : 'Last 14 days'}
                 </button>
               ))}
             </div>
