@@ -9,7 +9,13 @@ import { getDailyTarget } from '../lib/settings'
 import { useOperator } from '../context/OperatorContext'
 
 type Tab       = 'team' | 'agent' | 'events' | 'category'
-type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime'
+type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime' | 'custom'
+// yyyy-mm-dd strings, inclusive on both ends — matches <input type="date"> value format
+interface CustomRange { start: string; end: string }
+
+function toDateStr(d: Date) {
+  return d.toISOString().split('T')[0]
+}
 
 interface DataRow {
   issueType:    string
@@ -42,13 +48,23 @@ function cutoff(days: number) {
   const d = new Date(); d.setDate(d.getDate() - days); return d
 }
 
-function filterByRange(rows: DataRow[], range: TimeRange) {
+function filterByRange(rows: DataRow[], range: TimeRange, customRange?: CustomRange | null) {
+  if (range === 'custom' && customRange) {
+    const start = new Date(`${customRange.start}T00:00:00`)
+    const end   = new Date(`${customRange.end}T23:59:59.999`)
+    return rows.filter(r => { const d = rowDate(r); return d >= start && d <= end })
+  }
   if (range === 'allTime') return rows
   const c = cutoff(rangeDays(range))
   return rows.filter(r => rowDate(r) >= c)
 }
 
-function effectiveDays(rows: DataRow[], range: TimeRange): number {
+function effectiveDays(rows: DataRow[], range: TimeRange, customRange?: CustomRange | null): number {
+  if (range === 'custom' && customRange) {
+    const start = new Date(`${customRange.start}T00:00:00`)
+    const end   = new Date(`${customRange.end}T00:00:00`)
+    return Math.max(Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1, 1)
+  }
   if (range !== 'allTime') return rangeDays(range)
   if (rows.length === 0) return 30
   const oldest = rows.reduce((min, r) => {
@@ -57,6 +73,22 @@ function effectiveDays(rows: DataRow[], range: TimeRange): number {
   }, new Date())
   // +1 so the chart loop (which goes from days-1 down to 0) includes the oldest day
   return Math.max(Math.ceil((Date.now() - oldest.getTime()) / 86_400_000) + 1, 1)
+}
+
+// Anchors the day-by-day chart loop — "today" for every preset, but the custom
+// range's own end date so a past custom window doesn't render as if it ended today.
+function rangeEndDate(range: TimeRange, customRange: CustomRange | null): Date {
+  if (range === 'custom' && customRange) return new Date(`${customRange.end}T00:00:00`)
+  return new Date()
+}
+
+function rangeLabel(range: TimeRange, customRange: CustomRange | null): string {
+  if (range === 'custom' && customRange) {
+    return customRange.start === customRange.end
+      ? fmtShortDateStr(customRange.start)
+      : `${fmtShortDateStr(customRange.start)} – ${fmtShortDateStr(customRange.end)}`
+  }
+  return range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : range === 'lastQuarter' ? 'Last 90 Days' : 'All Time'
 }
 
 function pct(n: number, total: number) {
@@ -90,7 +122,7 @@ function normalizeCategory(raw: string): string {
   return CATEGORY_CANONICAL[key] ?? raw.trim()
 }
 
-function buildMetricTrendData(rows: DataRow[], days: number, issueType: string) {
+function buildMetricTrendData(rows: DataRow[], days: number, issueType: string, endDate: Date = new Date()) {
   const byDate = new Map<string, { total: number; count: number }>()
   for (const r of rows) {
     const label = rowDate(r).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -99,12 +131,12 @@ function buildMetricTrendData(rows: DataRow[], days: number, issueType: string) 
     entry.total++
     if (r.issueType === issueType) entry.count++
   }
-  const result: { date: string; pct: number; movingAvg: number }[] = []
+  const result: { date: string; fullDate: string; pct: number; movingAvg: number }[] = []
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i)
+    const d = new Date(endDate); d.setDate(d.getDate() - i)
     const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     const entry = byDate.get(label) ?? { total: 0, count: 0 }
-    result.push({ date: label, pct: entry.total > 0 ? parseFloat(((entry.count / entry.total) * 100).toFixed(1)) : 0, movingAvg: 0 })
+    result.push({ date: label, fullDate: toDateStr(d), pct: entry.total > 0 ? parseFloat(((entry.count / entry.total) * 100).toFixed(1)) : 0, movingAvg: 0 })
   }
   return result.map((pt, i) => {
     const win = result.slice(Math.max(0, i - 6), i + 1).filter(p => p.pct > 0)
@@ -113,18 +145,18 @@ function buildMetricTrendData(rows: DataRow[], days: number, issueType: string) 
   })
 }
 
-function buildChartData(rows: DataRow[], days: number, target: number) {
+function buildChartData(rows: DataRow[], days: number, target: number, endDate: Date = new Date()) {
   const byDate = new Map<string, Set<string>>()
   for (const r of rows) {
     const label = rowDate(r).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     if (!byDate.has(label)) byDate.set(label, new Set())
     byDate.get(label)!.add(r.ticketNumber)
   }
-  const result: { date: string; count: number; movingAvg: number; target: number }[] = []
+  const result: { date: string; fullDate: string; count: number; movingAvg: number; target: number }[] = []
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i)
+    const d = new Date(endDate); d.setDate(d.getDate() - i)
     const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    result.push({ date: label, count: byDate.get(label)?.size ?? 0, movingAvg: 0, target })
+    result.push({ date: label, fullDate: toDateStr(d), count: byDate.get(label)?.size ?? 0, movingAvg: 0, target })
   }
   return result.map((pt, i) => {
     const win = result.slice(Math.max(0, i - 6), i + 1)
@@ -330,11 +362,8 @@ const METRIC_CONFIG: Record<string, { color: string; goalDir: 'up' | 'down'; ref
   'No response':   { color: '#e53e3e', goalDir: 'down'               },
 }
 
-function toDateStr(d: Date) {
-  return d.toISOString().split('T')[0]
-}
-
-function rangeToDateParams(range: TimeRange) {
+function rangeToDateParams(range: TimeRange, customRange: CustomRange | null) {
+  if (range === 'custom' && customRange) return { start: customRange.start, end: customRange.end }
   const end   = new Date()
   const start = new Date()
   if      (range === 'last7')        start.setDate(start.getDate() - 7)
@@ -346,6 +375,7 @@ function rangeToDateParams(range: TimeRange) {
 
 function TeamView({ allRows }: { allRows: DataRow[] }) {
   const [range, setRange]             = useState<TimeRange>('last30')
+  const [customRange, setCustomRange] = useState<CustomRange | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
   const [zdAgents, setZdAgents]       = useState<{ email: string; count: number }[] | null>(null)
@@ -375,7 +405,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
       setZdLoading(true)
       setZdError(null)
       try {
-        const { start, end } = rangeToDateParams(range)
+        const { start, end } = rangeToDateParams(range, customRange)
         const { data, error } = await supabase.functions.invoke('zendesk-tickets', {
           body: { start_date: start, end_date: end, agent_emails: agentEmails },
         })
@@ -399,10 +429,11 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
     }
     fetchZd()
     return () => { cancelled = true }
-  }, [range, rosterEmailsKey])
+  }, [range, customRange, rosterEmailsKey])
 
-  const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
-  const days = useMemo(() => effectiveDays(rows, range), [rows, range])
+  const rows = useMemo(() => filterByRange(allRows, range, customRange), [allRows, range, customRange])
+  const days = useMemo(() => effectiveDays(rows, range, customRange), [rows, range, customRange])
+  const chartEndDate = useMemo(() => rangeEndDate(range, customRange), [range, customRange])
 
   const agents = useMemo(() => agentStats(rows, allRows, days), [rows, allRows, days])
 
@@ -431,18 +462,27 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
     return rows.filter(r => r.agentName === selectedAgent)
   }, [rows, selectedAgent])
 
-  const chartData = useMemo(() => buildChartData(agentRows, days, dailyTarget.max), [agentRows, days, dailyTarget.max])
+  const chartData = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate), [agentRows, days, dailyTarget.max, chartEndDate])
   const metricChartData = useMemo(
-    () => selectedMetric ? buildMetricTrendData(agentRows, days, selectedMetric) : [],
-    [agentRows, days, selectedMetric]
+    () => selectedMetric ? buildMetricTrendData(agentRows, days, selectedMetric, chartEndDate) : [],
+    [agentRows, days, selectedMetric, chartEndDate]
   )
+
+  // Clicking a node (day) on either chart pins the view to that single day —
+  // lets a lead drill straight into an agent's good/bad day.
+  function onChartNodeClick(e: any) {
+    const fullDate = e?.activePayload?.[0]?.payload?.fullDate
+    if (!fullDate) return
+    setCustomRange({ start: fullDate, end: fullDate })
+    setRange('custom')
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         {/* Row 1: Tickets | Responses | ZD Live Chat */}
         {[
-          { label: `Tickets (${range === 'last7' ? 'last 7 days' : range === 'last30' ? 'last 30 days' : range === 'lastQuarter' ? 'last 90 days' : 'all time'})`, value: kpis.tickets.toString() },
+          { label: `Tickets (${range === 'custom' ? rangeLabel(range, customRange) : rangeLabel(range, customRange).toLowerCase()})`, value: kpis.tickets.toString() },
           { label: 'Responses', value: kpis.issues.toString() },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
@@ -544,7 +584,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                   </span>
                 </div>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : range === 'lastQuarter' ? 'Last 90 Days' : 'All Time'} — click a metric card again to dismiss
+                  {rangeLabel(range, customRange)} — click a day on the chart to drill in, or a metric card again to dismiss
                 </p>
               </>
             ) : (
@@ -553,13 +593,13 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                   {selectedAgent ? `${selectedAgent} – Tickets Logged` : 'Team Performance'}
                 </p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
-                  {range === 'last7' ? 'Last 7 Days' : range === 'last30' ? 'Last 30 Days' : range === 'lastQuarter' ? 'Last 90 Days' : 'All Time'}
-                  {!selectedAgent && <span style={{ color: '#aaa' }}> — click a metric card above to see its trend</span>}
+                  {rangeLabel(range, customRange)}
+                  <span style={{ color: '#aaa' }}> — click a day on the chart to drill in{!selectedAgent ? ', or a metric card above to see its trend' : ''}</span>
                 </p>
               </>
             )}
           </div>
-          <TimeRangeFilter value={range} onChange={setRange} />
+          <TimeRangeFilter value={range} onChange={setRange} customRange={customRange} onCustomChange={setCustomRange} />
         </div>
 
         {selectedMetric ? (() => {
@@ -568,7 +608,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           const avgPct = data.filter(d => d.pct > 0).reduce((s, d) => s + d.pct, 0) / (data.filter(d => d.pct > 0).length || 1)
           return (
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={data} margin={{ top: 4, right: 28, left: -20, bottom: 0 }}>
+              <LineChart data={data} margin={{ top: 4, right: 28, left: -20, bottom: 0 }} onClick={onChartNodeClick} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                 <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(data.length / 6)} />
                 <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
@@ -589,7 +629,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           )
         })() : (
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
+            <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }} onClick={onChartNodeClick} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
               <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
               <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
@@ -677,10 +717,12 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
 // ── Per Agent ─────────────────────────────────────────────────────────────────
 
 function PerAgent({ allRows }: { allRows: DataRow[] }) {
-  const [range, setRange] = useState<TimeRange>('last30')
+  const [range, setRange]             = useState<TimeRange>('last30')
+  const [customRange, setCustomRange] = useState<CustomRange | null>(null)
   const dailyTarget = getDailyTarget()
-  const rows  = useMemo(() => filterByRange(allRows, range), [allRows, range])
-  const days  = useMemo(() => effectiveDays(rows, range), [rows, range])
+  const rows  = useMemo(() => filterByRange(allRows, range, customRange), [allRows, range, customRange])
+  const days  = useMemo(() => effectiveDays(rows, range, customRange), [rows, range, customRange])
+  const chartEndDate = useMemo(() => rangeEndDate(range, customRange), [range, customRange])
   const agents = useMemo(() => agentStats(rows, allRows, days), [rows, allRows, days])
 
   const [selected, setSelected] = useState('')
@@ -690,7 +732,16 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const agent = useMemo(() => agents.find(a => a.name === agentName) ?? agents[0], [agents, agentName])
 
   const agentRows  = useMemo(() => rows.filter(r => r.agentName === agentName), [rows, agentName])
-  const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max), [agentRows, days, dailyTarget.max])
+  const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate), [agentRows, days, dailyTarget.max, chartEndDate])
+
+  // Clicking a node (day) on the chart pins the view to that single day —
+  // lets a lead drill straight into this agent's good/bad day.
+  function onChartNodeClick(e: any) {
+    const fullDate = e?.activePayload?.[0]?.payload?.fullDate
+    if (!fullDate) return
+    setCustomRange({ start: fullDate, end: fullDate })
+    setRange('custom')
+  }
 
   if (!agent) return null
 
@@ -745,12 +796,15 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
           ))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 12 }}>
-          <TimeRangeFilter value={range} onChange={setRange} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+            {rangeLabel(range, customRange)} — click a day on the chart to pin the range to it
+          </p>
+          <TimeRangeFilter value={range} onChange={setRange} customRange={customRange} onCustomChange={setCustomRange} />
         </div>
 
         <ResponsiveContainer width="100%" height={180}>
-          <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }} onClick={onChartNodeClick} style={{ cursor: 'pointer' }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
             <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
             <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
@@ -881,12 +935,13 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
 // ── Category Performance ──────────────────────────────────────────────────────
 
 function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
-  const [range, setRange]       = useState<TimeRange>('last7')
+  const [range, setRange]             = useState<TimeRange>('last7')
+  const [customRange, setCustomRange] = useState<CustomRange | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showInfo, setShowInfo] = useState(false)
 
-  const rows = useMemo(() => filterByRange(allRows, range), [allRows, range])
-  const days = useMemo(() => effectiveDays(rows, range), [rows, range])
+  const rows = useMemo(() => filterByRange(allRows, range, customRange), [allRows, range, customRange])
+  const days = useMemo(() => effectiveDays(rows, range, customRange), [rows, range, customRange])
   const cats = useMemo(() => categoryStats(rows), [rows])
 
   const ready    = cats.filter(c => c.status === 'ready').length
@@ -941,7 +996,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
               ⓘ
             </button>
           </div>
-          <TimeRangeFilter value={range} onChange={setRange} />
+          <TimeRangeFilter value={range} onChange={setRange} customRange={customRange} onCustomChange={setCustomRange} />
         </div>
 
         {showInfo && (
@@ -1137,27 +1192,102 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
-function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: TimeRange) => void }) {
+function fmtShortDateStr(s: string) {
+  return new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function TimeRangeFilter({ value, onChange, customRange, onCustomChange }: {
+  value: TimeRange
+  onChange: (v: TimeRange) => void
+  customRange: CustomRange | null
+  onCustomChange: (r: CustomRange) => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [draftStart, setDraftStart] = useState(customRange?.start ?? toDateStr(new Date()))
+  const [draftEnd,   setDraftEnd]   = useState(customRange?.end   ?? toDateStr(new Date()))
+
   const opts: { id: TimeRange; label: string }[] = [
     { id: 'last7',       label: 'Last 7'       },
     { id: 'last30',      label: 'Last 30'      },
     { id: 'lastQuarter', label: 'Last Quarter' },
     { id: 'allTime',     label: 'All Time'     },
   ]
+
+  function openPicker() {
+    setDraftStart(customRange?.start ?? toDateStr(new Date()))
+    setDraftEnd(customRange?.end ?? toDateStr(new Date()))
+    setPickerOpen(o => !o)
+  }
+
+  function apply() {
+    if (!draftStart || !draftEnd) return
+    const start = draftStart <= draftEnd ? draftStart : draftEnd
+    const end   = draftStart <= draftEnd ? draftEnd : draftStart
+    onCustomChange({ start, end })
+    onChange('custom')
+    setPickerOpen(false)
+  }
+
   return (
-    <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
-      {opts.map(o => (
-        <button key={o.id} onClick={() => onChange(o.id)} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: value === o.id ? 500 : 400,
-          padding: '5px 12px', borderRadius: 6,
-          background: value === o.id ? '#fff' : 'transparent',
-          color: value === o.id ? '#000' : '#58595B',
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
+        {opts.map(o => (
+          <button key={o.id} onClick={() => { onChange(o.id); setPickerOpen(false) }} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: value === o.id ? 500 : 400,
+            padding: '5px 12px', borderRadius: 6,
+            background: value === o.id ? '#fff' : 'transparent',
+            color: value === o.id ? '#000' : '#58595B',
+            border: 'none', transition: 'all 0.15s', cursor: 'pointer',
+            boxShadow: value === o.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+          }}>
+            {o.label}
+          </button>
+        ))}
+        <button onClick={openPicker} style={{
+          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: value === 'custom' ? 500 : 400,
+          padding: '5px 12px', borderRadius: 6, whiteSpace: 'nowrap',
+          background: value === 'custom' || pickerOpen ? '#fff' : 'transparent',
+          color: value === 'custom' ? '#9B59D0' : '#58595B',
           border: 'none', transition: 'all 0.15s', cursor: 'pointer',
-          boxShadow: value === o.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+          boxShadow: value === 'custom' || pickerOpen ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
         }}>
-          {o.label}
+          {value === 'custom' && customRange ? `${fmtShortDateStr(customRange.start)} – ${fmtShortDateStr(customRange.end)}` : 'Custom'}
         </button>
-      ))}
+      </div>
+
+      {pickerOpen && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+          background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 14,
+          display: 'flex', flexDirection: 'column', gap: 10, minWidth: 230,
+        }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'block', marginBottom: 4 }}>From</label>
+              <input type="date" value={draftStart} max={draftEnd} onChange={e => setDraftStart(e.target.value)} style={{
+                width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 8px',
+                borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box',
+              }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'block', marginBottom: 4 }}>To</label>
+              <input type="date" value={draftEnd} min={draftStart} onChange={e => setDraftEnd(e.target.value)} style={{
+                width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 8px',
+                borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box',
+              }} />
+            </div>
+          </div>
+          <button onClick={apply} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+            background: '#000', color: '#fff', transition: 'opacity 0.15s',
+          }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+          >Apply</button>
+        </div>
+      )}
     </div>
   )
 }
