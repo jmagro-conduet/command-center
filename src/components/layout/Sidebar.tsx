@@ -209,8 +209,10 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
         )}
       </div>
 
-      {/* Nav items */}
-      <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Nav items — scrolls independently so the header/footer stay pinned
+          when the list is taller than the viewport (short laptop windows,
+          browser zoom, or roles with extra items like SuperAdmin's Eval Reports). */}
+      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {navItems.map(item => {
           const active = activePage === item.id
           return (
