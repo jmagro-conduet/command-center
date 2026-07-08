@@ -1,9 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
 
 // ── Types ───────────────────────────────────────────────────────────────────
+interface EvidenceFile {
+  url: string
+  name: string
+  type: string
+  size: number
+}
+
 interface BugReport {
   id: string
   ticket_id: string | null
@@ -19,6 +26,7 @@ interface BugReport {
   status: 'open' | 'investigating' | 'resolved' | 'wont_fix'
   reported_by: string | null
   created_at: string
+  evidence: EvidenceFile[]
 }
 
 interface FormState {
@@ -45,6 +53,10 @@ const FAILING_COMPONENTS = [
   { value: 'verification_kyc',    label: 'Verification / KYC' },
   { value: 'other',               label: 'Other' },
 ]
+
+const MAX_EVIDENCE_FILES = 5
+const MAX_EVIDENCE_SIZE  = 25 * 1024 * 1024 // 25MB per file
+const EVIDENCE_ACCEPT    = 'image/*,video/*,.pdf'
 
 const SEVERITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   low:      { label: 'Low',      color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
@@ -107,6 +119,14 @@ function failLabel(val: string | null) {
   return FAILING_COMPONENTS.find(f => f.value === val)?.label ?? val ?? '—'
 }
 
+function fmtBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
+function isImageType(type: string) { return type.startsWith('image/') }
+
 // ── Copy formatter ───────────────────────────────────────────────────────────
 function buildCopyText(bug: BugReport): string {
   const lines: string[] = [
@@ -122,6 +142,7 @@ function buildCopyText(bug: BugReport): string {
   lines.push('Actual Outcome:', bug.actual_outcome, '')
   if (bug.failing_component)  lines.push(`Failing Component: ${failLabel(bug.failing_component)}`, '')
   if (bug.additional_context) lines.push('Additional Context:', bug.additional_context, '')
+  if (bug.evidence?.length)   lines.push('Evidence:', ...bug.evidence.map(e => `- ${e.name}: ${e.url}`), '')
   return lines.filter(l => l !== null).join('\n').trim()
 }
 
@@ -153,6 +174,12 @@ export default function BugTracker() {
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [copied, setCopied]       = useState<string | null>(null)
 
+  // Evidence upload (Report a Bug tab)
+  const [evidence, setEvidence]           = useState<EvidenceFile[]>([])
+  const [evidenceUploading, setEvidenceUploading] = useState(false)
+  const [evidenceError, setEvidenceError] = useState('')
+  const evidenceInputRef = useRef<HTMLInputElement>(null)
+
   // Filters (admin tracker tab)
   const [filterStatus,   setFilterStatus]   = useState<string>('all')
   const [filterSeverity, setFilterSeverity] = useState<string>('all')
@@ -173,6 +200,33 @@ export default function BugTracker() {
     setLoading(false)
   }
 
+  async function handleEvidenceSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (evidenceInputRef.current) evidenceInputRef.current.value = ''
+    if (files.length === 0) return
+
+    setEvidenceError('')
+    const room = MAX_EVIDENCE_FILES - evidence.length
+    if (room <= 0) { setEvidenceError(`Up to ${MAX_EVIDENCE_FILES} files per report`); return }
+    const toUpload = files.slice(0, room)
+    const oversize = toUpload.find(f => f.size > MAX_EVIDENCE_SIZE)
+    if (oversize) { setEvidenceError(`"${oversize.name}" is over the 25MB limit`); return }
+
+    setEvidenceUploading(true)
+    for (const file of toUpload) {
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const { error } = await supabase.storage.from('bug-evidence').upload(path, file, { upsert: false, contentType: file.type })
+      if (error) { setEvidenceError(error.message); continue }
+      const { data: urlData } = supabase.storage.from('bug-evidence').getPublicUrl(path)
+      setEvidence(prev => [...prev, { url: urlData.publicUrl, name: file.name, type: file.type, size: file.size }])
+    }
+    setEvidenceUploading(false)
+  }
+
+  function removeEvidence(idx: number) {
+    setEvidence(prev => prev.filter((_, i) => i !== idx))
+  }
+
   async function submitBug() {
     if (!form.mode || !form.severity || !form.expectedOutcome.trim() || !form.actualOutcome.trim()) return
     setSubmitting(true)
@@ -190,9 +244,12 @@ export default function BugTracker() {
       severity:           form.severity,
       status:             'open',
       reported_by:        user?.email ?? null,
+      evidence,
     })
     await fetchBugs()
     setForm(EMPTY_FORM)
+    setEvidence([])
+    setEvidenceError('')
     setSuccess(true)
     setSubmitting(false)
     setTimeout(() => setSuccess(false), 3000)
@@ -211,13 +268,13 @@ export default function BugTracker() {
 
   // Export CSV (admin)
   function exportCSV() {
-    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket ID', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Additional Context', 'Reported By', 'Date']
+    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket ID', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Additional Context', 'Evidence', 'Reported By', 'Date']
     const rows = filteredBugs.map(b => [
       shortId(b.id), MODE_CONFIG[b.mode]?.label ?? b.mode, b.severity, b.status,
       b.ticket_id ?? '', b.ticket_number ?? '', failLabel(b.failing_component),
       b.expected_outcome, b.actual_outcome,
       b.player_input ?? '', b.suggested_response ?? '',
-      b.additional_context ?? '', b.reported_by ?? '', fmtDate(b.created_at),
+      b.additional_context ?? '', (b.evidence ?? []).map(e => e.url).join(' '), b.reported_by ?? '', fmtDate(b.created_at),
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
     const csv = [headers.join(','), ...rows].join('\n')
     const a = document.createElement('a')
@@ -403,21 +460,95 @@ export default function BugTracker() {
             />
           </div>
 
+          {/* Evidence upload */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={labelStyle}>
+              Evidence <span style={{ fontWeight: 400, color: '#aaa' }}>(screenshots, screen recordings, PDFs — up to {MAX_EVIDENCE_FILES})</span>
+            </label>
+
+            {evidence.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                {evidence.map((ev, idx) => (
+                  <div key={ev.url} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    border: '1.5px solid rgba(22,101,52,0.3)', borderRadius: 10,
+                    padding: '8px 12px', background: 'rgba(22,101,52,0.04)',
+                  }}>
+                    {isImageType(ev.type) ? (
+                      <img src={ev.url} alt={ev.name} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(22,101,52,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                      </div>
+                    )}
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ev.name}
+                    </span>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(22,101,52,0.6)', flexShrink: 0 }}>{fmtBytes(ev.size)}</span>
+                    <button onClick={() => removeEvidence(idx)} style={{ color: '#aaa', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }} title="Remove">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {evidence.length < MAX_EVIDENCE_FILES && (
+              <div
+                onClick={() => !evidenceUploading && evidenceInputRef.current?.click()}
+                style={{
+                  border: '1.5px dashed rgba(206,164,255,0.6)', borderRadius: 10,
+                  padding: '18px 20px', background: 'rgba(206,164,255,0.04)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  cursor: evidenceUploading ? 'default' : 'pointer', transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (!evidenceUploading) e.currentTarget.style.background = 'rgba(206,164,255,0.09)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(206,164,255,0.04)' }}
+              >
+                {evidenceUploading ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', margin: 0 }}>Uploading…</p>
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#CEA4FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+                      <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                    </svg>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', margin: 0 }}>Click to attach files</p>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', margin: 0 }}>Images, video, or PDF — max 25MB each</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {evidenceError && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 6 }}>{evidenceError}</p>
+            )}
+
+            <input
+              ref={evidenceInputRef}
+              type="file"
+              accept={EVIDENCE_ACCEPT}
+              multiple
+              onChange={handleEvidenceSelect}
+              style={{ display: 'none' }}
+            />
+          </div>
+
           {/* Submit */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={submitBug}
-              disabled={!formValid || submitting}
+              disabled={!formValid || submitting || evidenceUploading}
               style={{
                 fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
-                padding: '10px 24px', borderRadius: 10, border: 'none', cursor: formValid && !submitting ? 'pointer' : 'not-allowed',
-                background: formValid && !submitting ? '#000' : 'rgba(0,0,0,0.25)',
+                padding: '10px 24px', borderRadius: 10, border: 'none', cursor: formValid && !submitting && !evidenceUploading ? 'pointer' : 'not-allowed',
+                background: formValid && !submitting && !evidenceUploading ? '#000' : 'rgba(0,0,0,0.25)',
                 color: '#fff', transition: 'opacity 0.15s',
               }}
-              onMouseEnter={e => { if (formValid && !submitting) e.currentTarget.style.opacity = '0.8' }}
+              onMouseEnter={e => { if (formValid && !submitting && !evidenceUploading) e.currentTarget.style.opacity = '0.8' }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
             >
-              {submitting ? 'Submitting…' : 'Submit Bug Report'}
+              {submitting ? 'Submitting…' : evidenceUploading ? 'Uploading evidence…' : 'Submit Bug Report'}
             </button>
             {success && (
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
@@ -454,6 +585,9 @@ export default function BugTracker() {
       )}
 
       {/* ── Tracker tab (admin only) ─────────────────────────────────────── */}
+      {activeTab === 'tracker' && isAdmin && (
+        <BugThemeDistribution bugs={bugs} />
+      )}
       {activeTab === 'tracker' && isAdmin && (
         <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           {/* Toolbar */}
@@ -498,6 +632,42 @@ export default function BugTracker() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Recurring themes ─────────────────────────────────────────────────────────
+// Reuses "Failing component" as the theme axis — surfaces which parts of gameLM
+// keep recurring across bug submissions, same pattern as ReportCard's Conversation Themes.
+function BugThemeDistribution({ bugs }: { bugs: BugReport[] }) {
+  const tagged = bugs.filter(b => b.failing_component)
+  if (tagged.length === 0) return null
+
+  const counts = tagged.reduce((acc, b) => {
+    const label = failLabel(b.failing_component)
+    acc[label] = (acc[label] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
+  const max = sorted[0]?.[1] ?? 1
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px' }}>
+      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 4 }}>Recurring Themes</p>
+      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+        Failing component across all {tagged.length} tagged reports — the biggest bar is where gameLM keeps breaking
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {sorted.map(([theme, count]) => (
+          <div key={theme} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 190, flexShrink: 0 }}>{theme}</span>
+            <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+              <div style={{ width: `${(count / max) * 100}%`, height: '100%', borderRadius: 100, background: '#9B59D0', transition: 'width 0.3s' }} />
+            </div>
+            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -615,6 +785,33 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
                   <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(0,0,0,0.03)' }}>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Additional Context</p>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{bug.additional_context}</p>
+                  </div>
+                )}
+
+                {bug.evidence?.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+                      Evidence ({bug.evidence.length})
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {bug.evidence.map(ev => (
+                        <a key={ev.url} href={ev.url} target="_blank" rel="noopener noreferrer" style={{
+                          display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
+                          border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 8, padding: '6px 10px', background: '#fff',
+                        }}>
+                          {isImageType(ev.type) ? (
+                            <img src={ev.url} alt={ev.name} style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(155,89,208,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9B59D0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                              </svg>
+                            </div>
+                          )}
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</span>
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
 
