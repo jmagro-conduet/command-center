@@ -29,6 +29,48 @@ interface BugReport {
   evidence: EvidenceFile[]
 }
 
+interface TriageBrief {
+  bug_id: string
+  ticket_number: string | null
+  mode: string
+  severity: string
+  failing_component: string | null
+  status: string
+  description?: string
+  steps_to_reproduce?: string
+  suggested_fix?: string
+  expected_behavior?: string
+  actual_behavior?: string
+  impact?: string
+  error?: string
+}
+
+interface TriageTheme {
+  title: string
+  explanation: string
+  bugs: { bug_id: string; ticket_number: string | null }[]
+}
+
+interface TriageReport {
+  id: string | null
+  generated_at: string
+  generated_by: string | null
+  bug_count: number
+  briefs: TriageBrief[]
+  themes: TriageTheme[]
+  usage: { input_tokens: number; output_tokens: number; calls: number } | null
+  meta: { total_open: number; analyzed: number; truncated: boolean }
+  isHistorical?: boolean
+}
+
+interface TriageHistoryEntry {
+  id: string
+  generated_at: string
+  generated_by: string | null
+  bug_count: number
+  meta: { total_open: number; analyzed: number; truncated: boolean } | null
+}
+
 interface FormState {
   mode: 'copilot' | 'full_auto' | ''
   severity: 'low' | 'medium' | 'high' | 'critical' | ''
@@ -165,7 +207,7 @@ export default function BugTracker() {
   const { selectedOperator } = useOperator()
   const isAdmin = user?.role === 'admin'
 
-  const [activeTab, setActiveTab] = useState<'log' | 'tracker'>('log')
+  const [activeTab, setActiveTab] = useState<'log' | 'tracker' | 'report'>('log')
   const [bugs, setBugs]           = useState<BugReport[]>([])
   const [loading, setLoading]     = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -185,7 +227,101 @@ export default function BugTracker() {
   const [filterSeverity, setFilterSeverity] = useState<string>('all')
   const [filterMode,     setFilterMode]     = useState<string>('all')
 
+  // Engineering Report (admin-only tab)
+  const [triageReport, setTriageReport]           = useState<TriageReport | null>(null)
+  const [reportLoading, setReportLoading]         = useState(false)
+  const [reportError, setReportError]             = useState('')
+  const [reportHistory, setReportHistory]         = useState<TriageHistoryEntry[] | null>(null)
+  const [reportHistoryOpen, setReportHistoryOpen] = useState(false)
+  const [reportHistoryLoading, setReportHistoryLoading] = useState(false)
+  const [reportCopied, setReportCopied]           = useState<string | null>(null)
+
   useEffect(() => { fetchBugs() }, [selectedOperator?.id, user?.email])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    loadLatestReport()
+    setReportHistoryOpen(false)
+    setReportHistory(null)
+    setReportError('')
+  }, [selectedOperator?.id, isAdmin])
+
+  async function loadLatestReport() {
+    if (!selectedOperator?.id) { setTriageReport(null); return }
+    const { data } = await supabase
+      .from('bug_triage_reports')
+      .select('*')
+      .eq('operator_id', selectedOperator.id)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+    const row = data?.[0]
+    setTriageReport(row ? { ...(row as any), isHistorical: false } : null)
+  }
+
+  async function generateReport() {
+    if (!selectedOperator?.id) return
+    setReportLoading(true)
+    setReportError('')
+    const { data, error } = await supabase.functions.invoke('bug-triage-report', {
+      body: { operator_id: selectedOperator.id, generated_by: user?.name ?? user?.email ?? null },
+    })
+    if (error || data?.error) {
+      setReportError(data?.error ?? error?.message ?? 'Report generation failed.')
+      setReportLoading(false)
+      return
+    }
+    setTriageReport({ ...data, isHistorical: false })
+    setReportHistory(null)
+    setReportHistoryOpen(false)
+    setReportLoading(false)
+  }
+
+  async function toggleReportHistory() {
+    if (reportHistoryOpen) { setReportHistoryOpen(false); return }
+    setReportHistoryOpen(true)
+    if (reportHistory || !selectedOperator?.id) return
+    setReportHistoryLoading(true)
+    const { data } = await supabase
+      .from('bug_triage_reports')
+      .select('id,generated_at,generated_by,bug_count,meta')
+      .eq('operator_id', selectedOperator.id)
+      .order('generated_at', { ascending: false })
+      .limit(30)
+    setReportHistory((data as any) ?? [])
+    setReportHistoryLoading(false)
+  }
+
+  async function viewHistoricalReport(id: string) {
+    const { data } = await supabase.from('bug_triage_reports').select('*').eq('id', id).single()
+    if (!data) return
+    setTriageReport({ ...(data as any), isHistorical: true })
+    setReportHistoryOpen(false)
+  }
+
+  async function backToLatestReport() {
+    await loadLatestReport()
+    setReportHistoryOpen(false)
+  }
+
+  function buildBriefCopyText(b: TriageBrief): string {
+    if (b.error) return `Bug ${shortId(b.bug_id)} — brief generation failed: ${b.error}`
+    return [
+      `Bug ${shortId(b.bug_id)}${b.ticket_number ? ` | Ticket #${b.ticket_number}` : ''} | ${b.severity.toUpperCase()}`,
+      '',
+      'Description:', b.description ?? '—', '',
+      'Steps to Reproduce:', b.steps_to_reproduce ?? '—', '',
+      'Expected Behavior:', b.expected_behavior ?? '—', '',
+      'Actual Behavior:', b.actual_behavior ?? '—', '',
+      'Suggested Fix:', b.suggested_fix ?? '—', '',
+      'Impact:', b.impact ?? '—',
+    ].join('\n').trim()
+  }
+
+  function copyBrief(b: TriageBrief) {
+    navigator.clipboard.writeText(buildBriefCopyText(b))
+    setReportCopied(b.bug_id)
+    setTimeout(() => setReportCopied(null), 2000)
+  }
 
   // Fetches every bug for the current operator regardless of role — agents/QA get
   // view-only access to the full log (not just their own reports) so they can
@@ -305,6 +441,7 @@ export default function BugTracker() {
   const tabs = [
     { id: 'log' as const, label: 'Report a Bug' },
     { id: 'tracker' as const, label: `Bug Tracker${bugs.length > 0 ? ` (${bugs.length})` : ''}` },
+    ...(isAdmin ? [{ id: 'report' as const, label: 'Engineering Report' }] : []),
   ]
 
   return (
@@ -643,6 +780,186 @@ export default function BugTracker() {
             </div>
           ) : (
             <BugList bugs={filteredBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} onStatusChange={isAdmin ? updateStatus : undefined} />
+          )}
+        </div>
+      )}
+
+      {/* ── Engineering Report tab (admin only) ───────────────────────────── */}
+      {activeTab === 'report' && isAdmin && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>Engineering Report</p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6, maxWidth: 620 }}>
+                  AI-drafted resolution briefs for every open bug — description, steps to reproduce, suggested fix, expected/actual behavior, and impact —
+                  plus a cross-cutting pass looking for shared root causes across bugs tagged under different components.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                {triageReport?.generated_at && (
+                  <button
+                    onClick={toggleReportHistory}
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B',
+                      padding: '8px 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)',
+                      background: reportHistoryOpen ? 'rgba(0,0,0,0.04)' : '#fff', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >{reportHistoryOpen ? 'Hide history' : 'History'}</button>
+                )}
+                <button
+                  onClick={generateReport}
+                  disabled={reportLoading || !selectedOperator?.id}
+                  style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+                    padding: '10px 20px', borderRadius: 10, border: 'none', cursor: reportLoading ? 'not-allowed' : 'pointer',
+                    background: reportLoading ? 'rgba(0,0,0,0.25)' : '#000', color: '#fff', transition: 'opacity 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!reportLoading) e.currentTarget.style.opacity = '0.8' }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                >{reportLoading ? 'Analyzing…' : triageReport ? 'Regenerate' : 'Generate Report'}</button>
+              </div>
+            </div>
+
+            {reportHistoryOpen && (
+              <div style={{ marginTop: 14, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 14 }}>
+                {reportHistoryLoading ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading history…</p>
+                ) : !reportHistory?.length ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No past reports yet.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {reportHistory.map(h => {
+                      const isCurrent = triageReport?.id === h.id
+                      return (
+                        <button
+                          key={h.id}
+                          onClick={() => !isCurrent && viewHistoricalReport(h.id)}
+                          style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
+                            padding: '8px 10px', borderRadius: 8, border: 'none', cursor: isCurrent ? 'default' : 'pointer',
+                            background: isCurrent ? 'rgba(206,164,255,0.1)' : 'transparent', transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                          onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent' }}
+                        >
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                            {new Date(h.generated_at).toLocaleString()}{isCurrent ? ' (viewing)' : ''}
+                          </span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                            {h.bug_count} bug{h.bug_count === 1 ? '' : 's'}{h.generated_by ? ` · ${h.generated_by}` : ''}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {reportError && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginTop: 12 }}>{reportError}</p>
+            )}
+
+            {triageReport && !reportError && (
+              <div style={{ marginTop: 14, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                  {triageReport.isHistorical ? 'Generated' : 'Last generated'} {new Date(triageReport.generated_at).toLocaleString()}
+                  {triageReport.generated_by ? ` · by ${triageReport.generated_by}` : ''}
+                </p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                  Analyzed {triageReport.meta?.analyzed ?? triageReport.bug_count} open/investigating bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'}
+                  {triageReport.meta?.truncated ? ` (of ${triageReport.meta.total_open} total — highest severity + most recent kept)` : ''}
+                </p>
+                {triageReport.isHistorical && (
+                  <button
+                    onClick={backToLatestReport}
+                    style={{
+                      alignSelf: 'flex-start', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#9B59D0',
+                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    }}
+                  >← Back to latest</button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {reportLoading && (
+            <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
+                Reading every open bug (and any attached evidence) and drafting resolution briefs — this can take a minute for a large backlog…
+              </p>
+            </div>
+          )}
+
+          {triageReport && !reportLoading && (
+            <>
+              {triageReport.themes.length > 0 && (
+                <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
+                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>Root Cause Themes</p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+                    Bugs that likely share one deeper cause, even where they were tagged under different components
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {triageReport.themes.map((t, i) => (
+                      <div key={i} style={{ borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)', padding: '12px 14px' }}>
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>{t.title}</p>
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {t.bugs.map(b => (
+                            <span key={b.bug_id} style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.1)', padding: '2px 8px', borderRadius: 100 }}>
+                              {b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 14 }}>
+                  Resolution Briefs ({triageReport.briefs.length})
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {triageReport.briefs.map(b => (
+                    <div key={b.bug_id} style={{ borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 600 }}>{shortId(b.bug_id)}</span>
+                        {b.ticket_number && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>#{b.ticket_number}</span>}
+                        <SeverityBadge s={b.severity} />
+                        <ModeBadge m={b.mode} />
+                        {b.failing_component && (
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{failLabel(b.failing_component)}</span>
+                        )}
+                        <button
+                          onClick={() => copyBrief(b)}
+                          style={{
+                            marginLeft: 'auto', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                            padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
+                            color: reportCopied === b.bug_id ? '#166534' : '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                          }}
+                        >{reportCopied === b.bug_id ? '✓ Copied' : 'Copy for Engineering'}</button>
+                      </div>
+
+                      {b.error ? (
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>Brief generation failed: {b.error}</p>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                          <DetailBox label="Description" value={b.description ?? '—'} />
+                          <DetailBox label="Steps to Reproduce" value={b.steps_to_reproduce ?? '—'} />
+                          <DetailBox label="Expected Behavior" value={b.expected_behavior ?? '—'} />
+                          <DetailBox label="Actual Behavior" value={b.actual_behavior ?? '—'} highlight />
+                          <DetailBox label="Suggested Fix" value={b.suggested_fix ?? '—'} />
+                          <DetailBox label="Impact" value={b.impact ?? '—'} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
