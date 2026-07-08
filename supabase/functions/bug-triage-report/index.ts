@@ -177,7 +177,7 @@ Deno.serve(async (req: Request) => {
         severity: bug.severity,
         failing_component: bug.failing_component,
         status: bug.status,
-        ...(result.data ?? { error: result.error ?? 'Generation failed' }),
+        ...(result.data ?? { error: [result.error, result.body].filter(Boolean).join(' — ') || 'Generation failed' }),
       }
     })
 
@@ -210,8 +210,12 @@ Deno.serve(async (req: Request) => {
       return { title: t.title, explanation: t.explanation, bugs: related }
     })
 
+    const themesError = !themesResult.data
+      ? [themesResult.error, themesResult.body].filter(Boolean).join(' — ') || 'Theme generation failed'
+      : null
+
     const generated_at = new Date().toISOString()
-    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated }
+    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated, themes_error: themesError }
     const usage = { input_tokens: totalInput, output_tokens: totalOutput, calls }
 
     // Best-effort persistence — a save failure shouldn't lose the report the admin
