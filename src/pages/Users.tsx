@@ -390,6 +390,7 @@ export default function Users() {
       role:          addRole,
       operator_team: addTeam || null,
       operator_id:   addOperatorId || null,
+      org_team_id:   null,
       created_at:    data.user.created_at,
     }
 
