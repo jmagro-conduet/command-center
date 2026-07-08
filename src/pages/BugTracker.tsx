@@ -187,6 +187,11 @@ export default function BugTracker() {
 
   useEffect(() => { fetchBugs() }, [selectedOperator?.id, user?.email])
 
+  // Fetches every bug for the current operator regardless of role — agents/QA get
+  // view-only access to the full log (not just their own reports) so they can
+  // cross-reference status and stay bought into logging accurately. RLS already
+  // permits this (authenticated_manage_bug_reports is USING(true)); only the
+  // operator scope below narrows it, same as every other role.
   async function fetchBugs() {
     setLoading(true)
     let q = supabase
@@ -194,7 +199,6 @@ export default function BugTracker() {
       .select('*')
       .order('created_at', { ascending: false })
     if (selectedOperator?.id) q = q.eq('operator_id', selectedOperator.id)
-    if (!isAdmin) q = q.eq('reported_by', user?.email ?? '')
     const { data } = await q
     setBugs((data as BugReport[]) ?? [])
     setLoading(false)
@@ -290,12 +294,17 @@ export default function BugTracker() {
     return true
   })
 
+  const myBugs = bugs.filter(b => b.reported_by === user?.email)
+
   const formValid = form.mode && form.severity && form.expectedOutcome.trim() && form.actualOutcome.trim()
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
+  // Bug Tracker is visible to every role now — agents/QA get view-only access
+  // so they can cross-reference the status of what they've logged; admin keeps
+  // the extra filters, CSV export, and status-change controls.
   const tabs = [
     { id: 'log' as const, label: 'Report a Bug' },
-    ...(isAdmin ? [{ id: 'tracker' as const, label: `Bug Tracker${bugs.length > 0 ? ` (${bugs.length})` : ''}` }] : []),
+    { id: 'tracker' as const, label: `Bug Tracker${bugs.length > 0 ? ` (${bugs.length})` : ''}` },
   ]
 
   return (
@@ -574,25 +583,25 @@ export default function BugTracker() {
             <div style={{ padding: 32, textAlign: 'center' }}>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
             </div>
-          ) : bugs.length === 0 ? (
+          ) : myBugs.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center' }}>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No bug reports submitted yet</p>
             </div>
           ) : (
-            <BugList bugs={bugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} isAdmin={false} />
+            <BugList bugs={myBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} />
           )}
         </div>
       )}
 
-      {/* ── Tracker tab (admin only) ─────────────────────────────────────── */}
-      {activeTab === 'tracker' && isAdmin && (
+      {/* ── Tracker tab (everyone — admin can filter/export/update status, agents & QA get view-only) ── */}
+      {activeTab === 'tracker' && (
         <BugThemeDistribution bugs={bugs} />
       )}
-      {activeTab === 'tracker' && isAdmin && (
+      {activeTab === 'tracker' && (
         <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           {/* Toolbar */}
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {/* Status filter */}
               <FilterSelect value={filterStatus} onChange={setFilterStatus} options={[
                 { value: 'all', label: 'All statuses' },
@@ -606,17 +615,22 @@ export default function BugTracker() {
                 { value: 'all', label: 'All modes' },
                 ...Object.entries(MODE_CONFIG).map(([v, c]) => ({ value: v, label: c.label })),
               ]} />
+              {!isAdmin && (
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>View only</span>
+              )}
             </div>
-            <button
-              onClick={exportCSV}
-              style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                padding: '6px 14px', borderRadius: 8, border: 'none',
-                background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            >Export CSV</button>
+            {isAdmin && (
+              <button
+                onClick={exportCSV}
+                style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  padding: '6px 14px', borderRadius: 8, border: 'none',
+                  background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >Export CSV</button>
+            )}
           </div>
 
           {loading ? (
@@ -628,7 +642,7 @@ export default function BugTracker() {
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No bug reports match the current filters</p>
             </div>
           ) : (
-            <BugList bugs={filteredBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} isAdmin onStatusChange={updateStatus} />
+            <BugList bugs={filteredBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} onStatusChange={isAdmin ? updateStatus : undefined} />
           )}
         </div>
       )}
@@ -694,19 +708,20 @@ function FilterSelect({ value, onChange, options }: {
 }
 
 // ── Bug list ──────────────────────────────────────────────────────────────────
-function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusChange }: {
+// Columns are the same for every viewer (agents/QA get view-only access to the
+// full log so they can cross-reference status) — onStatusChange being present
+// is the only thing that turns on edit affordances, and it's only ever passed
+// in for admins.
+function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange }: {
   bugs: BugReport[]
   expanded: string | null
   onExpand: (id: string | null) => void
   onCopy: (bug: BugReport) => void
   copied: string | null
-  isAdmin: boolean
   onStatusChange?: (id: string, status: string) => void
 }) {
   // Table header
-  const cols = isAdmin
-    ? '80px 100px 90px 100px 1fr 130px 140px 100px 90px'
-    : '80px 100px 90px 1fr 90px'
+  const cols = '80px 100px 90px 100px 1fr 130px 140px 100px 90px'
 
   return (
     <>
@@ -715,10 +730,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
         padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)',
         background: 'rgba(0,0,0,0.01)',
       }}>
-        {(isAdmin
-          ? ['ID', 'Mode', 'Severity', 'Status', 'Failing Component', 'Reported By', 'Ticket ID', 'Ticket #', 'Date']
-          : ['ID', 'Mode', 'Severity', 'Failing Component', 'Date']
-        ).map(h => (
+        {['ID', 'Mode', 'Severity', 'Status', 'Failing Component', 'Reported By', 'Ticket ID', 'Ticket #', 'Date'].map(h => (
           <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
         ))}
       </div>
@@ -745,23 +757,19 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
               </span>
               <ModeBadge m={bug.mode} />
               <SeverityBadge s={bug.severity} />
-              {isAdmin && <StatusBadge s={bug.status} />}
+              <StatusBadge s={bug.status} />
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {failLabel(bug.failing_component)}
               </span>
-              {isAdmin && (
-                <>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {bug.reported_by ?? '—'}
-                  </span>
-                  <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {bug.ticket_id ?? '—'}
-                  </span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
-                    {bug.ticket_number ? `#${bug.ticket_number}` : '—'}
-                  </span>
-                </>
-              )}
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {bug.reported_by ?? '—'}
+              </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {bug.ticket_id ?? '—'}
+              </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                {bug.ticket_number ? `#${bug.ticket_number}` : '—'}
+              </span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
                 {fmtDate(bug.created_at)}
               </span>
@@ -830,8 +838,8 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, isAdmin, onStatusCh
                     {copied === bug.id ? '✓ Copied' : 'Copy for Engineering'}
                   </button>
 
-                  {/* Status update (admin only) */}
-                  {isAdmin && onStatusChange && (
+                  {/* Status update (admin only — onStatusChange is only passed in for admins) */}
+                  {onStatusChange && (
                     <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
                       {Object.entries(STATUS_CONFIG).map(([s, c]) => (
                         <button
