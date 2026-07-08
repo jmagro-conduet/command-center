@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 interface DBUser {
   authId: string
@@ -9,6 +10,7 @@ interface DBUser {
   role: 'admin' | 'agent' | 'qa' | 'operator' | 'superadmin'
   operator_team: string | null
   operator_id: string | null
+  org_team_id: string | null
   created_at: string
 }
 
@@ -21,6 +23,16 @@ interface OperatorTeam {
 interface Operator {
   id: string
   name: string
+}
+
+// Sub-teams within an operator (e.g. "Manila", "Cebu") — a distinct concept from
+// the legacy operator_team/OperatorTeam above. Filterable on Submissions/Leaderboard/
+// Analytics; only a SuperAdmin can create teams or reassign members here.
+interface OrgTeam {
+  id: string
+  name: string
+  operator_id: string
+  lead_user_id: string | null
 }
 
 const AVATAR_COLORS = ['#9B59D0', '#0891b2', '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#be185d']
@@ -46,12 +58,22 @@ const inputStyle: React.CSSProperties = {
 }
 
 export default function Users() {
+  const { user: currentUser }       = useAuth()
+  const isSuperAdmin                = !!currentUser?.isSuperAdmin
   const [users, setUsers]           = useState<DBUser[]>([])
   const [teams, setTeams]           = useState<OperatorTeam[]>([])
   const [operators, setOperators]   = useState<Operator[]>([])
+  const [orgTeams, setOrgTeams]     = useState<OrgTeam[]>([])
   const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [filterOpId, setFilterOpId] = useState('')
+
+  // Manage Teams modal (SuperAdmin only)
+  const [teamsModalOpen, setTeamsModalOpen] = useState(false)
+  const [newTeamName, setNewTeamName]       = useState('')
+  const [newTeamOpId, setNewTeamOpId]       = useState('')
+  const [teamsSaving, setTeamsSaving]       = useState(false)
+  const [teamsError, setTeamsError]         = useState<string | null>(null)
 
   // Edit modal
   const [editTarget, setEditTarget] = useState<DBUser | null>(null)
@@ -84,8 +106,13 @@ export default function Users() {
   const [addError, setAddError]       = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([loadUsers(), loadTeams(), loadOperators(), loadAccessGrants()])
+    Promise.all([loadUsers(), loadTeams(), loadOperators(), loadAccessGrants(), loadOrgTeams()])
   }, [])
+
+  async function loadOrgTeams() {
+    const { data } = await supabase.from('org_teams').select('id, name, operator_id, lead_user_id').order('name')
+    setOrgTeams(data ?? [])
+  }
 
   async function loadAccessGrants() {
     const { data } = await supabase.from('user_operator_access').select('user_id, operator_id')
@@ -106,7 +133,7 @@ export default function Users() {
   async function loadUsers() {
     const [{ data: { users: authUsers } = { users: [] } }, { data: profiles }] = await Promise.all([
       supabase.auth.admin.listUsers({ perPage: 1000 }),
-      supabase.from('users').select('id, name, email, role, operator_team, operator_id, created_at, auth_id'),
+      supabase.from('users').select('id, name, email, role, operator_team, operator_id, org_team_id, created_at, auth_id'),
     ])
 
     const profileByEmail = new Map((profiles ?? []).map((p: any) => [p.email, p]))
@@ -122,6 +149,7 @@ export default function Users() {
         role:          profile?.role ?? 'agent',
         operator_team: profile?.operator_team ?? null,
         operator_id:   profile?.operator_id ?? null,
+        org_team_id:   profile?.org_team_id ?? null,
         created_at:    au.created_at,
       }
     })
@@ -155,6 +183,17 @@ export default function Users() {
       { onConflict: 'email' }
     )
     setUsers(us => us.map(x => x.authId === u.authId ? { ...x, operator_team: val } : x))
+  }
+
+  // Sub-team assignment (org_teams) — separate from the legacy operator_team label
+  // above. SuperAdmin-only in the UI; enforced here too as a defensive check.
+  async function handleOrgTeamChange(u: DBUser, newOrgTeamId: string) {
+    if (!isSuperAdmin) return
+    const val = newOrgTeamId === '' ? null : newOrgTeamId
+    const profileId = await ensureProfileId(u)
+    if (!profileId) return
+    await supabase.from('users').update({ org_team_id: val }).eq('id', profileId)
+    setUsers(us => us.map(x => x.authId === u.authId ? { ...x, org_team_id: val } : x))
   }
 
   async function handleOperatorChange(u: DBUser, newOperatorId: string) {
@@ -270,6 +309,41 @@ export default function Users() {
     setAccessTarget(null)
   }
 
+  // ── Manage Teams (org_teams) — SuperAdmin only ─────────────────────────────
+  function openTeamsModal() {
+    setNewTeamName('')
+    setNewTeamOpId(operators[0]?.id ?? '')
+    setTeamsError(null)
+    setTeamsModalOpen(true)
+  }
+
+  async function handleCreateOrgTeam() {
+    if (!isSuperAdmin) return
+    if (!newTeamName.trim() || !newTeamOpId) { setTeamsError('Name and operator are required'); return }
+    setTeamsSaving(true); setTeamsError(null)
+    const { data, error } = await supabase.from('org_teams')
+      .insert({ name: newTeamName.trim(), operator_id: newTeamOpId })
+      .select('id, name, operator_id, lead_user_id').single()
+    setTeamsSaving(false)
+    if (error) { setTeamsError(error.message); return }
+    setOrgTeams(ts => [...ts, data].sort((a, b) => a.name.localeCompare(b.name)))
+    setNewTeamName('')
+  }
+
+  async function handleChangeTeamLead(team: OrgTeam, leadProfileId: string) {
+    if (!isSuperAdmin) return
+    const val = leadProfileId === '' ? null : leadProfileId
+    await supabase.from('org_teams').update({ lead_user_id: val }).eq('id', team.id)
+    setOrgTeams(ts => ts.map(t => t.id === team.id ? { ...t, lead_user_id: val } : t))
+  }
+
+  async function handleDeleteOrgTeam(team: OrgTeam) {
+    if (!isSuperAdmin) return
+    await supabase.from('org_teams').delete().eq('id', team.id)
+    setOrgTeams(ts => ts.filter(t => t.id !== team.id))
+    setUsers(us => us.map(u => u.org_team_id === team.id ? { ...u, org_team_id: null } : u))
+  }
+
   function openAdd() {
     setAddName(''); setAddEmail(''); setAddPassword('')
     setAddRole('agent'); setAddTeam(''); setAddOperatorId('')
@@ -371,6 +445,19 @@ export default function Users() {
             <option value="">All operators</option>
             {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
+          {isSuperAdmin && (
+            <button
+              onClick={openTeamsModal}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 16px', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
+                transition: 'all 0.15s',
+              }}
+            >
+              Manage teams
+            </button>
+          )}
           <button
             onClick={openAdd}
             style={{
@@ -392,7 +479,7 @@ export default function Users() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              {['Member', 'Role', 'Operator', 'Team', 'Extra access', 'Joined', ''].map(h => (
+              {['Member', 'Role', 'Operator', 'Team', 'Sub-team', 'Extra access', 'Joined', ''].map(h => (
                 <th key={h} style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
                   color: '#58595B', textAlign: 'left', padding: '12px 16px',
@@ -468,6 +555,33 @@ export default function Users() {
                     <option value="">No team</option>
                     {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                   </select>
+                </td>
+
+                <td style={{ padding: '14px 16px' }}>
+                  {(() => {
+                    const orgTeamOptions = orgTeams.filter(t => t.operator_id === u.operator_id)
+                    if (!isSuperAdmin) {
+                      const current = orgTeams.find(t => t.id === u.org_team_id)
+                      return <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: current ? '#000' : '#aaa' }}>{current?.name ?? '—'}</span>
+                    }
+                    return (
+                      <select
+                        value={u.org_team_id ?? ''}
+                        onChange={e => handleOrgTeamChange(u, e.target.value)}
+                        disabled={!u.operator_id}
+                        title={!u.operator_id ? 'Assign an operator first' : undefined}
+                        style={{
+                          fontFamily: 'Inter, sans-serif', fontSize: 12,
+                          padding: '6px 10px', borderRadius: 8, cursor: u.operator_id ? 'pointer' : 'not-allowed',
+                          border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none',
+                          background: u.operator_id ? '#fff' : 'rgba(0,0,0,0.03)', color: '#000',
+                        }}
+                      >
+                        <option value="">No sub-team</option>
+                        {orgTeamOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    )
+                  })()}
                 </td>
 
                 <td style={{ padding: '14px 16px' }}>
@@ -809,6 +923,97 @@ export default function Users() {
                 padding: '9px 16px', borderRadius: 10, border: 'none',
                 cursor: accessSaving ? 'not-allowed' : 'pointer', opacity: accessSaving ? 0.6 : 1, transition: 'opacity 0.15s',
               }}>{accessSaving ? 'Saving…' : 'Save access'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage teams modal (org_teams — SuperAdmin only) */}
+      {teamsModalOpen && isSuperAdmin && (
+        <div
+          onClick={() => !teamsSaving && setTeamsModalOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage teams</h2>
+              <button onClick={() => setTeamsModalOpen(false)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+            </div>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+              Sub-teams within an operator (e.g. "Manila", "Cebu"). The lead you set here is who gets to filter
+              Submissions, Leaderboard, and Analytics down to just that team.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto', marginBottom: 18 }}>
+              {orgTeams.length === 0 && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No teams created yet.</p>
+              )}
+              {orgTeams.map(t => {
+                const opName = operators.find(o => o.id === t.operator_id)?.name ?? '—'
+                const memberOptions = users.filter(u => u.operator_id === t.operator_id && u.profileId)
+                return (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{t.name}</p>
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>{opName}</p>
+                    </div>
+                    <select
+                      value={t.lead_user_id ?? ''}
+                      onChange={e => handleChangeTeamLead(t, e.target.value)}
+                      style={{
+                        fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 8px', borderRadius: 8,
+                        border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none', background: '#fff', color: '#000', maxWidth: 140,
+                      }}
+                    >
+                      <option value="">No lead</option>
+                      {memberOptions.map(u => <option key={u.profileId} value={u.profileId!}>{u.name}</option>)}
+                    </select>
+                    <button
+                      onClick={() => handleDeleteOrgTeam(t)}
+                      title="Delete team"
+                      style={{ color: '#aaa', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
+                    >×</button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>New team</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={newTeamName}
+                  onChange={e => setNewTeamName(e.target.value)}
+                  placeholder="Team name (e.g. Manila)"
+                  style={{ ...inputStyle, flex: 1 }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                />
+                <select
+                  value={newTeamOpId}
+                  onChange={e => setNewTeamOpId(e.target.value)}
+                  style={{ ...inputStyle, width: 150 }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                >
+                  {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+              {teamsError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{teamsError}</p>}
+              <button
+                onClick={handleCreateOrgTeam}
+                disabled={teamsSaving}
+                style={{
+                  alignSelf: 'flex-end',
+                  background: '#000', color: '#fff',
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  padding: '9px 16px', borderRadius: 10, border: 'none',
+                  cursor: teamsSaving ? 'not-allowed' : 'pointer', opacity: teamsSaving ? 0.6 : 1, transition: 'opacity 0.15s',
+                }}
+              >{teamsSaving ? 'Creating…' : '+ Create team'}</button>
             </div>
           </div>
         </div>

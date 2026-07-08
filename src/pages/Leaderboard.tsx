@@ -242,10 +242,14 @@ function TeamAdoptionCard({
   )
 }
 
+// Org-team (e.g. "Manila") a lead can filter to — scoped to one operator.
+interface OrgTeam { id: string; name: string; lead_user_id: string | null }
+
 // ── Main export ────────────────────────────────────────────────────────────────
 export default function Leaderboard() {
   const { user } = useAuth()
   const { selectedOperator } = useOperator()
+  const isSuperAdmin = !!user?.isSuperAdmin
   const [range, setRange]       = useState<TimeRange>('last7')
   const [allRows, setAllRows]   = useState<DataRow[]>([])
   const [loading, setLoading]   = useState(true)
@@ -253,6 +257,36 @@ export default function Leaderboard() {
   const [zdLoading, setZdLoading] = useState(false)
   const [zdError, setZdError]     = useState<string | null>(null)
   const [adminEmails, setAdminEmails] = useState<Set<string>>(new Set())
+
+  // Org-teams — only teams the current user leads (or, for SuperAdmins, every
+  // team for this operator) show up as filter options.
+  const [orgTeams, setOrgTeams]     = useState<OrgTeam[]>([])
+  const [team, setTeam]             = useState('All teams')
+  const [teamMemberEmails, setTeamMemberEmails] = useState<string[] | null>(null)
+  const teamOptions = isSuperAdmin ? orgTeams : orgTeams.filter(t => t.lead_user_id === user?.id)
+  const showTeamFilter = teamOptions.length > 0
+
+  useEffect(() => {
+    async function loadOrgTeams() {
+      let q = supabase.from('org_teams').select('id, name, lead_user_id')
+      if (selectedOperator?.id) q = q.eq('operator_id', selectedOperator.id)
+      const { data } = await q.order('name')
+      setOrgTeams(data ?? [])
+    }
+    loadOrgTeams()
+    setTeam('All teams')
+  }, [selectedOperator?.id])
+
+  useEffect(() => {
+    async function loadTeamMembers() {
+      if (team === 'All teams') { setTeamMemberEmails(null); return }
+      const found = orgTeams.find(t => t.name === team)
+      if (!found) { setTeamMemberEmails(null); return }
+      const { data } = await supabase.from('users').select('email').eq('org_team_id', found.id)
+      setTeamMemberEmails((data ?? []).map((u: any) => (u.email ?? '').toLowerCase()).filter(Boolean))
+    }
+    loadTeamMembers()
+  }, [team, orgTeams])
 
   // Team ZD total = sum of per-agent counts only (excludes other brands / unassigned)
   const zdCount = useMemo(
@@ -289,10 +323,18 @@ export default function Leaderboard() {
     })
   }, [selectedOperator?.id])
 
+  // Team-scoped rows — every downstream roster/stat/ZD computation reads from
+  // this instead of allRows, so selecting a team narrows the whole page.
+  const scopedRows = useMemo(() => {
+    if (!teamMemberEmails) return allRows
+    const set = new Set(teamMemberEmails)
+    return allRows.filter(r => set.has((r.agentEmail ?? '').toLowerCase()))
+  }, [allRows, teamMemberEmails])
+
   // Stable key of all-time agent emails
   const rosterEmailsKey = useMemo(
-    () => [...new Set(allRows.map(r => r.agentEmail).filter(Boolean))].sort().join(','),
-    [allRows]
+    () => [...new Set(scopedRows.map(r => r.agentEmail).filter(Boolean))].sort().join(','),
+    [scopedRows]
   )
 
   // Fetch ZD data — fires when range or agent roster changes
@@ -332,8 +374,8 @@ export default function Leaderboard() {
   // Filter to selected range
   const rows = useMemo(() => {
     const c = cutoff(rangeDays(range))
-    return allRows.filter(r => rowDate(r) >= c)
-  }, [allRows, range])
+    return scopedRows.filter(r => rowDate(r) >= c)
+  }, [scopedRows, range])
 
   const days = rangeDays(range)
 
@@ -342,7 +384,7 @@ export default function Leaderboard() {
   const agents = useMemo(() => {
     // Full agent roster (all time), excluding admin accounts
     const roster = new Map<string, string>() // name -> email
-    for (const r of allRows) {
+    for (const r of scopedRows) {
       if (r.agentName && !roster.has(r.agentName) && !adminEmails.has(r.agentEmail?.toLowerCase())) {
         roster.set(r.agentName, r.agentEmail)
       }
@@ -377,7 +419,7 @@ export default function Leaderboard() {
         noResp:   pct(noResp, total),
       }
     }).sort((a, b) => b.tickets - a.tickets)   // initial sort; re-ranked below once ZD data arrives
-  }, [rows, allRows, days, adminEmails])
+  }, [rows, scopedRows, days, adminEmails])
 
   // Agents ranked by adoption % (gameLM tickets / ZD tickets).
   // Falls back to ticket count sort when ZD data is unavailable.
@@ -437,20 +479,37 @@ export default function Leaderboard() {
           </p>
         </div>
 
-        {/* Range selector */}
-        <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
-          {rangeOpts.map(o => (
-            <button key={o.id} onClick={() => setRange(o.id)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13,
-              fontWeight: range === o.id ? 500 : 400,
-              padding: '6px 14px', borderRadius: 8,
-              background: range === o.id ? '#000' : 'transparent',
-              color: range === o.id ? '#fff' : '#58595B',
-              border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-            }}>
-              {o.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {showTeamFilter && (
+            <select
+              value={team}
+              onChange={e => setTeam(e.target.value)}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                border: '1.5px solid rgba(0,0,0,0.09)', outline: 'none', background: '#fff',
+              }}
+            >
+              <option value="All teams">All teams</option>
+              {teamOptions.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+          )}
+
+          {/* Range selector */}
+          <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
+            {rangeOpts.map(o => (
+              <button key={o.id} onClick={() => setRange(o.id)} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13,
+                fontWeight: range === o.id ? 500 : 400,
+                padding: '6px 14px', borderRadius: 8,
+                background: range === o.id ? '#000' : 'transparent',
+                color: range === o.id ? '#fff' : '#58595B',
+                border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+              }}>
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

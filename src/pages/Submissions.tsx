@@ -98,11 +98,15 @@ function TrashIcon() {
   )
 }
 
+// Org-team (e.g. "Manila") a lead can filter to — scoped to one operator.
+interface OrgTeam { id: string; name: string; lead_user_id: string | null }
+
 export default function Submissions() {
   const { user } = useAuth()
   const { selectedOperator } = useOperator()
   const opId = selectedOperator?.id ?? null
   const isAdmin = user?.role === 'admin'
+  const isSuperAdmin = !!user?.isSuperAdmin
 
   const [rows,        setRows]        = useState<Row[]>([])
   const [total,       setTotal]       = useState(0)
@@ -115,9 +119,40 @@ export default function Submissions() {
   const [agent,     setAgent]     = useState('All agents')
   const [category,  setCategory]  = useState('All categories')
   const [issueType, setIssueType] = useState('All issue types')
+  const [team,      setTeam]      = useState('All teams')
 
   const [agentOptions,    setAgentOptions]    = useState<string[]>(['All agents'])
   const [categoryOptions, setCategoryOptions] = useState<string[]>(['All categories'])
+
+  // Org-teams — only teams the current user leads (or, for SuperAdmins, every
+  // team for this operator) show up as filter options.
+  const [orgTeams, setOrgTeams] = useState<OrgTeam[]>([])
+  const teamOptions = isSuperAdmin ? orgTeams : orgTeams.filter(t => t.lead_user_id === user?.id)
+  const showTeamFilter = teamOptions.length > 0
+  // Resolved once per team selection — the set of member emails to filter tickets by.
+  const [teamMemberEmails, setTeamMemberEmails] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    async function loadOrgTeams() {
+      let q = supabase.from('org_teams').select('id, name, lead_user_id')
+      if (opId) q = q.eq('operator_id', opId)
+      const { data } = await q.order('name')
+      setOrgTeams(data ?? [])
+    }
+    loadOrgTeams()
+    setTeam('All teams')
+  }, [opId])
+
+  useEffect(() => {
+    async function loadTeamMembers() {
+      if (team === 'All teams') { setTeamMemberEmails(null); return }
+      const found = orgTeams.find(t => t.name === team)
+      if (!found) { setTeamMemberEmails(null); return }
+      const { data } = await supabase.from('users').select('email').eq('org_team_id', found.id)
+      setTeamMemberEmails((data ?? []).map((u: any) => (u.email ?? '').toLowerCase()).filter(Boolean))
+    }
+    loadTeamMembers()
+  }, [team, orgTeams])
 
   const [selected,    setSelected]    = useState<Row | null>(null)
   const [hoveredId,   setHoveredId]   = useState<string | null>(null)
@@ -168,6 +203,7 @@ export default function Submissions() {
     if (agent     !== 'All agents')      q = (q as any).eq('tickets.agent_name', agent)
     if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)
     if (search.trim())                   q = (q as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
+    if (teamMemberEmails)                q = (q as any).in('tickets.agent_email', teamMemberEmails)
 
     q = q.order('logged_at', { ascending: false })
 
@@ -177,7 +213,7 @@ export default function Submissions() {
     }
 
     return q
-  }, [page, search, agent, category, issueType, opId])
+  }, [page, search, agent, category, issueType, opId, teamMemberEmails])
 
   useEffect(() => {
     let cancelled = false
@@ -192,6 +228,7 @@ export default function Submissions() {
     if (agent     !== 'All agents')      tcQ = (tcQ as any).eq('tickets.agent_name', agent)
     if (category  !== 'All categories')  tcQ = (tcQ as any).eq('tickets.ticket_category', category)
     if (search.trim())                   tcQ = (tcQ as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
+    if (teamMemberEmails)                tcQ = (tcQ as any).in('tickets.agent_email', teamMemberEmails)
 
     Promise.all([buildQuery(true), tcQ]).then(([{ data, count, error }, { data: tcData }]) => {
       if (cancelled) return
@@ -226,14 +263,14 @@ export default function Submissions() {
     return () => { cancelled = true }
   }, [buildQuery, refreshKey])
 
-  useEffect(() => { setPage(1) }, [search, agent, category, issueType, opId])
+  useEffect(() => { setPage(1) }, [search, agent, category, issueType, team, opId])
 
   const hasFilters = agent !== 'All agents' || category !== 'All categories' ||
-                     issueType !== 'All issue types' || search.trim()
+                     issueType !== 'All issue types' || team !== 'All teams' || search.trim()
 
   function clearFilters() {
     setSearch(''); setAgent('All agents')
-    setCategory('All categories'); setIssueType('All issue types')
+    setCategory('All categories'); setIssueType('All issue types'); setTeam('All teams')
   }
 
   function refresh() { setRefreshKey(k => k + 1) }
@@ -311,6 +348,7 @@ export default function Submissions() {
       if (agent     !== 'All agents')      q = (q as any).eq('tickets.agent_name', agent)
       if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)
       if (search.trim())                   q = (q as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
+      if (teamMemberEmails)                q = (q as any).in('tickets.agent_email', teamMemberEmails)
       const { data, error } = await q.order('logged_at', { ascending: false }).range(from, from + PAGE - 1)
       if (error || !data || data.length === 0) break
       all.push(...data)
@@ -426,6 +464,7 @@ export default function Submissions() {
           { value: agent,     options: agentOptions,    setter: setAgent },
           { value: category,  options: categoryOptions, setter: setCategory },
           { value: issueType, options: ISSUE_TYPES,     setter: setIssueType },
+          ...(showTeamFilter ? [{ value: team, options: ['All teams', ...teamOptions.map(t => t.name)], setter: setTeam }] : []),
         ].map((f, i) => (
           <select
             key={i}

@@ -7,6 +7,7 @@ import { PieChart, Pie, Cell } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { getDailyTarget } from '../lib/settings'
 import { useOperator } from '../context/OperatorContext'
+import { useAuth } from '../context/AuthContext'
 
 type Tab       = 'team' | 'agent' | 'events' | 'category'
 type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime' | 'custom'
@@ -275,12 +276,53 @@ async function fetchAllIssues(operatorId: string | null) {
   return all
 }
 
+// Org-team (e.g. "Manila") a lead can filter to — scoped to one operator.
+interface OrgTeam { id: string; name: string; lead_user_id: string | null }
+
 export default function Analytics() {
   const { selectedOperator } = useOperator()
+  const { user } = useAuth()
+  const isSuperAdmin = !!user?.isSuperAdmin
   const [tab, setTab]         = useState<Tab>('team')
   const [allRows, setAllRows] = useState<DataRow[]>([])
   const [events, setEvents]   = useState<HotEvent[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Org-teams — only teams the current user leads (or, for SuperAdmins, every
+  // team for this operator) show up as filter options. Applies across every tab.
+  const [orgTeams, setOrgTeams] = useState<OrgTeam[]>([])
+  const [team, setTeam]         = useState('All teams')
+  const [teamMemberEmails, setTeamMemberEmails] = useState<string[] | null>(null)
+  const teamOptions = isSuperAdmin ? orgTeams : orgTeams.filter(t => t.lead_user_id === user?.id)
+  const showTeamFilter = teamOptions.length > 0
+
+  useEffect(() => {
+    async function loadOrgTeams() {
+      let q = supabase.from('org_teams').select('id, name, lead_user_id')
+      if (selectedOperator?.id) q = q.eq('operator_id', selectedOperator.id)
+      const { data } = await q.order('name')
+      setOrgTeams(data ?? [])
+    }
+    loadOrgTeams()
+    setTeam('All teams')
+  }, [selectedOperator?.id])
+
+  useEffect(() => {
+    async function loadTeamMembers() {
+      if (team === 'All teams') { setTeamMemberEmails(null); return }
+      const found = orgTeams.find(t => t.name === team)
+      if (!found) { setTeamMemberEmails(null); return }
+      const { data } = await supabase.from('users').select('email').eq('org_team_id', found.id)
+      setTeamMemberEmails((data ?? []).map((u: any) => (u.email ?? '').toLowerCase()).filter(Boolean))
+    }
+    loadTeamMembers()
+  }, [team, orgTeams])
+
+  const scopedRows = useMemo(() => {
+    if (!teamMemberEmails) return allRows
+    const set = new Set(teamMemberEmails)
+    return allRows.filter(r => set.has((r.agentEmail ?? '').toLowerCase()))
+  }, [allRows, teamMemberEmails])
 
   useEffect(() => {
     setLoading(true)
@@ -328,27 +370,43 @@ export default function Analytics() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Analytics</h1>
-        <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13,
-              fontWeight: tab === t.id ? 500 : 400,
-              padding: '6px 14px', borderRadius: 8,
-              background: tab === t.id ? '#000' : 'transparent',
-              color: tab === t.id ? '#fff' : '#58595B',
-              border: 'none', transition: 'all 0.15s', cursor: 'pointer',
-            }}>
-              {t.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {showTeamFilter && (
+            <select
+              value={team}
+              onChange={e => setTeam(e.target.value)}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                border: '1.5px solid rgba(0,0,0,0.09)', outline: 'none', background: '#fff',
+              }}
+            >
+              <option value="All teams">All teams</option>
+              {teamOptions.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+          )}
+          <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13,
+                fontWeight: tab === t.id ? 500 : 400,
+                padding: '6px 14px', borderRadius: 8,
+                background: tab === t.id ? '#000' : 'transparent',
+                color: tab === t.id ? '#fff' : '#58595B',
+                border: 'none', transition: 'all 0.15s', cursor: 'pointer',
+              }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-      {tab === 'team'     && <TeamView     allRows={allRows} />}
-      {tab === 'agent'    && <PerAgent     allRows={allRows} />}
-      {tab === 'events'   && <EventAnalyticsTab allRows={allRows} events={events} />}
-      {tab === 'category' && <CategoryPerformance allRows={allRows} />}
+      {tab === 'team'     && <TeamView     allRows={scopedRows} />}
+      {tab === 'agent'    && <PerAgent     allRows={scopedRows} />}
+      {tab === 'events'   && <EventAnalyticsTab allRows={scopedRows} events={events} />}
+      {tab === 'category' && <CategoryPerformance allRows={scopedRows} />}
     </div>
   )
 }
