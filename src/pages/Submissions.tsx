@@ -99,7 +99,7 @@ function TrashIcon() {
 }
 
 // Org-team (e.g. "Manila") a lead can filter to — scoped to one operator.
-interface OrgTeam { id: string; name: string; lead_user_id: string | null }
+interface OrgTeam { id: string; name: string }
 
 export default function Submissions() {
   const { user } = useAuth()
@@ -129,21 +129,28 @@ export default function Submissions() {
   // Org-teams — only teams the current user leads (or, for SuperAdmins, every
   // team for this operator) show up as filter options.
   const [orgTeams, setOrgTeams] = useState<OrgTeam[]>([])
-  const teamOptions = isSuperAdmin ? orgTeams : orgTeams.filter(t => t.lead_user_id === user?.id)
+  const [myLeadTeamIds, setMyLeadTeamIds] = useState<Set<string>>(new Set())
+  const teamOptions = isSuperAdmin ? orgTeams : orgTeams.filter(t => myLeadTeamIds.has(t.id))
   const showTeamFilter = teamOptions.length > 0
   // Resolved once per team selection — the set of member emails to filter tickets by.
   const [teamMemberEmails, setTeamMemberEmails] = useState<string[] | null>(null)
 
   useEffect(() => {
     async function loadOrgTeams() {
-      let q = supabase.from('org_teams').select('id, name, lead_user_id')
+      let q = supabase.from('org_teams').select('id, name')
       if (opId) q = q.eq('operator_id', opId)
       const { data } = await q.order('name')
       setOrgTeams(data ?? [])
     }
+    async function loadMyLeadTeams() {
+      if (!user?.id) { setMyLeadTeamIds(new Set()); return }
+      const { data } = await supabase.from('org_team_leads').select('team_id').eq('user_id', user.id)
+      setMyLeadTeamIds(new Set((data ?? []).map((r: any) => r.team_id)))
+    }
     loadOrgTeams()
+    loadMyLeadTeams()
     setTeam('All teams')
-  }, [opId])
+  }, [opId, user?.id])
 
   useEffect(() => {
     async function loadTeamMembers() {

@@ -243,7 +243,7 @@ function TeamAdoptionCard({
 }
 
 // Org-team (e.g. "Manila") a lead can filter to — scoped to one operator.
-interface OrgTeam { id: string; name: string; lead_user_id: string | null }
+interface OrgTeam { id: string; name: string }
 
 // ── Main export ────────────────────────────────────────────────────────────────
 export default function Leaderboard() {
@@ -261,21 +261,28 @@ export default function Leaderboard() {
   // Org-teams — only teams the current user leads (or, for SuperAdmins, every
   // team for this operator) show up as filter options.
   const [orgTeams, setOrgTeams]     = useState<OrgTeam[]>([])
+  const [myLeadTeamIds, setMyLeadTeamIds] = useState<Set<string>>(new Set())
   const [team, setTeam]             = useState('All teams')
   const [teamMemberEmails, setTeamMemberEmails] = useState<string[] | null>(null)
-  const teamOptions = isSuperAdmin ? orgTeams : orgTeams.filter(t => t.lead_user_id === user?.id)
+  const teamOptions = isSuperAdmin ? orgTeams : orgTeams.filter(t => myLeadTeamIds.has(t.id))
   const showTeamFilter = teamOptions.length > 0
 
   useEffect(() => {
     async function loadOrgTeams() {
-      let q = supabase.from('org_teams').select('id, name, lead_user_id')
+      let q = supabase.from('org_teams').select('id, name')
       if (selectedOperator?.id) q = q.eq('operator_id', selectedOperator.id)
       const { data } = await q.order('name')
       setOrgTeams(data ?? [])
     }
+    async function loadMyLeadTeams() {
+      if (!user?.id) { setMyLeadTeamIds(new Set()); return }
+      const { data } = await supabase.from('org_team_leads').select('team_id').eq('user_id', user.id)
+      setMyLeadTeamIds(new Set((data ?? []).map((r: any) => r.team_id)))
+    }
     loadOrgTeams()
+    loadMyLeadTeams()
     setTeam('All teams')
-  }, [selectedOperator?.id])
+  }, [selectedOperator?.id, user?.id])
 
   useEffect(() => {
     async function loadTeamMembers() {

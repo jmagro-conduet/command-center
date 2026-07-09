@@ -32,7 +32,6 @@ interface OrgTeam {
   id: string
   name: string
   operator_id: string
-  lead_user_id: string | null
 }
 
 const AVATAR_COLORS = ['#9B59D0', '#0891b2', '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#be185d']
@@ -75,6 +74,13 @@ export default function Users() {
   const [teamsSaving, setTeamsSaving]       = useState(false)
   const [teamsError, setTeamsError]         = useState<string | null>(null)
 
+  // Team leads (org_team_leads — many-to-many: a team can have several leads/
+  // managers, and one person can lead several teams).
+  const [leadsByTeam, setLeadsByTeam]   = useState<Map<string, string[]>>(new Map()) // teamId -> profileIds
+  const [leadsTarget, setLeadsTarget]   = useState<OrgTeam | null>(null)
+  const [leadsSelected, setLeadsSelected] = useState<Set<string>>(new Set())
+  const [leadsSaving, setLeadsSaving]   = useState(false)
+
   // Edit modal
   const [editTarget, setEditTarget] = useState<DBUser | null>(null)
   const [editName, setEditName]     = useState('')
@@ -106,12 +112,23 @@ export default function Users() {
   const [addError, setAddError]       = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([loadUsers(), loadTeams(), loadOperators(), loadAccessGrants(), loadOrgTeams()])
+    Promise.all([loadUsers(), loadTeams(), loadOperators(), loadAccessGrants(), loadOrgTeams(), loadOrgTeamLeads()])
   }, [])
 
   async function loadOrgTeams() {
-    const { data } = await supabase.from('org_teams').select('id, name, operator_id, lead_user_id').order('name')
+    const { data } = await supabase.from('org_teams').select('id, name, operator_id').order('name')
     setOrgTeams(data ?? [])
+  }
+
+  async function loadOrgTeamLeads() {
+    const { data } = await supabase.from('org_team_leads').select('team_id, user_id')
+    const map = new Map<string, string[]>()
+    for (const row of data ?? []) {
+      const list = map.get(row.team_id) ?? []
+      list.push(row.user_id)
+      map.set(row.team_id, list)
+    }
+    setLeadsByTeam(map)
   }
 
   async function loadAccessGrants() {
@@ -323,18 +340,11 @@ export default function Users() {
     setTeamsSaving(true); setTeamsError(null)
     const { data, error } = await supabase.from('org_teams')
       .insert({ name: newTeamName.trim(), operator_id: newTeamOpId })
-      .select('id, name, operator_id, lead_user_id').single()
+      .select('id, name, operator_id').single()
     setTeamsSaving(false)
     if (error) { setTeamsError(error.message); return }
     setOrgTeams(ts => [...ts, data].sort((a, b) => a.name.localeCompare(b.name)))
     setNewTeamName('')
-  }
-
-  async function handleChangeTeamLead(team: OrgTeam, leadProfileId: string) {
-    if (!isSuperAdmin) return
-    const val = leadProfileId === '' ? null : leadProfileId
-    await supabase.from('org_teams').update({ lead_user_id: val }).eq('id', team.id)
-    setOrgTeams(ts => ts.map(t => t.id === team.id ? { ...t, lead_user_id: val } : t))
   }
 
   async function handleDeleteOrgTeam(team: OrgTeam) {
@@ -342,6 +352,34 @@ export default function Users() {
     await supabase.from('org_teams').delete().eq('id', team.id)
     setOrgTeams(ts => ts.filter(t => t.id !== team.id))
     setUsers(us => us.map(u => u.org_team_id === team.id ? { ...u, org_team_id: null } : u))
+    setLeadsByTeam(prev => { const next = new Map(prev); next.delete(team.id); return next })
+  }
+
+  // ── Manage leads for one team (org_team_leads — many-to-many) ─────────────
+  function openManageLeads(team: OrgTeam) {
+    setLeadsTarget(team)
+    setLeadsSelected(new Set(leadsByTeam.get(team.id) ?? []))
+  }
+
+  function toggleLead(profileId: string) {
+    setLeadsSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(profileId)) next.delete(profileId)
+      else next.add(profileId)
+      return next
+    })
+  }
+
+  async function handleSaveLeads() {
+    if (!leadsTarget || !isSuperAdmin) return
+    setLeadsSaving(true)
+    // Simplest correct approach for a small per-team set: replace wholesale.
+    await supabase.from('org_team_leads').delete().eq('team_id', leadsTarget.id)
+    const rows = Array.from(leadsSelected).map(userId => ({ team_id: leadsTarget.id, user_id: userId }))
+    if (rows.length > 0) await supabase.from('org_team_leads').insert(rows)
+    setLeadsByTeam(prev => new Map(prev).set(leadsTarget.id, Array.from(leadsSelected)))
+    setLeadsSaving(false)
+    setLeadsTarget(null)
   }
 
   function openAdd() {
@@ -954,24 +992,30 @@ export default function Users() {
               )}
               {orgTeams.map(t => {
                 const opName = operators.find(o => o.id === t.operator_id)?.name ?? '—'
-                const memberOptions = users.filter(u => u.operator_id === t.operator_id && u.profileId)
                 return (
                   <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{t.name}</p>
                       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>{opName}</p>
                     </div>
-                    <select
-                      value={t.lead_user_id ?? ''}
-                      onChange={e => handleChangeTeamLead(t, e.target.value)}
-                      style={{
-                        fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 8px', borderRadius: 8,
-                        border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none', background: '#fff', color: '#000', maxWidth: 140,
-                      }}
-                    >
-                      <option value="">No lead</option>
-                      {memberOptions.map(u => <option key={u.profileId} value={u.profileId!}>{u.name}</option>)}
-                    </select>
+                    {(() => {
+                      const leadCount = leadsByTeam.get(t.id)?.length ?? 0
+                      return (
+                        <button
+                          onClick={() => openManageLeads(t)}
+                          style={{
+                            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                            padding: '5px 12px', borderRadius: 100, cursor: 'pointer',
+                            border: leadCount > 0 ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
+                            background: leadCount > 0 ? 'rgba(155,89,208,0.06)' : '#fff',
+                            color: leadCount > 0 ? '#9B59D0' : '#58595B',
+                            transition: 'all 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {leadCount > 0 ? `${leadCount} lead${leadCount === 1 ? '' : 's'}` : 'Manage leads'}
+                        </button>
+                      )
+                    })()}
                     <button
                       onClick={() => handleDeleteOrgTeam(t)}
                       title="Delete team"
@@ -1015,6 +1059,69 @@ export default function Users() {
                   cursor: teamsSaving ? 'not-allowed' : 'pointer', opacity: teamsSaving ? 0.6 : 1, transition: 'opacity 0.15s',
                 }}
               >{teamsSaving ? 'Creating…' : '+ Create team'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage leads for one team (org_team_leads — SuperAdmin only) */}
+      {leadsTarget && isSuperAdmin && (
+        <div
+          onClick={() => !leadsSaving && setLeadsTarget(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage leads — {leadsTarget.name}</h2>
+              <button onClick={() => setLeadsTarget(null)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+            </div>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+              Anyone selected here (managers or leads) can filter Submissions, Leaderboard, and Analytics
+              down to just this team.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
+              {users.filter(u => u.operator_id === leadsTarget.operator_id && u.profileId).map(u => {
+                const checked = leadsSelected.has(u.profileId!)
+                return (
+                  <button
+                    key={u.profileId}
+                    type="button"
+                    onClick={() => toggleLead(u.profileId!)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: checked ? 'rgba(155,89,208,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                  >
+                    <span style={{
+                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                      border: checked ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
+                      background: checked ? '#9B59D0' : '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {checked && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </span>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{u.name}</span>
+                  </button>
+                )
+              })}
+              {users.filter(u => u.operator_id === leadsTarget.operator_id && u.profileId).length === 0 && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No eligible users in this operator yet.</p>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 18 }}>
+              <button onClick={() => setLeadsTarget(null)} disabled={leadsSaving} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+              }}>Cancel</button>
+              <button onClick={handleSaveLeads} disabled={leadsSaving} style={{
+                background: '#000', color: '#fff',
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 16px', borderRadius: 10, border: 'none',
+                cursor: leadsSaving ? 'not-allowed' : 'pointer', opacity: leadsSaving ? 0.6 : 1, transition: 'opacity 0.15s',
+              }}>{leadsSaving ? 'Saving…' : 'Save leads'}</button>
             </div>
           </div>
         </div>
