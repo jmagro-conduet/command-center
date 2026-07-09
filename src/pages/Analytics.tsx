@@ -527,11 +527,14 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   )
 
   // Clicking a node (day) on either chart pins the view to that single day —
-  // lets a lead drill straight into an agent's good/bad day.
-  function onChartNodeClick(e: any) {
-    const fullDate = e?.activePayload?.[0]?.payload?.fullDate
-    if (!fullDate) return
-    setCustomRange({ start: fullDate, end: fullDate })
+  // lets a lead drill straight into an agent's good/bad day. Recharts 3's onClick
+  // payload has no activePayload (that's a recharts@2-ism) — it gives activeLabel,
+  // the XAxis dataKey value ("date") of the clicked point, which we match back
+  // against the same array driving the chart to recover its ISO fullDate.
+  function onChartNodeClick(e: any, sourceData: { date: string; fullDate: string }[]) {
+    const match = sourceData.find(d => d.date === e?.activeLabel)
+    if (!match) return
+    setCustomRange({ start: match.fullDate, end: match.fullDate })
     setRange('custom')
   }
 
@@ -666,7 +669,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           const avgPct = data.filter(d => d.pct > 0).reduce((s, d) => s + d.pct, 0) / (data.filter(d => d.pct > 0).length || 1)
           return (
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={data} margin={{ top: 4, right: 28, left: -20, bottom: 0 }} onClick={onChartNodeClick} style={{ cursor: 'pointer' }}>
+              <LineChart data={data} margin={{ top: 4, right: 28, left: -20, bottom: 0 }} onClick={e => onChartNodeClick(e, data)} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                 <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(data.length / 6)} />
                 <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
@@ -687,7 +690,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           )
         })() : (
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }} onClick={onChartNodeClick} style={{ cursor: 'pointer' }}>
+            <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }} onClick={e => onChartNodeClick(e, chartData)} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
               <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
               <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
@@ -793,11 +796,13 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate), [agentRows, days, dailyTarget.max, chartEndDate])
 
   // Clicking a node (day) on the chart pins the view to that single day —
-  // lets a lead drill straight into this agent's good/bad day.
+  // lets a lead drill straight into this agent's good/bad day. Recharts 3's
+  // onClick payload has no activePayload (that's a recharts@2-ism) — match
+  // activeLabel (the "date" XAxis value) back against chartData for fullDate.
   function onChartNodeClick(e: any) {
-    const fullDate = e?.activePayload?.[0]?.payload?.fullDate
-    if (!fullDate) return
-    setCustomRange({ start: fullDate, end: fullDate })
+    const match = chartData.find(d => d.date === e?.activeLabel)
+    if (!match) return
+    setCustomRange({ start: match.fullDate, end: match.fullDate })
     setRange('custom')
   }
 
