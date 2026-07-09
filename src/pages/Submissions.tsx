@@ -120,6 +120,8 @@ export default function Submissions() {
   const [category,  setCategory]  = useState('All categories')
   const [issueType, setIssueType] = useState('All issue types')
   const [team,      setTeam]      = useState('All teams')
+  const [dateFrom,  setDateFrom]  = useState('') // yyyy-mm-dd, inclusive; '' = no lower bound
+  const [dateTo,    setDateTo]    = useState('') // yyyy-mm-dd, inclusive; '' = no upper bound
 
   const [agentOptions,    setAgentOptions]    = useState<string[]>(['All agents'])
   const [categoryOptions, setCategoryOptions] = useState<string[]>(['All categories'])
@@ -204,6 +206,8 @@ export default function Submissions() {
     if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)
     if (search.trim())                   q = (q as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
     if (teamMemberEmails)                q = (q as any).in('tickets.agent_email', teamMemberEmails)
+    if (dateFrom)                        q = q.gte('logged_at', `${dateFrom}T00:00:00`)
+    if (dateTo)                          q = q.lte('logged_at', `${dateTo}T23:59:59.999`)
 
     q = q.order('logged_at', { ascending: false })
 
@@ -213,7 +217,7 @@ export default function Submissions() {
     }
 
     return q
-  }, [page, search, agent, category, issueType, opId, teamMemberEmails])
+  }, [page, search, agent, category, issueType, opId, teamMemberEmails, dateFrom, dateTo])
 
   useEffect(() => {
     let cancelled = false
@@ -229,6 +233,8 @@ export default function Submissions() {
     if (category  !== 'All categories')  tcQ = (tcQ as any).eq('tickets.ticket_category', category)
     if (search.trim())                   tcQ = (tcQ as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
     if (teamMemberEmails)                tcQ = (tcQ as any).in('tickets.agent_email', teamMemberEmails)
+    if (dateFrom)                        tcQ = tcQ.gte('logged_at', `${dateFrom}T00:00:00`)
+    if (dateTo)                          tcQ = tcQ.lte('logged_at', `${dateTo}T23:59:59.999`)
 
     Promise.all([buildQuery(true), tcQ]).then(([{ data, count, error }, { data: tcData }]) => {
       if (cancelled) return
@@ -263,14 +269,16 @@ export default function Submissions() {
     return () => { cancelled = true }
   }, [buildQuery, refreshKey])
 
-  useEffect(() => { setPage(1) }, [search, agent, category, issueType, team, opId])
+  useEffect(() => { setPage(1) }, [search, agent, category, issueType, team, dateFrom, dateTo, opId])
 
   const hasFilters = agent !== 'All agents' || category !== 'All categories' ||
-                     issueType !== 'All issue types' || team !== 'All teams' || search.trim()
+                     issueType !== 'All issue types' || team !== 'All teams' || search.trim() ||
+                     dateFrom !== '' || dateTo !== ''
 
   function clearFilters() {
     setSearch(''); setAgent('All agents')
     setCategory('All categories'); setIssueType('All issue types'); setTeam('All teams')
+    setDateFrom(''); setDateTo('')
   }
 
   function refresh() { setRefreshKey(k => k + 1) }
@@ -349,6 +357,8 @@ export default function Submissions() {
       if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)
       if (search.trim())                   q = (q as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
       if (teamMemberEmails)                q = (q as any).in('tickets.agent_email', teamMemberEmails)
+      if (dateFrom)                        q = q.gte('logged_at', `${dateFrom}T00:00:00`)
+      if (dateTo)                          q = q.lte('logged_at', `${dateTo}T23:59:59.999`)
       const { data, error } = await q.order('logged_at', { ascending: false }).range(from, from + PAGE - 1)
       if (error || !data || data.length === 0) break
       all.push(...data)
@@ -482,6 +492,37 @@ export default function Submissions() {
             {f.options.map(o => <option key={o}>{o}</option>)}
           </select>
         ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={e => setDateFrom(e.target.value)}
+            title="From date"
+            style={{
+              border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
+              padding: '7px 10px', fontSize: 13, color: dateFrom ? '#000' : '#58595B',
+              outline: 'none', background: '#fff', transition: 'border-color 0.15s', cursor: 'pointer',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+          />
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.25)' }}>–</span>
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={e => setDateTo(e.target.value)}
+            title="To date"
+            style={{
+              border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
+              padding: '7px 10px', fontSize: 13, color: dateTo ? '#000' : '#58595B',
+              outline: 'none', background: '#fff', transition: 'border-color 0.15s', cursor: 'pointer',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+          />
+        </div>
         {hasFilters && (
           <button
             onClick={clearFilters}
