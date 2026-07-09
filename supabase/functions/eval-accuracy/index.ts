@@ -26,6 +26,8 @@ const sbHeaders = {
 
 // ── Claude call ──────────────────────────────────────────────────────────────
 
+let lastDebugError: string | null = null
+
 async function classifyAccuracy(
   conversationThread: string,
   suggestedResponse: string
@@ -48,11 +50,14 @@ async function classifyAccuracy(
         }],
       }),
     })
-    if (!res.ok) return null
+    if (!res.ok) { lastDebugError = `HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`; return null }
     const data = await res.json()
     const raw  = data.content?.[0]?.type === 'text' ? data.content[0].text.trim() : ''
-    return parseAccuracyOutput(raw)
-  } catch {
+    const parsed = parseAccuracyOutput(raw)
+    if (!parsed) lastDebugError = `parse failure, raw: ${raw.slice(0, 500)}`
+    return parsed
+  } catch (e) {
+    lastDebugError = `fetch threw: ${e instanceof Error ? e.message : String(e)}`
     return null
   }
 }
@@ -83,6 +88,7 @@ Deno.serve(async (req: Request) => {
     }
 
     let processed = 0, skipped = 0, errors = 0
+    const debugErrors: string[] = []
 
     for (const issue of issues) {
       const playerMsg = (issue.customer_input    ?? '').trim()
@@ -104,7 +110,7 @@ Deno.serve(async (req: Request) => {
       } catch { /* fall back to single-turn if context fetch fails */ }
 
       const result = await classifyAccuracy(conversationThread, suggested)
-      if (!result || !result.errorClass) { errors++; continue }
+      if (!result || !result.errorClass) { errors++; debugErrors.push(lastDebugError ?? 'unknown'); continue }
 
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/ticket_issues?id=eq.${issue.id}`, {
         method:  'PATCH',
@@ -122,7 +128,7 @@ Deno.serve(async (req: Request) => {
       if (patchRes.ok) processed++; else errors++
     }
 
-    return new Response(JSON.stringify({ processed, skipped, errors }), {
+    return new Response(JSON.stringify({ processed, skipped, errors, debugErrors }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err: unknown) {
