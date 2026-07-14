@@ -490,10 +490,10 @@ export default function ExecutiveSummary() {
           delta={<Delta curr={readyCount} prev={prev.length ? prevReadyCount : null} good="up" suffix="" />}
         />
         <StatCard
-          label="Agent Adoption"
-          value={adoption !== null ? `${adoption}%` : '—'}
+          label={tracksZd ? 'Agent Adoption' : 'Interactions Captured'}
+          value={tracksZd ? (adoption !== null ? `${adoption}%` : '—') : loggedTickets.toLocaleString()}
           color="#166534"
-          sub={adoption !== null ? `${loggedTickets} of ${zdTotal} chat tickets logged` : `${loggedTickets} interactions captured`}
+          sub={tracksZd ? (adoption !== null ? `${loggedTickets} of ${zdTotal} chat tickets logged` : undefined) : 'gameLM responses logged'}
         />
       </div>
 
