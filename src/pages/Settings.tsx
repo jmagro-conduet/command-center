@@ -7,7 +7,7 @@ import Users from './Users'
 
 type SettingsTab = 'general' | 'users' | 'evals' | 'config'
 
-interface Team { id: string; name: string }
+interface Team { id: string; name: string; zendeskBrandId: string | null }
 
 function toSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -162,8 +162,15 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [teamsLoading, setTeamsLoading] = useState(true)
   const [newTeamName, setNewTeamName] = useState('')
   const [addingTeam,  setAddingTeam]  = useState(false)
-  const [renamingId,  setRenamingId]  = useState<string | null>(null)
-  const [renameVal,   setRenameVal]   = useState('')
+
+  // ── Operator Config modal (SuperAdmin only) — name, Zendesk brand, categories ──
+  const [configTarget,   setConfigTarget]   = useState<Team | null>(null)
+  const [configNameVal,  setConfigNameVal]  = useState('')
+  const [configSaving,   setConfigSaving]   = useState(false)
+  const [zdBrands,       setZdBrands]       = useState<{ id: string; name: string }[] | null>(null)
+  const [zdBrandsLoading, setZdBrandsLoading] = useState(false)
+  const [zdBrandsError,  setZdBrandsError]  = useState<string | null>(null)
+  const [zdBrandSaving,  setZdBrandSaving]  = useState(false)
 
   // ── Daily Target (admin) ──────────────────────────────────────────────────
   const tgt = getDailyTarget()
@@ -234,25 +241,25 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isAdmin && activeTab === 'config' && selectedOperator) loadCategories()
-  }, [isAdmin, activeTab, selectedOperator])
+    if (configTarget) loadCategories()
+  }, [configTarget])
 
   async function loadCategories() {
-    if (!selectedOperator) return
+    if (!configTarget) return
     setCatsLoading(true)
     const { data } = await supabase.from('operator_issue_categories')
       .select('*')
-      .eq('operator_id', selectedOperator.id)
+      .eq('operator_id', configTarget.id)
       .order('main_category').order('sub_category', { nullsFirst: true }).order('detail', { nullsFirst: true })
     setCategories(data ?? [])
     setCatsLoading(false)
   }
 
   async function addCategory() {
-    if (!selectedOperator || !newCatMain.trim()) return
+    if (!configTarget || !newCatMain.trim()) return
     setSavingCat(true)
     const { data, error } = await supabase.from('operator_issue_categories').insert({
-      operator_id:   selectedOperator.id,
+      operator_id:   configTarget.id,
       main_category: newCatMain.trim(),
       sub_category:  newCatSub.trim() || null,
       detail:        newCatDetail.trim() || null,
@@ -361,8 +368,8 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
   async function loadTeams() {
     setTeamsLoading(true)
-    const { data } = await supabase.from('operators').select('id, name').order('name')
-    setTeams(data ?? [])
+    const { data } = await supabase.from('operators').select('id, name, zendesk_brand_id').order('name')
+    setTeams((data ?? []).map((o: any) => ({ id: o.id, name: o.name, zendeskBrandId: o.zendesk_brand_id ?? null })))
     setTeamsLoading(false)
   }
 
@@ -377,15 +384,50 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
     loadTeams()
   }
 
-  async function saveRename(id: string, oldName: string) {
-    const name = renameVal.trim()
-    if (!name || name === oldName) { setRenamingId(null); return }
+  // ── Operator Config modal ─────────────────────────────────────────────────
+  function openConfigModal(team: Team) {
+    setConfigTarget(team)
+    setConfigNameVal(team.name)
+    if (!zdBrands && !zdBrandsLoading) {
+      setZdBrandsLoading(true); setZdBrandsError(null)
+      supabase.functions.invoke('zendesk-brands')
+        .then(({ data, error }) => {
+          if (error) { setZdBrandsError(error.message ?? 'Failed to load Zendesk brands'); return }
+          if (Array.isArray(data?.brands)) setZdBrands(data.brands)
+          else setZdBrandsError(data?.error ?? 'No brands returned')
+        })
+        .catch((e: any) => setZdBrandsError(e?.message ?? 'Failed to load Zendesk brands'))
+        .finally(() => setZdBrandsLoading(false))
+    }
+  }
+
+  function closeConfigModal() {
+    setConfigTarget(null)
+    setAddingCat(false); setEditingCatId(null); setDeletingCatId(null)
+  }
+
+  async function saveConfigName() {
+    if (!configTarget) return
+    const name = configNameVal.trim()
+    if (!name || name === configTarget.name) return
+    setConfigSaving(true)
+    const oldName = configTarget.name
     const slug = toSlug(name)
-    await supabase.from('operators').update({ name, slug }).eq('id', id)
+    await supabase.from('operators').update({ name, slug }).eq('id', configTarget.id)
     // Keep users' operator_team display string in sync
     await supabase.from('users').update({ operator_team: name }).eq('operator_team', oldName)
-    setRenamingId(null)
-    loadTeams()
+    setConfigTarget(t => t && { ...t, name })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, name } : t))
+    setConfigSaving(false)
+  }
+
+  async function saveZendeskBrand(brandId: string | null) {
+    if (!configTarget) return
+    setZdBrandSaving(true)
+    await supabase.from('operators').update({ zendesk_brand_id: brandId }).eq('id', configTarget.id)
+    setConfigTarget(t => t && { ...t, zendeskBrandId: brandId })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, zendeskBrandId: brandId } : t))
+    setZdBrandSaving(false)
   }
 
   async function deleteTeam(id: string, name: string) {
@@ -396,6 +438,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
       await supabase.from('users').update({ operator_id: null, operator_team: null }).eq('operator_id', id)
     }
     await supabase.from('operators').delete().eq('id', id)
+    closeConfigModal()
     loadTeams()
   }
 
@@ -725,7 +768,7 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             {isAdmin ? 'Admin settings' : 'Settings'}
           </h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
-            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? `Operator-specific configuration for ${selectedOperator?.name ?? 'the selected operator'}` : 'Configure your Command Center preferences'}
+            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? 'Manage operators — Zendesk tracking, issue categories, rename, delete' : 'Configure your Command Center preferences'}
           </p>
         </div>
 
@@ -1379,95 +1422,6 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
             )}
           </SectionCard>
 
-          {/* Operators */}
-          <SectionCard
-            title="Operators"
-            subtitle="Client operators you support. Each entry appears in the sidebar switcher and can be assigned to agents."
-          >
-            {teamsLoading ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {teams.length === 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '8px 0' }}>
-                    No operators yet. Add one below.
-                  </p>
-                )}
-
-                {teams.map(t => (
-                  <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '10px 14px', borderRadius: 10,
-                    border: '1.5px solid rgba(0,0,0,0.08)',
-                    background: renamingId === t.id ? 'rgba(206,164,255,0.04)' : '#fafafa',
-                    transition: 'background 0.15s',
-                  }}>
-                    {renamingId === t.id ? (
-                      <>
-                        <input
-                          autoFocus
-                          value={renameVal}
-                          onChange={e => setRenameVal(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') saveRename(t.id, t.name)
-                            if (e.key === 'Escape') setRenamingId(null)
-                          }}
-                          style={{ ...inputStyle, flex: 1, padding: '6px 10px' }}
-                          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                          onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                        />
-                        <GhostBtn onClick={() => saveRename(t.id, t.name)}>Save</GhostBtn>
-                        <GhostBtn onClick={() => setRenamingId(null)}>Cancel</GhostBtn>
-                      </>
-                    ) : (
-                      <>
-                        <span style={{
-                          flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13,
-                          fontWeight: 500, color: '#000',
-                        }}>
-                          {t.name}
-                        </span>
-                        <GhostBtn onClick={() => { setRenamingId(t.id); setRenameVal(t.name) }}>
-                          Rename
-                        </GhostBtn>
-                        <GhostBtn danger onClick={() => deleteTeam(t.id, t.name)}>Delete</GhostBtn>
-                      </>
-                    )}
-                  </div>
-                ))}
-
-                {/* Add new team row */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <input
-                    value={newTeamName}
-                    onChange={e => setNewTeamName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') addTeam() }}
-                    placeholder="New operator name…"
-                    style={{ ...inputStyle, flex: 1 }}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                    onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                  />
-                  <button
-                    onClick={addTeam}
-                    disabled={!newTeamName.trim() || addingTeam}
-                    style={{
-                      background: newTeamName.trim() && !addingTeam ? '#000' : 'rgba(0,0,0,0.1)',
-                      color: newTeamName.trim() && !addingTeam ? '#fff' : 'rgba(0,0,0,0.35)',
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                      padding: '9px 18px', borderRadius: 10, border: 'none',
-                      cursor: newTeamName.trim() && !addingTeam ? 'pointer' : 'default',
-                      transition: 'all 0.15s', whiteSpace: 'nowrap',
-                    }}
-                    onMouseEnter={e => { if (newTeamName.trim() && !addingTeam) e.currentTarget.style.opacity = '0.8' }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
-                  >
-                    {addingTeam ? 'Adding…' : '+ Add operator'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </SectionCard>
-
           {/* Daily Ticket Target */}
           <SectionCard
             title="Daily Ticket Target"
@@ -1655,216 +1609,361 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
       </> /* end General tab */}
 
-      {/* ── Config tab ──────────────────────────────────────────────────────── */}
+      {/* ── Config tab (SuperAdmin only) ────────────────────────────────────── */}
       {isAdmin && activeTab === 'config' && (
-        <>
-          {!selectedOperator ? (
-            <SectionCard title="No operator selected" subtitle="Select an operator from the sidebar to manage its configuration.">
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                Use the operator switcher in the sidebar to choose which operator to configure.
-              </p>
-            </SectionCard>
+        <SectionCard
+          title="Operators"
+          subtitle="Client operators you support. Click Edit to rename, configure Zendesk tracking, or manage issue categories."
+        >
+          {teamsLoading ? (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
           ) : (
-            <SectionCard
-              title="Issue Categories"
-              subtitle={`Category taxonomy for ${selectedOperator.name}. Agents use these when logging tickets.`}
-            >
-              {catsLoading ? (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
-              ) : (() => {
-                // Group by main_category
-                const grouped: Record<string, OperatorCategory[]> = {}
-                categories.forEach(c => {
-                  if (!grouped[c.main_category]) grouped[c.main_category] = []
-                  grouped[c.main_category].push(c)
-                })
-                const mains = Object.keys(grouped).sort()
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {teams.length === 0 && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '8px 0' }}>
+                  No operators yet. Add one below.
+                </p>
+              )}
 
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    {mains.length === 0 && !addingCat && (
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
-                        No categories yet. Add one below.
-                      </p>
-                    )}
+              {teams.map(t => (
+                <div key={t.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '10px 14px', borderRadius: 10,
+                  border: '1.5px solid rgba(0,0,0,0.08)',
+                  background: '#fafafa',
+                }}>
+                  <span style={{
+                    flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13,
+                    fontWeight: 500, color: '#000',
+                  }}>
+                    {t.name}
+                  </span>
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                    padding: '3px 9px', borderRadius: 100,
+                    background: t.zendeskBrandId ? 'rgba(243,156,18,0.1)' : 'rgba(0,0,0,0.05)',
+                    color: t.zendeskBrandId ? '#b45309' : 'rgba(0,0,0,0.35)',
+                  }}>
+                    {t.zendeskBrandId ? 'ZD tracked' : 'ZD not tracked'}
+                  </span>
+                  <GhostBtn onClick={() => openConfigModal(t)}>Edit</GhostBtn>
+                </div>
+              ))}
 
-                    {mains.map(main => (
-                      <div key={main}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>
-                            {main}
-                          </span>
-                          <span style={{
-                            fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0',
-                            background: 'rgba(155,89,208,0.08)', padding: '1px 8px', borderRadius: 100,
-                          }}>
-                            {grouped[main].length}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {grouped[main].map(cat => (
-                            <div key={cat.id} style={{
-                              display: 'flex', alignItems: 'center', gap: 10,
-                              padding: '8px 12px', borderRadius: 10,
-                              background: cat.active ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.01)',
-                              border: '1.5px solid rgba(0,0,0,0.07)',
-                              opacity: cat.active ? 1 : 0.5,
-                            }}>
-                              {editingCatId === cat.id ? (
-                                <>
-                                  <input
-                                    value={editCatMain}
-                                    onChange={e => setEditCatMain(e.target.value)}
-                                    placeholder="Main category"
-                                    style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
-                                  />
-                                  <input
-                                    value={editCatSub}
-                                    onChange={e => setEditCatSub(e.target.value)}
-                                    placeholder="Sub-category"
-                                    style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
-                                  />
-                                  <input
-                                    value={editCatDetail}
-                                    onChange={e => setEditCatDetail(e.target.value)}
-                                    placeholder="Detail (optional)"
-                                    style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
-                                  />
-                                  <button
-                                    onClick={() => saveEditCategory(cat.id)}
-                                    style={{
-                                      background: '#000', color: '#fff', border: 'none', borderRadius: 8,
-                                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                                      padding: '5px 14px', cursor: 'pointer',
-                                    }}
-                                  >Save</button>
-                                  <GhostBtn onClick={() => setEditingCatId(null)}>Cancel</GhostBtn>
-                                </>
-                              ) : (
-                                <>
-                                  <span style={{ flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
-                                    {[cat.main_category, cat.sub_category, cat.detail].filter(Boolean).join(' › ')}
-                                  </span>
-                                  <button
-                                    onClick={() => toggleCatActive(cat.id, cat.active)}
-                                    style={{
-                                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
-                                      padding: '3px 10px', borderRadius: 100, border: 'none', cursor: 'pointer',
-                                      background: cat.active ? 'rgba(155,89,208,0.1)' : 'rgba(0,0,0,0.06)',
-                                      color: cat.active ? '#9B59D0' : '#58595B',
-                                      transition: 'all 0.15s',
-                                    }}
-                                  >
-                                    {cat.active ? 'Active' : 'Inactive'}
-                                  </button>
-                                  <GhostBtn onClick={() => {
-                                    setEditingCatId(cat.id)
-                                    setEditCatMain(cat.main_category)
-                                    setEditCatSub(cat.sub_category ?? '')
-                                    setEditCatDetail(cat.detail ?? '')
-                                  }}>Edit</GhostBtn>
-                                  {deletingCatId === cat.id ? (
-                                    <>
-                                      <GhostBtn danger onClick={() => deleteCategory(cat.id)}>Confirm</GhostBtn>
-                                      <GhostBtn onClick={() => setDeletingCatId(null)}>Cancel</GhostBtn>
-                                    </>
-                                  ) : (
-                                    <GhostBtn danger onClick={() => setDeletingCatId(cat.id)}>Delete</GhostBtn>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Add category form */}
-                    {addingCat ? (
-                      <div style={{
-                        display: 'flex', flexDirection: 'column', gap: 12,
-                        padding: 16, borderRadius: 12,
-                        border: '1.5px solid rgba(155,89,208,0.2)',
-                        background: 'rgba(155,89,208,0.03)',
-                      }}>
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
-                          New category
-                        </p>
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                          <div style={{ flex: '1 1 160px' }}>
-                            <label style={labelStyle}>Main category <span style={{ color: '#e53e3e' }}>*</span></label>
-                            <input
-                              value={newCatMain}
-                              onChange={e => setNewCatMain(e.target.value)}
-                              placeholder="e.g. Promotions"
-                              style={inputStyle}
-                              autoFocus
-                            />
-                          </div>
-                          <div style={{ flex: '1 1 160px' }}>
-                            <label style={labelStyle}>Sub-category</label>
-                            <input
-                              value={newCatSub}
-                              onChange={e => setNewCatSub(e.target.value)}
-                              placeholder="e.g. On-Site Promotion"
-                              style={inputStyle}
-                            />
-                          </div>
-                          <div style={{ flex: '1 1 160px' }}>
-                            <label style={labelStyle}>Detail</label>
-                            <input
-                              value={newCatDetail}
-                              onChange={e => setNewCatDetail(e.target.value)}
-                              placeholder="e.g. Deposited before Opt-In"
-                              style={inputStyle}
-                              onKeyDown={e => { if (e.key === 'Enter') addCategory() }}
-                            />
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            onClick={addCategory}
-                            disabled={!newCatMain.trim() || savingCat}
-                            style={{
-                              background: '#000', color: '#fff', border: 'none', borderRadius: 10,
-                              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                              padding: '9px 20px', cursor: newCatMain.trim() ? 'pointer' : 'not-allowed',
-                              opacity: newCatMain.trim() && !savingCat ? 1 : 0.4, transition: 'opacity 0.15s',
-                            }}
-                          >
-                            {savingCat ? 'Adding…' : 'Add'}
-                          </button>
-                          <button
-                            onClick={() => { setAddingCat(false); setNewCatMain(''); setNewCatSub(''); setNewCatDetail('') }}
-                            style={{
-                              background: 'none', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
-                              fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
-                              padding: '9px 18px', cursor: 'pointer',
-                            }}
-                          >Cancel</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setAddingCat(true)}
-                        style={{
-                          alignSelf: 'flex-start', background: '#000', color: '#fff',
-                          border: 'none', borderRadius: 10, cursor: 'pointer',
-                          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                          padding: '9px 20px', transition: 'opacity 0.15s',
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
-                        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                      >
-                        + Add category
-                      </button>
-                    )}
-                  </div>
-                )
-              })()}
-            </SectionCard>
+              {/* Add new team row */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <input
+                  value={newTeamName}
+                  onChange={e => setNewTeamName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addTeam() }}
+                  placeholder="New operator name…"
+                  style={{ ...inputStyle, flex: 1 }}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                />
+                <button
+                  onClick={addTeam}
+                  disabled={!newTeamName.trim() || addingTeam}
+                  style={{
+                    background: newTeamName.trim() && !addingTeam ? '#000' : 'rgba(0,0,0,0.1)',
+                    color: newTeamName.trim() && !addingTeam ? '#fff' : 'rgba(0,0,0,0.35)',
+                    fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    padding: '9px 18px', borderRadius: 10, border: 'none',
+                    cursor: newTeamName.trim() && !addingTeam ? 'pointer' : 'default',
+                    transition: 'all 0.15s', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={e => { if (newTeamName.trim() && !addingTeam) e.currentTarget.style.opacity = '0.8' }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
+                >
+                  {addingTeam ? 'Adding…' : '+ Add operator'}
+                </button>
+              </div>
+            </div>
           )}
-        </>
+        </SectionCard>
+      )}
+
+      {/* ── Edit operator modal (SuperAdmin only) ───────────────────────────── */}
+      {isAdmin && configTarget && (
+        <div
+          onClick={closeConfigModal}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Edit operator</h2>
+              <button onClick={closeConfigModal} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Name */}
+              <div>
+                <label style={labelStyle}>Operator name</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={configNameVal}
+                    onChange={e => setConfigNameVal(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveConfigName() }}
+                    style={{ ...inputStyle, flex: 1 }}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                  />
+                  <button
+                    onClick={saveConfigName}
+                    disabled={configSaving || !configNameVal.trim() || configNameVal.trim() === configTarget.name}
+                    style={{
+                      background: '#000', color: '#fff', border: 'none', borderRadius: 10,
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '9px 18px', cursor: 'pointer', whiteSpace: 'nowrap',
+                      opacity: configSaving || !configNameVal.trim() || configNameVal.trim() === configTarget.name ? 0.4 : 1,
+                    }}
+                  >
+                    {configSaving ? 'Saving…' : 'Save name'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Zendesk brand */}
+              <div>
+                <label style={labelStyle}>Zendesk brand</label>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                  Drives ZD adoption tracking on Leaderboard, Analytics, and Executive Summary. Leave as "Not tracked" for operators that don't use Zendesk.
+                </p>
+                {zdBrandsError ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{zdBrandsError}</p>
+                ) : (
+                  <select
+                    value={configTarget.zendeskBrandId ?? ''}
+                    disabled={zdBrandsLoading || zdBrandSaving || !zdBrands}
+                    onChange={e => saveZendeskBrand(e.target.value || null)}
+                    style={{ ...inputStyle, cursor: 'pointer', maxWidth: 320 }}
+                  >
+                    <option value="">
+                      {zdBrandsLoading ? 'Loading brands…' : 'Not tracked'}
+                    </option>
+                    {zdBrands?.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Issue Categories */}
+              <div>
+                <label style={labelStyle}>Issue categories</label>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                  Category taxonomy for {configTarget.name}. Agents use these when logging tickets.
+                </p>
+                {catsLoading ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+                ) : (() => {
+                  // Group by main_category
+                  const grouped: Record<string, OperatorCategory[]> = {}
+                  categories.forEach(c => {
+                    if (!grouped[c.main_category]) grouped[c.main_category] = []
+                    grouped[c.main_category].push(c)
+                  })
+                  const mains = Object.keys(grouped).sort()
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {mains.length === 0 && !addingCat && (
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
+                          No categories yet. Add one below.
+                        </p>
+                      )}
+
+                      {mains.map(main => (
+                        <div key={main}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>
+                              {main}
+                            </span>
+                            <span style={{
+                              fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0',
+                              background: 'rgba(155,89,208,0.08)', padding: '1px 8px', borderRadius: 100,
+                            }}>
+                              {grouped[main].length}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {grouped[main].map(cat => (
+                              <div key={cat.id} style={{
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '8px 12px', borderRadius: 10,
+                                background: cat.active ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.01)',
+                                border: '1.5px solid rgba(0,0,0,0.07)',
+                                opacity: cat.active ? 1 : 0.5,
+                              }}>
+                                {editingCatId === cat.id ? (
+                                  <>
+                                    <input
+                                      value={editCatMain}
+                                      onChange={e => setEditCatMain(e.target.value)}
+                                      placeholder="Main category"
+                                      style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
+                                    />
+                                    <input
+                                      value={editCatSub}
+                                      onChange={e => setEditCatSub(e.target.value)}
+                                      placeholder="Sub-category"
+                                      style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
+                                    />
+                                    <input
+                                      value={editCatDetail}
+                                      onChange={e => setEditCatDetail(e.target.value)}
+                                      placeholder="Detail (optional)"
+                                      style={{ ...inputStyle, width: 160, padding: '5px 10px' }}
+                                    />
+                                    <button
+                                      onClick={() => saveEditCategory(cat.id)}
+                                      style={{
+                                        background: '#000', color: '#fff', border: 'none', borderRadius: 8,
+                                        fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                                        padding: '5px 14px', cursor: 'pointer',
+                                      }}
+                                    >Save</button>
+                                    <GhostBtn onClick={() => setEditingCatId(null)}>Cancel</GhostBtn>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span style={{ flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                                      {[cat.main_category, cat.sub_category, cat.detail].filter(Boolean).join(' › ')}
+                                    </span>
+                                    <button
+                                      onClick={() => toggleCatActive(cat.id, cat.active)}
+                                      style={{
+                                        fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                                        padding: '3px 10px', borderRadius: 100, border: 'none', cursor: 'pointer',
+                                        background: cat.active ? 'rgba(155,89,208,0.1)' : 'rgba(0,0,0,0.06)',
+                                        color: cat.active ? '#9B59D0' : '#58595B',
+                                        transition: 'all 0.15s',
+                                      }}
+                                    >
+                                      {cat.active ? 'Active' : 'Inactive'}
+                                    </button>
+                                    <GhostBtn onClick={() => {
+                                      setEditingCatId(cat.id)
+                                      setEditCatMain(cat.main_category)
+                                      setEditCatSub(cat.sub_category ?? '')
+                                      setEditCatDetail(cat.detail ?? '')
+                                    }}>Edit</GhostBtn>
+                                    {deletingCatId === cat.id ? (
+                                      <>
+                                        <GhostBtn danger onClick={() => deleteCategory(cat.id)}>Confirm</GhostBtn>
+                                        <GhostBtn onClick={() => setDeletingCatId(null)}>Cancel</GhostBtn>
+                                      </>
+                                    ) : (
+                                      <GhostBtn danger onClick={() => setDeletingCatId(cat.id)}>Delete</GhostBtn>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Add category form */}
+                      {addingCat ? (
+                        <div style={{
+                          display: 'flex', flexDirection: 'column', gap: 12,
+                          padding: 16, borderRadius: 12,
+                          border: '1.5px solid rgba(155,89,208,0.2)',
+                          background: 'rgba(155,89,208,0.03)',
+                        }}>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
+                            New category
+                          </p>
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ flex: '1 1 160px' }}>
+                              <label style={labelStyle}>Main category <span style={{ color: '#e53e3e' }}>*</span></label>
+                              <input
+                                value={newCatMain}
+                                onChange={e => setNewCatMain(e.target.value)}
+                                placeholder="e.g. Promotions"
+                                style={inputStyle}
+                                autoFocus
+                              />
+                            </div>
+                            <div style={{ flex: '1 1 160px' }}>
+                              <label style={labelStyle}>Sub-category</label>
+                              <input
+                                value={newCatSub}
+                                onChange={e => setNewCatSub(e.target.value)}
+                                placeholder="e.g. On-Site Promotion"
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div style={{ flex: '1 1 160px' }}>
+                              <label style={labelStyle}>Detail</label>
+                              <input
+                                value={newCatDetail}
+                                onChange={e => setNewCatDetail(e.target.value)}
+                                placeholder="e.g. Deposited before Opt-In"
+                                style={inputStyle}
+                                onKeyDown={e => { if (e.key === 'Enter') addCategory() }}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              onClick={addCategory}
+                              disabled={!newCatMain.trim() || savingCat}
+                              style={{
+                                background: '#000', color: '#fff', border: 'none', borderRadius: 10,
+                                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                                padding: '9px 20px', cursor: newCatMain.trim() ? 'pointer' : 'not-allowed',
+                                opacity: newCatMain.trim() && !savingCat ? 1 : 0.4, transition: 'opacity 0.15s',
+                              }}
+                            >
+                              {savingCat ? 'Adding…' : 'Add'}
+                            </button>
+                            <button
+                              onClick={() => { setAddingCat(false); setNewCatMain(''); setNewCatSub(''); setNewCatDetail('') }}
+                              style={{
+                                background: 'none', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
+                                fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+                                padding: '9px 18px', cursor: 'pointer',
+                              }}
+                            >Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddingCat(true)}
+                          style={{
+                            alignSelf: 'flex-start', background: '#000', color: '#fff',
+                            border: 'none', borderRadius: 10, cursor: 'pointer',
+                            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                            padding: '9px 20px', transition: 'opacity 0.15s',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                          onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                        >
+                          + Add category
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+              <GhostBtn danger onClick={() => deleteTeam(configTarget.id, configTarget.name)}>Delete operator</GhostBtn>
+              <button onClick={closeConfigModal} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 18px', borderRadius: 10, cursor: 'pointer',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+              }}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
