@@ -51,18 +51,37 @@ async function writeVerdict(id: string, result: EvalResult): Promise<void> {
   })
 }
 
-async function evalRow(client: Anthropic, row: IssueRow): Promise<EvalResult> {
-  const fewShotMessages = FEW_SHOT.flatMap(ex => [
-    { role: 'user'      as const, content: ex.user      },
-    { role: 'assistant' as const, content: ex.assistant },
-  ])
+interface UsageStats { input: number; cacheWrite: number; cacheRead: number }
+
+async function evalRow(client: Anthropic, row: IssueRow): Promise<{ result: EvalResult; usage: UsageStats }> {
+  // System prompt + few-shot examples are identical on every call — cache the
+  // whole prefix (marker goes on the LAST few-shot block) so repeat calls pay
+  // ~10% of base input price for this ~6K-token fixed portion.
+  const fewShotMessages = FEW_SHOT.flatMap((ex, i) => {
+    const isLast = i === FEW_SHOT.length - 1
+    return [
+      { role: 'user' as const, content: ex.user },
+      {
+        role: 'assistant' as const,
+        content: isLast
+          ? [{ type: 'text' as const, text: ex.assistant, cache_control: { type: 'ephemeral' as const } }]
+          : ex.assistant,
+      },
+    ]
+  })
 
   const msg = await client.messages.create({
     model:      'claude-sonnet-4-5',
     max_tokens: 256,
-    system:     EVAL_SYSTEM,
+    system:     [{ type: 'text', text: EVAL_SYSTEM, cache_control: { type: 'ephemeral' } }],
     messages:   [...fewShotMessages, { role: 'user', content: buildEditUserMessage(row) }],
   })
+
+  const usage: UsageStats = {
+    input:      msg.usage.input_tokens,
+    cacheWrite: msg.usage.cache_creation_input_tokens ?? 0,
+    cacheRead:  msg.usage.cache_read_input_tokens ?? 0,
+  }
 
   const raw  = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
   // Strip markdown code fences if Claude wraps the JSON
@@ -73,9 +92,12 @@ async function evalRow(client: Anthropic, row: IssueRow): Promise<EvalResult> {
       throw new Error(`Unexpected verdict: ${parsed.verdict}`)
     }
     return {
-      verdict:    parsed.verdict,
-      confidence: Math.min(100, Math.max(0, parseInt(parsed.confidence, 10) || 50)),
-      reasoning:  parsed.reasoning ?? '',
+      result: {
+        verdict:    parsed.verdict,
+        confidence: Math.min(100, Math.max(0, parseInt(parsed.confidence, 10) || 50)),
+        reasoning:  parsed.reasoning ?? '',
+      },
+      usage,
     }
   } catch {
     // Fallback: extract verdict from text if JSON parse fails
@@ -83,7 +105,10 @@ async function evalRow(client: Anthropic, row: IssueRow): Promise<EvalResult> {
             : text.includes('CORRECTION')  ? 'CORRECTION'
             : text.includes('ENHANCEMENT') ? 'ENHANCEMENT'
             : 'PREFERENCE'
-    return { verdict: v as EvalResult['verdict'], confidence: 50, reasoning: 'Parse error — verdict inferred from text.' }
+    return {
+      result: { verdict: v as EvalResult['verdict'], confidence: 50, reasoning: 'Parse error — verdict inferred from text.' },
+      usage,
+    }
   }
 }
 
@@ -101,6 +126,7 @@ Deno.serve(async (req: Request) => {
 
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY })
     let processed = 0, skipped = 0, errors = 0
+    let cacheRead = 0, cacheWrite = 0, uncachedInput = 0
     const errorList: string[] = []
 
     // Process concurrently — cap at 5 parallel Claude calls
@@ -116,7 +142,8 @@ Deno.serve(async (req: Request) => {
           if (!['Majority edit', 'Partial edit'].includes(row.issue_type)) { skipped++; return }
           if (!row.suggested_response?.trim() || !row.final_edits?.trim())  { skipped++; return }
 
-          const result = await evalRow(client, row)
+          const { result, usage } = await evalRow(client, row)
+          cacheRead += usage.cacheRead; cacheWrite += usage.cacheWrite; uncachedInput += usage.input
           await writeVerdict(id, result)
           processed++
         } catch (e: unknown) {
@@ -127,7 +154,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ processed, skipped, errors, errorList }),
+      JSON.stringify({ processed, skipped, errors, errorList, cacheStats: { cacheRead, cacheWrite, uncachedInput } }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (err: unknown) {

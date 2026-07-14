@@ -27,6 +27,7 @@ const sbHeaders = {
 // ── Claude call ──────────────────────────────────────────────────────────────
 
 let lastDebugError: string | null = null
+let lastUsage: { input: number; cacheWrite: number; cacheRead: number } | null = null
 
 async function classifyAccuracy(
   conversationThread: string,
@@ -43,21 +44,28 @@ async function classifyAccuracy(
       body: JSON.stringify({
         model:      'claude-sonnet-4-5',
         max_tokens: 512,
-        system:     ACCURACY_SYSTEM,
+        // Identical on every call — cache it so repeat calls pay ~10% of base input price.
+        system: [{ type: 'text', text: ACCURACY_SYSTEM, cache_control: { type: 'ephemeral' } }],
         messages: [{
           role: 'user',
           content: `Conversation thread:\n${conversationThread}\n\ngameLM suggested response:\n"${suggestedResponse}"`,
         }],
       }),
     })
-    if (!res.ok) { lastDebugError = `HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`; return null }
+    if (!res.ok) { lastDebugError = `HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`; lastUsage = null; return null }
     const data = await res.json()
+    lastUsage = {
+      input:      data.usage?.input_tokens ?? 0,
+      cacheWrite: data.usage?.cache_creation_input_tokens ?? 0,
+      cacheRead:  data.usage?.cache_read_input_tokens ?? 0,
+    }
     const raw  = data.content?.[0]?.type === 'text' ? data.content[0].text.trim() : ''
     const parsed = parseAccuracyOutput(raw)
     if (!parsed) lastDebugError = `parse failure, raw: ${raw.slice(0, 500)}`
     return parsed
   } catch (e) {
     lastDebugError = `fetch threw: ${e instanceof Error ? e.message : String(e)}`
+    lastUsage = null
     return null
   }
 }
@@ -89,6 +97,7 @@ Deno.serve(async (req: Request) => {
 
     let processed = 0, skipped = 0, errors = 0
     const debugErrors: string[] = []
+    let cacheRead = 0, cacheWrite = 0, uncachedInput = 0
 
     for (const issue of issues) {
       const playerMsg = (issue.customer_input    ?? '').trim()
@@ -110,6 +119,7 @@ Deno.serve(async (req: Request) => {
       } catch { /* fall back to single-turn if context fetch fails */ }
 
       const result = await classifyAccuracy(conversationThread, suggested)
+      if (lastUsage) { cacheRead += lastUsage.cacheRead; cacheWrite += lastUsage.cacheWrite; uncachedInput += lastUsage.input }
       if (!result || !result.errorClass) { errors++; debugErrors.push(lastDebugError ?? 'unknown'); continue }
 
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/ticket_issues?id=eq.${issue.id}`, {
@@ -128,7 +138,7 @@ Deno.serve(async (req: Request) => {
       if (patchRes.ok) processed++; else errors++
     }
 
-    return new Response(JSON.stringify({ processed, skipped, errors, debugErrors }), {
+    return new Response(JSON.stringify({ processed, skipped, errors, debugErrors, cacheStats: { cacheRead, cacheWrite, uncachedInput } }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err: unknown) {
