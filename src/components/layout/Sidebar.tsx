@@ -1,10 +1,32 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Ticket, Megaphone, Trophy, Inbox, LayoutDashboard,
   LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
+import { supabase } from '../../lib/supabase'
+
+// Eval-pipeline health check (SuperAdmin only) — flags the Admin settings nav
+// item when tickets are sitting unevaluated for too long (e.g. Anthropic credits
+// ran out again). "Stale" = more than a handful of eligible tickets older than
+// STALE_AFTER_MS still have no accuracy score. Re-checked periodically so the
+// dot clears itself once Backfill Evaluations (or the next auto-eval run) catches up.
+const STALE_AFTER_MS   = 3 * 60 * 60 * 1000 // 3 hours
+const STALE_MIN_COUNT  = 5
+const HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+
+async function checkEvalHealth(): Promise<boolean> {
+  const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString()
+  const { count } = await supabase
+    .from('ticket_issues')
+    .select('id', { count: 'exact', head: true })
+    .neq('issue_type', 'No response')
+    .not('suggested_response', 'is', null)
+    .is('accuracy_error_class', null)
+    .lt('created_at', cutoff)
+  return (count ?? 0) > STALE_MIN_COUNT
+}
 
 export type Page =
   | 'log-ticket'
@@ -99,6 +121,16 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const initial    = user?.name ? user.name[0].toUpperCase() : '?'
   const isOperator = user?.role === 'operator'
   const isSuperAdmin = !!user?.isSuperAdmin
+  const [evalStale, setEvalStale] = useState(false)
+
+  useEffect(() => {
+    if (!isSuperAdmin) return
+    let cancelled = false
+    const run = () => checkEvalHealth().then(stale => { if (!cancelled) setEvalStale(stale) })
+    run()
+    const interval = setInterval(run, HEALTH_CHECK_INTERVAL_MS)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [isSuperAdmin])
   // Anyone (admin, or a QA/agent granted extra operators) who has more than one
   // operator to choose from gets the switcher — not just admins.
   const canSwitchOperator = !isOperator && operators.length > 1
@@ -409,12 +441,24 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
           }}
         >
           <span style={{
+            position: 'relative',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 28, height: 28, borderRadius: 8,
             background: (activePage === 'settings' || activePage === 'users') ? '#fff' : 'transparent',
             flexShrink: 0,
           }}>
             <SettingsIcon />
+            {isSuperAdmin && evalStale && (
+              <span
+                title="Evals are falling behind — check Backfill Evaluations"
+                style={{
+                  position: 'absolute', top: 2, right: 2,
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: '#e53e3e',
+                  border: '1.5px solid #fff',
+                }}
+              />
+            )}
           </span>
           {!collapsed && (isSuperAdmin ? 'Admin settings' : 'Settings')}
         </button>}

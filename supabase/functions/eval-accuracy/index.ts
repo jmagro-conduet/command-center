@@ -2,7 +2,11 @@
 // Checks each gameLM suggested response for P1A / P1B / P2 accuracy errors.
 // Now uses full conversation thread for context-aware classification.
 //
-// POST body: { ids: string[] }
+// POST body: { ids: string[], threads?: Record<string, string> }
+// `threads` is an optional pre-built conversationThread per issue id — auto-eval
+// builds these once and shares them with eval-quality to avoid both functions
+// independently re-fetching the same ticket context. Falls back to a self-fetch
+// per issue when not provided (e.g. the Backfill Evaluations admin tool).
 
 import { corsHeaders } from '../_shared/cors.ts'
 import {
@@ -24,15 +28,15 @@ const sbHeaders = {
   'Content-Type': 'application/json',
 }
 
-// ── Claude call ──────────────────────────────────────────────────────────────
+interface UsageStats { input: number; cacheWrite: number; cacheRead: number }
+interface ClassifyOutcome { result: AccuracyResult | null; usage: UsageStats | null; debugError: string | null }
 
-let lastDebugError: string | null = null
-let lastUsage: { input: number; cacheWrite: number; cacheRead: number } | null = null
+// ── Claude call ──────────────────────────────────────────────────────────────
 
 async function classifyAccuracy(
   conversationThread: string,
   suggestedResponse: string
-): Promise<AccuracyResult | null> {
+): Promise<ClassifyOutcome> {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method:  'POST',
@@ -52,21 +56,20 @@ async function classifyAccuracy(
         }],
       }),
     })
-    if (!res.ok) { lastDebugError = `HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`; lastUsage = null; return null }
+    if (!res.ok) {
+      return { result: null, usage: null, debugError: `HTTP ${res.status}: ${(await res.text()).slice(0, 500)}` }
+    }
     const data = await res.json()
-    lastUsage = {
+    const usage: UsageStats = {
       input:      data.usage?.input_tokens ?? 0,
       cacheWrite: data.usage?.cache_creation_input_tokens ?? 0,
       cacheRead:  data.usage?.cache_read_input_tokens ?? 0,
     }
-    const raw  = data.content?.[0]?.type === 'text' ? data.content[0].text.trim() : ''
+    const raw    = data.content?.[0]?.type === 'text' ? data.content[0].text.trim() : ''
     const parsed = parseAccuracyOutput(raw)
-    if (!parsed) lastDebugError = `parse failure, raw: ${raw.slice(0, 500)}`
-    return parsed
+    return { result: parsed, usage, debugError: parsed ? null : `parse failure, raw: ${raw.slice(0, 500)}` }
   } catch (e) {
-    lastDebugError = `fetch threw: ${e instanceof Error ? e.message : String(e)}`
-    lastUsage = null
-    return null
+    return { result: null, usage: null, debugError: `fetch threw: ${e instanceof Error ? e.message : String(e)}` }
   }
 }
 
@@ -76,7 +79,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { ids }: { ids: string[] } = await req.json()
+    const { ids, threads }: { ids: string[]; threads?: Record<string, string> } = await req.json()
     if (!Array.isArray(ids) || ids.length === 0) {
       return new Response(JSON.stringify({ error: 'ids array is required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -99,43 +102,51 @@ Deno.serve(async (req: Request) => {
     const debugErrors: string[] = []
     let cacheRead = 0, cacheWrite = 0, uncachedInput = 0
 
-    for (const issue of issues) {
-      const playerMsg = (issue.customer_input    ?? '').trim()
-      const suggested = (issue.suggested_response ?? '').trim()
+    // Process concurrently — cap at 5 parallel Claude calls, matching eval-issue-v2.
+    const CONCURRENCY = 5
+    for (let i = 0; i < issues.length; i += CONCURRENCY) {
+      const chunk = issues.slice(i, i + CONCURRENCY)
+      await Promise.all(chunk.map(async (issue: any) => {
+        const playerMsg = (issue.customer_input    ?? '').trim()
+        const suggested = (issue.suggested_response ?? '').trim()
 
-      if (!playerMsg || !suggested) { skipped++; continue }
+        if (!playerMsg || !suggested) { skipped++; return }
 
-      // Build full conversation thread from all prior exchanges in this ticket
-      let conversationThread = `Player: "${playerMsg}"`
-      try {
-        const ctxRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/ticket_issues?ticket_id=eq.${issue.ticket_id}&select=id,customer_input,suggested_response&order=logged_at.asc`,
-          { headers: sbHeaders }
-        )
-        const ticketIssues: TicketIssue[] = await ctxRes.json()
-        if (Array.isArray(ticketIssues) && ticketIssues.length > 1) {
-          conversationThread = buildConversationThread(ticketIssues, issue.id, playerMsg)
+        // Use the pre-built thread if the caller supplied one; otherwise fetch it.
+        let conversationThread = threads?.[issue.id]
+        if (!conversationThread) {
+          conversationThread = `Player: "${playerMsg}"`
+          try {
+            const ctxRes = await fetch(
+              `${SUPABASE_URL}/rest/v1/ticket_issues?ticket_id=eq.${issue.ticket_id}&select=id,customer_input,suggested_response&order=logged_at.asc`,
+              { headers: sbHeaders }
+            )
+            const ticketIssues: TicketIssue[] = await ctxRes.json()
+            if (Array.isArray(ticketIssues) && ticketIssues.length > 1) {
+              conversationThread = buildConversationThread(ticketIssues, issue.id, playerMsg)
+            }
+          } catch { /* fall back to single-turn if context fetch fails */ }
         }
-      } catch { /* fall back to single-turn if context fetch fails */ }
 
-      const result = await classifyAccuracy(conversationThread, suggested)
-      if (lastUsage) { cacheRead += lastUsage.cacheRead; cacheWrite += lastUsage.cacheWrite; uncachedInput += lastUsage.input }
-      if (!result || !result.errorClass) { errors++; debugErrors.push(lastDebugError ?? 'unknown'); continue }
+        const { result, usage, debugError } = await classifyAccuracy(conversationThread, suggested)
+        if (usage) { cacheRead += usage.cacheRead; cacheWrite += usage.cacheWrite; uncachedInput += usage.input }
+        if (!result || !result.errorClass) { errors++; debugErrors.push(debugError ?? 'unknown'); return }
 
-      const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/ticket_issues?id=eq.${issue.id}`, {
-        method:  'PATCH',
-        headers: { ...sbHeaders, Prefer: 'return=minimal' },
-        body:    JSON.stringify({
-          accuracy_error_class:  result.errorClass,
-          accuracy_evidence:     result.evidence,
-          accuracy_reasoning:    result.reasoning,
-          accuracy_human_review: result.humanReview,
-          accuracy_ran_at:       new Date().toISOString(),
-          accuracy_prompt_version: ACCURACY_PROMPT_VERSION,
-        }),
-      })
+        const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/ticket_issues?id=eq.${issue.id}`, {
+          method:  'PATCH',
+          headers: { ...sbHeaders, Prefer: 'return=minimal' },
+          body:    JSON.stringify({
+            accuracy_error_class:  result.errorClass,
+            accuracy_evidence:     result.evidence,
+            accuracy_reasoning:    result.reasoning,
+            accuracy_human_review: result.humanReview,
+            accuracy_ran_at:       new Date().toISOString(),
+            accuracy_prompt_version: ACCURACY_PROMPT_VERSION,
+          }),
+        })
 
-      if (patchRes.ok) processed++; else errors++
+        if (patchRes.ok) processed++; else errors++
+      }))
     }
 
     return new Response(JSON.stringify({ processed, skipped, errors, debugErrors, cacheStats: { cacheRead, cacheWrite, uncachedInput } }), {
