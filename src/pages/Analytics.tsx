@@ -146,7 +146,7 @@ function buildMetricTrendData(rows: DataRow[], days: number, issueType: string, 
   })
 }
 
-function buildChartData(rows: DataRow[], days: number, target: number, endDate: Date = new Date()) {
+function buildChartData(rows: DataRow[], days: number, target: number, endDate: Date = new Date(), windowSize: number = 7) {
   const byDate = new Map<string, Set<string>>()
   for (const r of rows) {
     const label = rowDate(r).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -160,7 +160,7 @@ function buildChartData(rows: DataRow[], days: number, target: number, endDate: 
     result.push({ date: label, fullDate: toDateStr(d), count: byDate.get(label)?.size ?? 0, movingAvg: 0, target })
   }
   return result.map((pt, i) => {
-    const win = result.slice(Math.max(0, i - 6), i + 1)
+    const win = result.slice(Math.max(0, i - (windowSize - 1)), i + 1)
     return { ...pt, movingAvg: Math.round(win.reduce((a, b) => a + b.count, 0) / win.length) }
   })
 }
@@ -819,7 +819,9 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const agent = useMemo(() => agents.find(a => a.name === agentName) ?? agents[0], [agents, agentName])
 
   const agentRows  = useMemo(() => rows.filter(r => r.agentName === agentName), [rows, agentName])
-  const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate), [agentRows, days, dailyTarget.max, chartEndDate])
+  // 5-day window, not 7 — agents work a 5-day week, so a 7-day trailing
+  // average gets diluted by their off days (team-level trend stays 7-day).
+  const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate, 5), [agentRows, days, dailyTarget.max, chartEndDate])
 
   // Clicking a node (day) on the chart pins the view to that single day —
   // lets a lead drill straight into this agent's good/bad day. Recharts 3's
@@ -900,7 +902,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
             <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)' }} />
             <ReferenceLine y={dailyTarget.max} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} />
             <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily" />
-            <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
+            <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="5-Day Avg" />
           </LineChart>
         </ResponsiveContainer>
 
