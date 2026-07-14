@@ -338,22 +338,28 @@ export default function ExecutiveSummary() {
   const prevReadyCount = prevReady.filter(c => c.ready).length
   const trackedCats = curReady.filter(c => c.status !== 'low-data').length
 
-  // Adoption (gameLM logged tickets / Zendesk chat tickets, last 30d)
+  // Adoption (gameLM logged tickets / Zendesk chat tickets, last 30d) — only
+  // for operators with a real Zendesk brand configured. Without it, an agent's
+  // ZD count would sum their chat activity across every brand they touch, not
+  // just this operator's, which is meaningless (and misleading) for operators
+  // like RSI that don't use Zendesk at all.
+  const zendeskBrandId = selectedOperator?.zendeskBrandId ?? null
+  const tracksZd = !!zendeskBrandId
   const loggedTickets = useMemo(() => new Set(cur.map(r => r.ticketNumber)).size, [cur])
   const rosterEmails = useMemo(() => [...new Set(cur.map(r => r.agentEmail).filter(Boolean))], [cur])
   const rosterKey = rosterEmails.slice().sort().join(',')
   useEffect(() => {
-    if (rosterEmails.length === 0) { setZdTotal(null); return }
+    if (!tracksZd || rosterEmails.length === 0) { setZdTotal(null); return }
     let cancelled = false
     const end = new Date(); end.setDate(end.getDate() + 1)
     const start = new Date(); start.setDate(start.getDate() - 30)
     const fmt = (d: Date) => d.toISOString().slice(0, 10)
-    supabase.functions.invoke('zendesk-tickets', { body: { start_date: fmt(start), end_date: fmt(end), agent_emails: rosterEmails } })
+    supabase.functions.invoke('zendesk-tickets', { body: { start_date: fmt(start), end_date: fmt(end), agent_emails: rosterEmails, brand_id: zendeskBrandId } })
       .then(({ data }) => { if (!cancelled && Array.isArray(data?.agents)) setZdTotal(data.agents.reduce((s: number, a: any) => s + (a.count || 0), 0)) })
       .catch(() => { if (!cancelled) setZdTotal(null) })
     return () => { cancelled = true }
-  }, [rosterKey]) // eslint-disable-line react-hooks/exhaustive-deps
-  const adoption = zdTotal && zdTotal > 0 ? Math.min(100, Math.round((loggedTickets / zdTotal) * 100)) : null
+  }, [rosterKey, tracksZd, zendeskBrandId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const adoption = tracksZd && zdTotal && zdTotal > 0 ? Math.min(100, Math.round((loggedTickets / zdTotal) * 100)) : null
 
   // Eval engine (latest prompt version only)
   const accRows = useMemo(() => latestVerRows(cur, 'accVer', 'accRanAt'), [cur])

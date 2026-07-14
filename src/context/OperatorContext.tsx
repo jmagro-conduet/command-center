@@ -7,6 +7,9 @@ export interface Operator {
   name: string
   slug: string
   logoUrl: string | null
+  // null = this operator doesn't use Zendesk — pages should skip ZD adoption
+  // tracking entirely rather than showing a cross-brand-contaminated number.
+  zendeskBrandId: string | null
 }
 
 interface OperatorContextValue {
@@ -21,7 +24,7 @@ const OperatorContext = createContext<OperatorContextValue | null>(null)
 const STORAGE_KEY = 'conduet_selected_operator'
 
 function mapOperator(o: any): Operator {
-  return { id: o.id, name: o.name, slug: o.slug, logoUrl: o.logo_url ?? null }
+  return { id: o.id, name: o.name, slug: o.slug, logoUrl: o.logo_url ?? null, zendeskBrandId: o.zendesk_brand_id ?? null }
 }
 
 export function OperatorProvider({ children }: { children: React.ReactNode }) {
@@ -39,19 +42,19 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
 
       if (user!.role === 'admin') {
         // Admins/SuperAdmins can switch between every operator.
-        const { data } = await supabase.from('operators').select('id, name, slug, logo_url').order('name')
+        const { data } = await supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id').order('name')
         ops = (data ?? []).map(mapOperator)
       } else if (user!.role === 'operator') {
         // External client logins — always exactly their one operator, never extra
         // access even if something were ever granted to them.
-        const { data } = await supabase.from('operators').select('id, name, slug, logo_url').eq('id', user!.operatorId ?? '')
+        const { data } = await supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id').eq('id', user!.operatorId ?? '')
         ops = (data ?? []).map(mapOperator)
       } else {
         // Agent / QA — their home operator, plus anything a SuperAdmin has granted
         // via user_operator_access (e.g. a QA person covering RSI on top of BetSaracen).
         const [{ data: home }, { data: grants }] = await Promise.all([
           user!.operatorId
-            ? supabase.from('operators').select('id, name, slug, logo_url').eq('id', user!.operatorId)
+            ? supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id').eq('id', user!.operatorId)
             : Promise.resolve({ data: [] as any[] }),
           supabase.from('user_operator_access').select('operator_id').eq('user_id', user!.id),
         ])
@@ -61,7 +64,7 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
 
         let grantedOps: Operator[] = []
         if (grantedIds.length > 0) {
-          const { data: gOps } = await supabase.from('operators').select('id, name, slug, logo_url').in('id', grantedIds)
+          const { data: gOps } = await supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id').in('id', grantedIds)
           grantedOps = (gOps ?? []).map(mapOperator)
         }
         ops = [...homeOps, ...grantedOps]

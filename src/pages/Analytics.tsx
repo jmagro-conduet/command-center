@@ -439,6 +439,18 @@ function rangeToDateParams(range: TimeRange, customRange: CustomRange | null) {
 }
 
 function TeamView({ allRows }: { allRows: DataRow[] }) {
+  const { selectedOperator } = useOperator()
+  // ZD adoption only applies to operators with a real Zendesk brand configured —
+  // skip the fetch entirely for everyone else rather than showing a number
+  // contaminated by agents' unrelated work on other brands.
+  const zendeskBrandId = selectedOperator?.zendeskBrandId ?? null
+  const tracksZd = !!zendeskBrandId
+  const agentTableColumns = tracksZd
+    ? ['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'ZD Tickets', 'Adoption %', 'Status']
+    : ['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'Status']
+  const agentTableGridCols = tracksZd
+    ? '1.5fr 100px 85px 95px 95px 95px 80px 80px 85px'
+    : '1.5fr 100px 85px 95px 95px 95px 85px'
   const [range, setRange]             = useState<TimeRange>('last30')
   const [customRange, setCustomRange] = useState<CustomRange | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
@@ -462,6 +474,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   )
 
   useEffect(() => {
+    if (!tracksZd) { setZdAgents(null); setZdError(null); setZdLoading(false); return }
     const agentEmails = rosterEmailsKey ? rosterEmailsKey.split(',') : []
     if (agentEmails.length === 0) return   // wait until agent roster is loaded
 
@@ -472,7 +485,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
       try {
         const { start, end } = rangeToDateParams(range, customRange)
         const { data, error } = await supabase.functions.invoke('zendesk-tickets', {
-          body: { start_date: start, end_date: end, agent_emails: agentEmails },
+          body: { start_date: start, end_date: end, agent_emails: agentEmails, brand_id: zendeskBrandId },
         })
         if (!cancelled) {
           if (error) {
@@ -494,7 +507,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
     }
     fetchZd()
     return () => { cancelled = true }
-  }, [range, customRange, rosterEmailsKey])
+  }, [range, customRange, rosterEmailsKey, tracksZd, zendeskBrandId])
 
   const rows = useMemo(() => filterByRange(allRows, range, customRange), [allRows, range, customRange])
   const days = useMemo(() => effectiveDays(rows, range, customRange), [rows, range, customRange])
@@ -559,34 +572,36 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           </div>
         ))}
 
-        {/* ZD card — row 1, position 3 */}
-        <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ZD Live Chat Tickets</p>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: 'rgba(243,156,18,0.12)', color: '#b45309', letterSpacing: '0.05em' }}>ZENDESK</span>
-          </div>
-          {zdLoading ? (
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>…</p>
-          ) : zdError ? (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 4 }}>{zdError}</p>
-          ) : zdCount !== null ? (
-            <>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#b45309' }}>
-                {zdCount.toLocaleString()}
-              </p>
-              {zdCount > 0 && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>
-                  <span style={{ fontWeight: 500, color: '#b45309' }}>
-                    {((kpis.tickets / zdCount) * 100).toFixed(1)}%
-                  </span>
-                  {' '}of ZD tickets logged
+        {/* ZD card — row 1, position 3. Only for operators with a Zendesk brand configured. */}
+        {tracksZd && (
+          <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ZD Live Chat Tickets</p>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: 'rgba(243,156,18,0.12)', color: '#b45309', letterSpacing: '0.05em' }}>ZENDESK</span>
+            </div>
+            {zdLoading ? (
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>…</p>
+            ) : zdError ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 4 }}>{zdError}</p>
+            ) : zdCount !== null ? (
+              <>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#b45309' }}>
+                  {zdCount.toLocaleString()}
                 </p>
-              )}
-            </>
-          ) : (
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>—</p>
-          )}
-        </div>
+                {zdCount > 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>
+                    <span style={{ fontWeight: 500, color: '#b45309' }}>
+                      {((kpis.tickets / zdCount) * 100).toFixed(1)}%
+                    </span>
+                    {' '}of ZD tickets logged
+                  </p>
+                )}
+              </>
+            ) : (
+              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>—</p>
+            )}
+          </div>
+        )}
 
         {/* Row 2: Avg responses/ticket | Team avg/day | Target range */}
         {[
@@ -715,8 +730,8 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Agent Performance Summary</p>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Click an agent row to view their chart above</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 100px 85px 95px 95px 95px 80px 80px 85px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-          {['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'ZD Tickets', 'Adoption %', 'Status'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: agentTableGridCols, padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
+          {agentTableColumns.map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -744,7 +759,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           return (
             <div key={a.email || a.name} onClick={() => setSelectedAgent(s => s === a.name ? null : a.name)}
               style={{
-                display: 'grid', gridTemplateColumns: '1.5fr 100px 85px 95px 95px 95px 80px 80px 85px',
+                display: 'grid', gridTemplateColumns: agentTableGridCols,
                 padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
                 borderBottom: i < agents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                 background: selectedAgent === a.name ? 'rgba(206,164,255,0.07)' : 'transparent',
@@ -759,19 +774,23 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{a.perfect}%</span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#854d0e' }}>{a.majority}%</span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#6b21a8' }}>{a.partial}%</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
-                {zdLoading ? '…' : zdTickets !== null ? zdTickets : '—'}
-              </span>
-              <span style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13,
-                color: zdLoading ? 'rgba(0,0,0,0.2)'
-                  : adoptionPct !== null && parseFloat(adoptionPct) > 100 ? '#e53e3e'
-                  : adoptionPct !== null ? '#b45309'
-                  : '#aaa',
-                fontWeight: adoptionPct !== null ? 500 : 400,
-              }}>
-                {zdLoading ? '…' : adoptionPct !== null ? `${adoptionPct}%` : '—'}
-              </span>
+              {tracksZd && (
+                <>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
+                    {zdLoading ? '…' : zdTickets !== null ? zdTickets : '—'}
+                  </span>
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif', fontSize: 13,
+                    color: zdLoading ? 'rgba(0,0,0,0.2)'
+                      : adoptionPct !== null && parseFloat(adoptionPct) > 100 ? '#e53e3e'
+                      : adoptionPct !== null ? '#b45309'
+                      : '#aaa',
+                    fontWeight: adoptionPct !== null ? 500 : 400,
+                  }}>
+                    {zdLoading ? '…' : adoptionPct !== null ? `${adoptionPct}%` : '—'}
+                  </span>
+                </>
+              )}
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusBg, color: statusColor }}>{statusLabel}</span>
             </div>
           )

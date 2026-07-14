@@ -345,8 +345,21 @@ export default function Leaderboard() {
     [scopedRows]
   )
 
+  // ZD adoption only applies to operators with a real Zendesk brand — for
+  // everyone else (e.g. RSI) we skip the fetch entirely rather than showing a
+  // number contaminated by agents' unrelated work on other brands.
+  const zendeskBrandId = selectedOperator?.zendeskBrandId ?? null
+  const tracksZd = !!zendeskBrandId
+  const columnLabels = tracksZd
+    ? ['#', 'AGENT', 'TICKETS', 'ADOPTION', 'PERFECT', 'MAJORITY', 'PARTIAL', 'NO RESP']
+    : ['#', 'AGENT', 'TICKETS', 'PERFECT', 'MAJORITY', 'PARTIAL', 'NO RESP']
+  const gridCols = tracksZd
+    ? '44px 1fr 90px 110px 90px 100px 90px 100px'
+    : '44px 1fr 90px 90px 100px 90px 100px'
+
   // Fetch ZD data — fires when range or agent roster changes
   useEffect(() => {
+    if (!tracksZd) { setZdAgents(null); setZdError(null); setZdLoading(false); return }
     const agentEmails = rosterEmailsKey ? rosterEmailsKey.split(',') : []
     if (agentEmails.length === 0) return
 
@@ -357,7 +370,7 @@ export default function Leaderboard() {
       const start = new Date(); start.setDate(start.getDate() - rangeDays(range))
       try {
         const { data, error } = await supabase.functions.invoke('zendesk-tickets', {
-          body: { start_date: toDateStr(start), end_date: toDateStr(end), agent_emails: agentEmails },
+          body: { start_date: toDateStr(start), end_date: toDateStr(end), agent_emails: agentEmails, brand_id: zendeskBrandId },
         })
         if (!cancelled) {
           if (error) {
@@ -377,7 +390,7 @@ export default function Leaderboard() {
     }
     fetchZd()
     return () => { cancelled = true }
-  }, [range, rosterEmailsKey])
+  }, [range, rosterEmailsKey, tracksZd, zendeskBrandId])
 
   // Filter to selected range
   const rows = useMemo(() => {
@@ -483,7 +496,7 @@ export default function Leaderboard() {
             Leaderboard
           </h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
-            Drive towards 100% adoption — log every Zendesk ticket
+            {tracksZd ? 'Drive towards 100% adoption — log every Zendesk ticket' : 'Ranked by tickets logged'}
           </p>
         </div>
 
@@ -521,14 +534,16 @@ export default function Leaderboard() {
         </div>
       </div>
 
-      {/* ── Team adoption card ── */}
-      <TeamAdoptionCard
-        gameLMTotal={teamGameLM}
-        zdTotal={zdCount}
-        zdLoading={zdLoading}
-        zdError={zdError}
-        range={range}
-      />
+      {/* ── Team adoption card — only for operators with a Zendesk brand configured ── */}
+      {tracksZd && (
+        <TeamAdoptionCard
+          gameLMTotal={teamGameLM}
+          zdTotal={zdCount}
+          zdLoading={zdLoading}
+          zdError={zdError}
+          range={range}
+        />
+      )}
 
       {/* ── Leaderboard table ── */}
       <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
@@ -549,25 +564,27 @@ export default function Leaderboard() {
               Ranked by tickets logged
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 100, background: 'rgba(243,156,18,0.1)', color: '#b45309', letterSpacing: '0.04em' }}>
-              ZENDESK
-            </span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
-              {zdLoading ? 'Loading ZD data…' : zdError ? 'ZD unavailable' : `${zdAgents?.length ?? 0} agents matched`}
-            </span>
-          </div>
+          {tracksZd && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 100, background: 'rgba(243,156,18,0.1)', color: '#b45309', letterSpacing: '0.04em' }}>
+                ZENDESK
+              </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
+                {zdLoading ? 'Loading ZD data…' : zdError ? 'ZD unavailable' : `${zdAgents?.length ?? 0} agents matched`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Column headers */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '44px 1fr 90px 110px 90px 100px 90px 100px',
+          gridTemplateColumns: gridCols,
           padding: '10px 24px',
           borderBottom: '1px solid rgba(0,0,0,0.06)',
           background: 'rgba(0,0,0,0.01)',
         }}>
-          {['#', 'AGENT', 'TICKETS', 'ADOPTION', 'PERFECT', 'MAJORITY', 'PARTIAL', 'NO RESP'].map(h => (
+          {columnLabels.map(h => (
             <span key={h} style={{
               fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
               color: '#aaa', letterSpacing: '0.08em',
@@ -588,7 +605,7 @@ export default function Leaderboard() {
               key={a.name}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '44px 1fr 90px 110px 90px 100px 90px 100px',
+                gridTemplateColumns: gridCols,
                 padding: '13px 24px',
                 alignItems: 'center',
                 borderBottom: i < rankedAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
@@ -646,19 +663,21 @@ export default function Leaderboard() {
                 </p>
               </div>
 
-              {/* Adoption % */}
-              <div>
-                {zdLoading ? (
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.2)' }}>…</span>
-                ) : (
-                  <AdoptionPill pct={adoptionRaw} />
-                )}
-                {zdTickets !== null && !zdLoading && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', marginTop: 3 }}>
-                    of {zdTickets} ZD
-                  </p>
-                )}
-              </div>
+              {/* Adoption % — only for operators with a Zendesk brand configured */}
+              {tracksZd && (
+                <div>
+                  {zdLoading ? (
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.2)' }}>…</span>
+                  ) : (
+                    <AdoptionPill pct={adoptionRaw} />
+                  )}
+                  {zdTickets !== null && !zdLoading && (
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', marginTop: 3 }}>
+                      of {zdTickets} ZD
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Quality metrics */}
               <QualityCell value={a.perfect}  type="perfect"  />
@@ -684,22 +703,26 @@ export default function Leaderboard() {
         padding: '14px 20px',
         display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
       }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-          Adoption rate
-        </p>
-        {[
-          { color: '#166534', bg: 'rgba(22,101,52,0.08)',   label: 'Great',   range: '80–100%' },
-          { color: '#b45309', bg: 'rgba(180,83,9,0.08)',    label: 'Good',    range: '55–80%'  },
-          { color: '#dc2626', bg: 'rgba(220,38,38,0.08)',   label: 'Low',     range: '<55%'    },
-          { color: '#e53e3e', bg: 'rgba(229,62,62,0.08)',   label: 'Overcounted', range: '>100%' },
-        ].map(l => (
-          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 100, background: l.bg, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: l.color }}>
-              {l.range}
-            </span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{l.label}</span>
-          </div>
-        ))}
+        {tracksZd && (
+          <>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              Adoption rate
+            </p>
+            {[
+              { color: '#166534', bg: 'rgba(22,101,52,0.08)',   label: 'Great',   range: '80–100%' },
+              { color: '#b45309', bg: 'rgba(180,83,9,0.08)',    label: 'Good',    range: '55–80%'  },
+              { color: '#dc2626', bg: 'rgba(220,38,38,0.08)',   label: 'Low',     range: '<55%'    },
+              { color: '#e53e3e', bg: 'rgba(229,62,62,0.08)',   label: 'Overcounted', range: '>100%' },
+            ].map(l => (
+              <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 100, background: l.bg, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: l.color }}>
+                  {l.range}
+                </span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{l.label}</span>
+              </div>
+            ))}
+          </>
+        )}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ width: 3, height: 18, background: '#9B59D0', borderRadius: 2 }} />
           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>Highlighted row = you</span>

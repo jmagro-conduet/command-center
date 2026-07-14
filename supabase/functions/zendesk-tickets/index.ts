@@ -12,8 +12,12 @@ import { corsHeaders } from '../_shared/cors.ts'
  *   - Per-agent   : one /search/count.json per agent email (parallel, always accurate)
  *
  * Channel filter: via:native_messaging — matches Zendesk Messaging (live chat).
- * No brand_id filter — agents work across brands; the channel filter is the
- * meaningful scope for gameLM.
+ *
+ * brand_id (optional): scopes the count to one operator's Zendesk brand. Callers
+ * pass the operator's `zendesk_brand_id` (see operators table). Without it, this
+ * sums an agent's chat activity across every brand they touch — only correct for
+ * agents dedicated to a single brand, so the frontend should only omit it when it
+ * genuinely wants the cross-brand total.
  */
 
 const ZD_BASE = 'https://conduet.zendesk.com/api/v2'
@@ -25,7 +29,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json()
-    const { start_date, end_date, agent_emails } = body
+    const { start_date, end_date, agent_emails, brand_id } = body
 
     if (!start_date || !end_date) {
       return new Response(
@@ -77,7 +81,8 @@ Deno.serve(async (req: Request) => {
     const exclusion = EXCLUDED_CATEGORY_TAGS.map(t => `-tags:${t}`).join(' ')
 
     const dateClause = `created>=${start_date} created<=${end_date}`
-    const baseFilter = `type:ticket via:native_messaging ${dateClause} ${exclusion}`.trim()
+    const brandClause = typeof brand_id === 'string' || typeof brand_id === 'number' ? `brand_id:${brand_id}` : ''
+    const baseFilter = `type:ticket via:native_messaging ${brandClause} ${dateClause} ${exclusion}`.replace(/\s+/g, ' ').trim()
 
     // 1. Team total — single count, no pagination needed
     const totalCount = await zdCount(baseFilter)
