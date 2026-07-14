@@ -301,13 +301,14 @@ export default function Leaderboard() {
     [zdAgents]
   )
 
-  // Fetch admin emails once — admins are excluded from the leaderboard roster
-  // but their ticket submissions are retained in the DB and team totals.
+  // Fetch admin emails once — admins and superadmins are excluded from the
+  // leaderboard roster but their ticket submissions are retained in the DB
+  // and team totals.
   useEffect(() => {
     supabase
       .from('users')
       .select('email')
-      .eq('role', 'admin')
+      .in('role', ['admin', 'superadmin'])
       .then(({ data }) => {
         if (data) setAdminEmails(new Set(data.map((u: any) => u.email?.toLowerCase()).filter(Boolean)))
       })
