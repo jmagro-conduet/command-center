@@ -172,6 +172,7 @@ Deno.serve(async (req: Request) => {
       tally(result.usage)
       return {
         bug_id: bug.id,
+        ticket_id: bug.ticket_id,
         ticket_number: bug.ticket_number,
         mode: bug.mode,
         severity: bug.severity,
@@ -206,7 +207,7 @@ Deno.serve(async (req: Request) => {
       const related = (Array.isArray(t.bug_indices) ? t.bug_indices : [])
         .map((i: number) => byIdx.get(i))
         .filter(Boolean)
-        .map((b: any) => ({ bug_id: b.id, ticket_number: b.ticket_number }))
+        .map((b: any) => ({ bug_id: b.id, ticket_id: b.ticket_id, ticket_number: b.ticket_number }))
       return { title: t.title, explanation: t.explanation, bugs: related }
     })
 

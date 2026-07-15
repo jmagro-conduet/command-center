@@ -31,6 +31,7 @@ interface BugReport {
 
 interface TriageBrief {
   bug_id: string
+  ticket_id: string | null
   ticket_number: string | null
   mode: string
   severity: string
@@ -48,7 +49,7 @@ interface TriageBrief {
 interface TriageTheme {
   title: string
   explanation: string
-  bugs: { bug_id: string; ticket_number: string | null }[]
+  bugs: { bug_id: string; ticket_id: string | null; ticket_number: string | null }[]
 }
 
 interface TriageReport {
@@ -152,6 +153,41 @@ function ModeBadge({ m }: { m: string }) {
 }
 
 function shortId(id: string) { return id.substring(0, 8).toUpperCase() }
+
+// Small inline copy affordance for values engineers need verbatim (the
+// internal ticket UUID, primarily) -- separate from the full "Copy for
+// Engineering" text block so a single value can be grabbed without it.
+function CopyIconButton({ value, title = 'Copy' }: { value: string; title?: string }) {
+  const [justCopied, setJustCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={e => {
+        e.stopPropagation()
+        navigator.clipboard.writeText(value)
+        setJustCopied(true)
+        setTimeout(() => setJustCopied(false), 1200)
+      }}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 18, height: 18, flexShrink: 0, padding: 0, marginLeft: 4,
+        border: 'none', background: 'none', cursor: 'pointer', borderRadius: 4,
+        color: justCopied ? '#166534' : 'rgba(0,0,0,0.35)', transition: 'color 0.15s',
+      }}
+    >
+      {justCopied ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      )}
+    </button>
+  )
+}
 
 function fmtDate(ts: string) {
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -907,8 +943,9 @@ export default function BugTracker() {
                         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           {t.bugs.map(b => (
-                            <span key={b.bug_id} style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.1)', padding: '2px 8px', borderRadius: 100 }}>
+                            <span key={b.bug_id} style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.1)', padding: '2px 8px', borderRadius: 100 }}>
                               {b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
+                              {b.ticket_id && <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />}
                             </span>
                           ))}
                         </div>
@@ -928,6 +965,12 @@ export default function BugTracker() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                         <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 600 }}>{shortId(b.bug_id)}</span>
                         {b.ticket_number && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>#{b.ticket_number}</span>}
+                        {b.ticket_id && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, color: '#58595B' }}>
+                            {b.ticket_id}
+                            <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />
+                          </span>
+                        )}
                         <SeverityBadge s={b.severity} />
                         <ModeBadge m={b.mode} />
                         {b.failing_component && (
@@ -1081,8 +1124,9 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange }: {
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {bug.reported_by ?? '—'}
               </span>
-              <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {bug.ticket_id ?? '—'}
+              <span style={{ display: 'flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, color: '#9B59D0', overflow: 'hidden' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bug.ticket_id ?? '—'}</span>
+                {bug.ticket_id && <CopyIconButton value={bug.ticket_id} title="Copy ticket ID" />}
               </span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
                 {bug.ticket_number ? `#${bug.ticket_number}` : '—'}

@@ -12,6 +12,8 @@
 
 import { corsHeaders } from '../_shared/cors.ts'
 import { embedTexts } from '../_shared/openai-embeddings.ts'
+import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1'
+import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -41,9 +43,20 @@ function chunkText(text: string): string[] {
   return chunks
 }
 
+// Pages per transcription call. Keeps every call comfortably under Anthropic's
+// 100-page-per-request cap, and small enough that a single call reliably
+// finishes within the Edge Function's execution window even for slow/dense
+// (image-heavy) PDFs -- large docs were failing outright at 1 call regardless
+// of the page cap, purely from taking too long.
+const PAGE_CHUNK_SIZE = 15
+
+const TRANSCRIBE_SYSTEM =
+  'Transcribe the ENTIRE text content of the attached document verbatim, preserving structure ' +
+  '(headings, lists, tables as plain text). Output only the transcribed text — no commentary, no summary, no additions.'
+
 let lastPdfError: string | null = null
 
-async function extractPdfText(fileUrl: string, title: string): Promise<string | null> {
+async function transcribeSource(source: Record<string, unknown>, label: string): Promise<{ text: string | null; error: string | null }> {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -51,27 +64,76 @@ async function extractPdfText(fileUrl: string, title: string): Promise<string | 
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
         max_tokens: 16000,
-        system: 'Transcribe the ENTIRE text content of the attached document verbatim, preserving structure ' +
-          '(headings, lists, tables as plain text). Output only the transcribed text — no commentary, no summary, no additions.',
+        system: TRANSCRIBE_SYSTEM,
         messages: [{
           role: 'user',
           content: [
-            { type: 'text', text: `Document title: ${title}` },
-            { type: 'document', source: { type: 'url', url: fileUrl } },
+            { type: 'text', text: label },
+            { type: 'document', source },
           ],
         }],
       }),
     })
-    if (!res.ok) { lastPdfError = `HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`; return null }
+    if (!res.ok) return { text: null, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 500)}` }
     const d = await res.json()
-    if (d.stop_reason === 'refusal') { lastPdfError = 'model refused'; return null }
+    if (d.stop_reason === 'refusal') return { text: null, error: 'model refused' }
     const block = d.content?.find((b: any) => b.type === 'text')
-    if (!block?.text) lastPdfError = `no text block in response: ${JSON.stringify(d).slice(0, 500)}`
-    return block?.text ?? null
+    if (!block?.text) return { text: null, error: `no text block in response: ${JSON.stringify(d).slice(0, 500)}` }
+    return { text: block.text, error: null }
   } catch (e) {
-    lastPdfError = `fetch threw: ${e instanceof Error ? e.message : String(e)}`
+    return { text: null, error: `fetch threw: ${e instanceof Error ? e.message : String(e)}` }
+  }
+}
+
+async function extractPdfText(fileUrl: string, title: string): Promise<string | null> {
+  const fileRes = await fetch(fileUrl).catch(() => null)
+  if (!fileRes?.ok) { lastPdfError = `failed to fetch PDF: HTTP ${fileRes?.status ?? 'network error'}`; return null }
+  const bytes = new Uint8Array(await fileRes.arrayBuffer())
+
+  let pdfDoc
+  try {
+    pdfDoc = await PDFDocument.load(bytes)
+  } catch (e) {
+    lastPdfError = `failed to parse PDF: ${e instanceof Error ? e.message : String(e)}`
     return null
   }
+  const totalPages = pdfDoc.getPageCount()
+
+  if (totalPages <= PAGE_CHUNK_SIZE) {
+    const { text, error } = await transcribeSource({ type: 'url', url: fileUrl }, `Document title: ${title}`)
+    if (error) lastPdfError = error
+    return text
+  }
+
+  // Split into page-range sub-PDFs and transcribe them concurrently -- wall
+  // time is bounded by the slowest chunk rather than the sum of all of them,
+  // which is what was blowing past the execution timeout on large documents.
+  const ranges: [number, number][] = []
+  for (let start = 0; start < totalPages; start += PAGE_CHUNK_SIZE) {
+    ranges.push([start, Math.min(start + PAGE_CHUNK_SIZE, totalPages)])
+  }
+
+  const results = await Promise.all(ranges.map(async ([start, end]) => {
+    const label = `pages ${start + 1}-${end}`
+    const subDoc = await PDFDocument.create()
+    const pages = await subDoc.copyPages(pdfDoc, Array.from({ length: end - start }, (_, i) => start + i))
+    pages.forEach(p => subDoc.addPage(p))
+    const subBytes = await subDoc.save()
+    const data = encodeBase64(subBytes)
+    const { text, error } = await transcribeSource(
+      { type: 'base64', media_type: 'application/pdf', data },
+      `Document title: ${title} (${label} of ${totalPages})`
+    )
+    return { label, text, error }
+  }))
+
+  const failed = results.filter(r => r.error)
+  if (failed.length > 0) {
+    lastPdfError = failed.map(f => `${f.label}: ${f.error}`).join(' | ').slice(0, 1000)
+    return null
+  }
+
+  return results.map(r => r.text).join('\n\n')
 }
 
 Deno.serve(async (req: Request) => {
