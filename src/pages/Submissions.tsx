@@ -230,20 +230,40 @@ export default function Submissions() {
     let cancelled = false
     setLoading(true)
 
-    let tcQ = supabase
-      .from('ticket_issues')
-      .select('tickets!inner(id, ticket_number, agent_name, ticket_category)')
+    // Fetches every matching ticket_issues row (not just the first page) so the
+    // distinct-ticket count isn't silently capped by Supabase's default 1000-row
+    // limit -- unlike the `count: 'exact'` total above, this dedupes client-side
+    // from real row data, so it needs the full set. Real operators exceed 1000
+    // rows quickly (BetSaracen: 8,000+), so this was previously undercounting.
+    async function fetchAllTicketKeys(): Promise<any[]> {
+      const PAGE = 1000
+      const all: any[] = []
+      let from = 0
+      while (true) {
+        let q = supabase
+          .from('ticket_issues')
+          .select('tickets!inner(id, ticket_number, agent_name, ticket_category)')
+          .range(from, from + PAGE - 1)
 
-    if (opId)     tcQ = tcQ.eq('operator_id', opId)
-    if (issueType !== 'All issue types') tcQ = tcQ.eq('issue_type', issueType)
-    if (agent     !== 'All agents')      tcQ = (tcQ as any).eq('tickets.agent_name', agent)
-    if (category  !== 'All categories')  tcQ = (tcQ as any).eq('tickets.ticket_category', category)
-    if (search.trim())                   tcQ = (tcQ as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
-    if (teamMemberEmails)                tcQ = (tcQ as any).in('tickets.agent_email', teamMemberEmails)
-    if (dateFrom)                        tcQ = tcQ.gte('logged_at', `${dateFrom}T00:00:00`)
-    if (dateTo)                          tcQ = tcQ.lte('logged_at', `${dateTo}T23:59:59.999`)
+        if (opId)     q = q.eq('operator_id', opId)
+        if (issueType !== 'All issue types') q = q.eq('issue_type', issueType)
+        if (agent     !== 'All agents')      q = (q as any).eq('tickets.agent_name', agent)
+        if (category  !== 'All categories')  q = (q as any).eq('tickets.ticket_category', category)
+        if (search.trim())                   q = (q as any).ilike('tickets.ticket_number', `%${search.trim()}%`)
+        if (teamMemberEmails)                q = (q as any).in('tickets.agent_email', teamMemberEmails)
+        if (dateFrom)                        q = q.gte('logged_at', `${dateFrom}T00:00:00`)
+        if (dateTo)                          q = q.lte('logged_at', `${dateTo}T23:59:59.999`)
 
-    Promise.all([buildQuery(true), tcQ]).then(([{ data, count, error }, { data: tcData }]) => {
+        const { data, error } = await q
+        if (error || !data || data.length === 0) break
+        all.push(...data)
+        if (data.length < PAGE) break
+        from += PAGE
+      }
+      return all
+    }
+
+    Promise.all([buildQuery(true), fetchAllTicketKeys()]).then(([{ data, count, error }, tcData]) => {
       if (cancelled) return
       if (error) { console.error(error); setLoading(false); return }
 
