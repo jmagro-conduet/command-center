@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
       // Distinguish "nothing indexed yet" from "operator genuinely has no KB" —
       // check whether any published article exists at all for this operator.
       const artCountRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/kb_articles?is_published=eq.true&select=id&or=(operator_id.eq.${operatorId},operator_id.is.null)&limit=1`,
+        `${SUPABASE_URL}/rest/v1/kb_articles?is_published=eq.true&include_in_ask=eq.true&select=id&or=(operator_id.eq.${operatorId},operator_id.is.null)&limit=1`,
         { headers: sb }
       )
       const hasAnyArticles = artCountRes.ok && (await artCountRes.json()).length > 0
@@ -90,11 +90,13 @@ Deno.serve(async (req: Request) => {
       }, 422)
     }
 
-    // How many published articles for this operator aren't searchable at all
-    // (never indexed, or indexing skipped/failed) — surfaced so QA knows the
-    // answer may be incomplete, not just silently missing content.
+    // How many ask-eligible published articles for this operator aren't
+    // searchable at all (never indexed, or indexing skipped/failed) —
+    // surfaced so QA knows the answer may be incomplete, not just silently
+    // missing content. Articles deliberately excluded from Ask (QA/training
+    // material) don't count — they're not a gap, they're scoped out on purpose.
     const allArtRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/kb_articles?is_published=eq.true&select=id,indexed_at,index_skip_reason&or=(operator_id.eq.${operatorId},operator_id.is.null)`,
+      `${SUPABASE_URL}/rest/v1/kb_articles?is_published=eq.true&include_in_ask=eq.true&select=id,indexed_at,index_skip_reason&or=(operator_id.eq.${operatorId},operator_id.is.null)`,
       { headers: sb }
     )
     const allArticles = allArtRes.ok ? await allArtRes.json() : []

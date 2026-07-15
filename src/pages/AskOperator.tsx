@@ -43,7 +43,17 @@ export default function AskOperator({ onOpenArticle }: Props) {
         body: { operator_id: selectedOperator.id, question, user_id: user?.id ?? null },
       })
       if (fnError) {
-        setError(fnError.message ?? 'Something went wrong.')
+        let message = fnError.message ?? 'Something went wrong.'
+        const resp: Response | undefined = fnError.context
+        if (resp) {
+          try {
+            const body = await resp.clone().json()
+            if (body?.error) message = body.error
+          } catch {
+            // body wasn't JSON — fall back to the generic message
+          }
+        }
+        setError(message)
       } else if (data?.error) {
         setError(data.error)
       } else {

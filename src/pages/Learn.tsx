@@ -20,6 +20,7 @@ interface KBArticle {
   file_name: string | null
   file_type: string | null
   operator_id: string | null
+  include_in_ask: boolean
 }
 
 type View = 'list' | 'create' | 'edit' | 'read'
@@ -109,6 +110,7 @@ export default function Learn() {
   const [formFileName, setFormFileName] = useState('')
   const [formFileType, setFormFileType] = useState('')
   const [formGlobal,   setFormGlobal]   = useState(false)
+  const [formIncludeInAsk, setFormIncludeInAsk] = useState(true)
 
   // upload state
   const [uploading,    setUploading]    = useState(false)
@@ -123,7 +125,7 @@ export default function Learn() {
     const opId = selectedOperator?.id ?? null
     let q = supabase
       .from('kb_articles')
-      .select('id, title, content, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type, operator_id')
+      .select('id, title, content, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type, operator_id, include_in_ask')
       .order('updated_at', { ascending: false })
     // Show operator-specific articles + global articles (operator_id = null).
     // When no operator is selected, show everything.
@@ -139,6 +141,7 @@ export default function Learn() {
     setFormTitle(''); setFormCat('General'); setFormBody('')
     setFormFileUrl(''); setFormFileName(''); setFormFileType('')
     setFormGlobal(false)
+    setFormIncludeInAsk(true)
     setUploadError(''); setUploadPct(0)
     setView('create')
   }
@@ -148,6 +151,7 @@ export default function Learn() {
     setFormTitle(a.title); setFormCat(a.category); setFormBody(a.content)
     setFormFileUrl(a.file_url ?? ''); setFormFileName(a.file_name ?? ''); setFormFileType(a.file_type ?? '')
     setFormGlobal(a.operator_id === null)
+    setFormIncludeInAsk(a.include_in_ask)
     setUploadError(''); setUploadPct(0)
     setView('edit')
   }
@@ -205,6 +209,7 @@ export default function Learn() {
       // Global docs (operator_id null) are visible to every client; otherwise
       // scope to the active operator.
       operator_id:  formGlobal ? null : (selectedOperator?.id ?? null),
+      include_in_ask: formIncludeInAsk,
     }
     let savedId: string | null = null
     if (editTarget) {
@@ -398,6 +403,36 @@ export default function Learn() {
               {formGlobal
                 ? 'This article will appear in Learn for every client.'
                 : `Scoped to ${selectedOperator?.name ?? 'the selected client'} only.`}
+            </p>
+          </div>
+
+          {/* Ask eligibility */}
+          <div>
+            <label style={labelStyle}>Ask the Operator</label>
+            <button
+              type="button"
+              onClick={() => setFormIncludeInAsk(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              <span style={{
+                width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                border: formIncludeInAsk ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
+                background: formIncludeInAsk ? '#9B59D0' : '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+              }}>
+                {formIncludeInAsk && (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                )}
+              </span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+                Include in Ask
+              </span>
+            </button>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 6 }}>
+              On for real KB content (SOPs, house rules, process docs) that should ground Ask answers. Turn off for
+              QA/agent training or testing material — it'll still live in Learn, just excluded from Ask.
             </p>
           </div>
 
