@@ -12,9 +12,13 @@ interface Message {
   excludedCount?: number
 }
 
+interface CommonQuestion { sample_question: string; ask_count: number }
+
 interface Props {
   onOpenArticle: (articleId: string) => void
 }
+
+const COMMON_QUESTIONS_WINDOW_DAYS = 30
 
 export default function AskOperator({ onOpenArticle }: Props) {
   const { user } = useAuth()
@@ -23,16 +27,22 @@ export default function AskOperator({ onOpenArticle }: Props) {
   const [input, setInput]       = useState('')
   const [asking, setAsking]     = useState(false)
   const [error, setError]       = useState<string | null>(null)
+  const [commonQuestions, setCommonQuestions] = useState<CommonQuestion[]>([])
 
   // Asking about a different operator with stale answers from another
   // operator still visible would be misleading — clear on switch.
   useEffect(() => {
     setMessages([])
     setError(null)
+    setCommonQuestions([])
+    if (!selectedOperator) return
+    const since = new Date(Date.now() - COMMON_QUESTIONS_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    supabase.rpc('common_asked_questions', { match_operator_id: selectedOperator.id, since, result_limit: 8 })
+      .then(({ data }) => setCommonQuestions(data ?? []))
   }, [selectedOperator?.id])
 
-  async function handleAsk() {
-    const question = input.trim()
+  async function handleAsk(questionOverride?: string) {
+    const question = (questionOverride ?? input).trim()
     if (!question || !selectedOperator || asking) return
     setAsking(true)
     setError(null)
@@ -86,10 +96,41 @@ export default function AskOperator({ onOpenArticle }: Props) {
         padding: 24, display: 'flex', flexDirection: 'column', gap: 16, minHeight: 320,
       }}>
         {messages.length === 0 ? (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
-            Ask anything about {selectedOperator.name}'s SOPs, house rules, or process docs — answers are
-            grounded only in what's published in Learn for {selectedOperator.name}.
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+              Ask anything about {selectedOperator.name}'s SOPs, house rules, or process docs — answers are
+              grounded only in what's published in Learn for {selectedOperator.name}.
+            </p>
+            {commonQuestions.length > 0 && (
+              <div>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                  Commonly asked
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {commonQuestions.map((cq, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleAsk(cq.sample_question)}
+                      disabled={asking}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                        textAlign: 'left', fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                        padding: '8px 12px', borderRadius: 8, cursor: asking ? 'default' : 'pointer',
+                        border: '1px solid rgba(0,0,0,0.09)', background: '#fff', transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!asking) e.currentTarget.style.background = 'rgba(206,164,255,0.06)' }}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                    >
+                      <span>{cq.sample_question}</span>
+                      <span style={{ flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
+                        Asked {cq.ask_count}×
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           messages.map((m, i) => (
             <div key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
@@ -176,7 +217,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
           onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
         />
         <button
-          onClick={handleAsk}
+          onClick={() => handleAsk()}
           disabled={!input.trim() || asking}
           style={{
             background: '#000', color: '#fff',

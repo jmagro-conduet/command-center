@@ -22,8 +22,53 @@ const sb = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SER
 const MATCH_COUNT = 12
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6h — long enough to catch repeat questions within a shift, short enough to self-heal as KB content changes
 
+// A raw embedding-similarity threshold turned out unsafe to trust alone: real
+// paraphrases of the same question scored as low as 0.69 in testing, well
+// below where a fixed cutoff could sit without also risking false-positive
+// matches between different-but-related questions (which would silently serve
+// a wrong cached answer). SIMILARITY_PREFILTER is just a cheap floor to avoid
+// wasting a verification call on an obviously-unrelated top candidate; the
+// real decision is the Haiku verification below.
+const SIMILARITY_PREFILTER = 0.6
+
+async function isSameQuestion(newQuestion: string, candidateQuestion: string): Promise<boolean> {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 20,
+        system: 'You judge whether two support-agent questions are asking for the same underlying information, ' +
+          'such that one cached answer would correctly and fully address both. Different phrasing of the same ask ' +
+          'counts as a match; a different scope, topic, or detail (even on a related subject) does not.',
+        messages: [{ role: 'user', content: `Question A: "${newQuestion}"\nQuestion B: "${candidateQuestion}"` }],
+        output_config: {
+          format: {
+            type: 'json_schema',
+            schema: { type: 'object', additionalProperties: false, required: ['same_question'], properties: { same_question: { type: 'boolean' } } },
+          },
+        },
+      }),
+    })
+    if (!res.ok) return false
+    const d = await res.json()
+    const block = d.content?.find((b: any) => b.type === 'text')
+    return JSON.parse(block?.text ?? '{}').same_question === true
+  } catch {
+    return false
+  }
+}
+
 function normalizeQuestion(q: string): string {
   return q.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function cacheHitResponse(row: { answer: string; sources: unknown; coverage: string; excluded_count: number }) {
+  return {
+    answer: row.answer, sources: row.sources ?? [], coverage: row.coverage,
+    excluded_count: row.excluded_count, usage: { input: 0, cacheWrite: 0, cacheRead: 0 }, cached: true,
+  }
 }
 
 const SCHEMA = {
@@ -69,6 +114,22 @@ Deno.serve(async (req: Request) => {
     const opRows = opRes.ok ? await opRes.json() : []
     const operatorName: string = opRows?.[0]?.name ?? 'this operator'
 
+    function logQuestion(row: { answer: string; sources: unknown; coverage: string; excluded_count: number }) {
+      fetch(`${SUPABASE_URL}/rest/v1/ask_operator_logs`, {
+        method: 'POST',
+        headers: { ...sb, Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          operator_id: operatorId,
+          user_id: typeof body.user_id === 'string' ? body.user_id : null,
+          question,
+          answer: row.answer,
+          coverage: row.coverage,
+          source_ids: (row.sources as any[] ?? []).map((s: any) => s.id),
+          excluded_count: row.excluded_count,
+        }),
+      }).catch(() => {})
+    }
+
     const questionKey = normalizeQuestion(question)
     const cacheRes = await fetch(
       `${SUPABASE_URL}/rest/v1/ask_operator_cache?operator_id=eq.${operatorId}&question_key=eq.${encodeURIComponent(questionKey)}&select=answer,sources,coverage,excluded_count,created_at`,
@@ -77,26 +138,30 @@ Deno.serve(async (req: Request) => {
     const cacheRows = cacheRes.ok ? await cacheRes.json() : []
     const cached = cacheRows?.[0]
     if (cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
-      fetch(`${SUPABASE_URL}/rest/v1/ask_operator_logs`, {
-        method: 'POST',
-        headers: { ...sb, Prefer: 'return=minimal' },
-        body: JSON.stringify({
-          operator_id: operatorId,
-          user_id: typeof body.user_id === 'string' ? body.user_id : null,
-          question,
-          answer: cached.answer,
-          coverage: cached.coverage,
-          source_ids: (cached.sources ?? []).map((s: any) => s.id),
-          excluded_count: cached.excluded_count,
-        }),
-      }).catch(() => {})
-      return json({
-        answer: cached.answer, sources: cached.sources ?? [], coverage: cached.coverage,
-        excluded_count: cached.excluded_count, usage: { input: 0, cacheWrite: 0, cacheRead: 0 }, cached: true,
-      })
+      logQuestion(cached)
+      return json(cacheHitResponse(cached))
     }
 
     const [queryEmbedding] = await embedTexts([question])
+
+    // Semantic fallback — catches rephrasings of a question already answered
+    // recently ("withdrawal options" vs "how can players withdraw"), not just
+    // identical text. Embedding similarity only pre-filters candidates; a
+    // cheap Haiku call makes the actual same-question call before trusting it.
+    const cutoff = new Date(Date.now() - CACHE_TTL_MS).toISOString()
+    const semRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/match_cached_question`, {
+      method: 'POST',
+      headers: sb,
+      body: JSON.stringify({ query_embedding: queryEmbedding, match_operator_id: operatorId, min_created_at: cutoff }),
+    })
+    const semRows = semRes.ok ? await semRes.json() : []
+    const semCandidate = semRows?.[0]
+    if (semCandidate && semCandidate.similarity >= SIMILARITY_PREFILTER) {
+      if (await isSameQuestion(question, semCandidate.question_key)) {
+        logQuestion(semCandidate)
+        return json(cacheHitResponse(semCandidate))
+      }
+    }
 
     const matchRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/match_kb_chunks`, {
       method: 'POST',
@@ -198,20 +263,7 @@ Deno.serve(async (req: Request) => {
       cacheRead:  d.usage?.cache_read_input_tokens ?? 0,
     }
 
-    // Fire-and-forget log — never block the response on it.
-    fetch(`${SUPABASE_URL}/rest/v1/ask_operator_logs`, {
-      method: 'POST',
-      headers: { ...sb, Prefer: 'return=minimal' },
-      body: JSON.stringify({
-        operator_id: operatorId,
-        user_id: typeof body.user_id === 'string' ? body.user_id : null,
-        question,
-        answer: parsed.answer ?? '',
-        coverage,
-        source_ids: sources.map((s: any) => s.id),
-        excluded_count: excludedCount,
-      }),
-    }).catch(() => {})
+    logQuestion({ answer: parsed.answer ?? '', sources, coverage, excluded_count: excludedCount })
 
     // Fire-and-forget cache write — upsert so re-asking the same question refreshes the TTL.
     fetch(`${SUPABASE_URL}/rest/v1/ask_operator_cache?on_conflict=operator_id,question_key`, {
@@ -224,6 +276,7 @@ Deno.serve(async (req: Request) => {
         sources,
         coverage,
         excluded_count: excludedCount,
+        embedding: queryEmbedding,
         created_at: new Date().toISOString(),
       }),
     }).catch(() => {})
