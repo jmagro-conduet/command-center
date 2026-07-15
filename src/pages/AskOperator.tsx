@@ -20,6 +20,17 @@ interface Props {
 
 const COMMON_QUESTIONS_WINDOW_DAYS = 30
 
+// Persists just enough to survive a refresh/navigation mid-shift — not a
+// Claude-style multi-thread history. Each question is already independent
+// server-side (no conversation context carried between them), so there's no
+// "new chat" state to reset; asking something else already does that. A
+// 12h TTL keeps it from feeling stale days later without needing a manual
+// clear for the common case.
+const THREAD_TTL_MS = 12 * 60 * 60 * 1000
+function threadKey(userId: string | undefined, operatorId: string): string {
+  return `ask-operator-thread:${userId ?? 'anon'}:${operatorId}`
+}
+
 export default function AskOperator({ onOpenArticle }: Props) {
   const { user } = useAuth()
   const { selectedOperator } = useOperator()
@@ -29,17 +40,41 @@ export default function AskOperator({ onOpenArticle }: Props) {
   const [error, setError]       = useState<string | null>(null)
   const [commonQuestions, setCommonQuestions] = useState<CommonQuestion[]>([])
 
-  // Asking about a different operator with stale answers from another
-  // operator still visible would be misleading — clear on switch.
+  // Restore this operator's persisted thread (if any, and not stale) instead
+  // of always starting blank — but never show a DIFFERENT operator's stale
+  // answers, so still resets first on every switch.
   useEffect(() => {
     setMessages([])
     setError(null)
     setCommonQuestions([])
     if (!selectedOperator) return
+    try {
+      const raw = localStorage.getItem(threadKey(user?.id, selectedOperator.id))
+      if (raw) {
+        const saved = JSON.parse(raw)
+        if (Date.now() - saved.savedAt < THREAD_TTL_MS && Array.isArray(saved.messages)) {
+          setMessages(saved.messages)
+        }
+      }
+    } catch { /* corrupt/blocked storage — just start blank */ }
     const since = new Date(Date.now() - COMMON_QUESTIONS_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
     supabase.rpc('common_asked_questions', { match_operator_id: selectedOperator.id, since, result_limit: 8 })
       .then(({ data }) => setCommonQuestions(data ?? []))
   }, [selectedOperator?.id])
+
+  useEffect(() => {
+    if (!selectedOperator) return
+    const key = threadKey(user?.id, selectedOperator.id)
+    try {
+      if (messages.length === 0) localStorage.removeItem(key)
+      else localStorage.setItem(key, JSON.stringify({ messages, savedAt: Date.now() }))
+    } catch { /* storage full/blocked — persistence is best-effort */ }
+  }, [messages, selectedOperator?.id, user?.id])
+
+  function clearConversation() {
+    setMessages([])
+    setError(null)
+  }
 
   async function handleAsk(questionOverride?: string) {
     const question = (questionOverride ?? input).trim()
@@ -91,6 +126,15 @@ export default function AskOperator({ onOpenArticle }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {messages.length > 0 && (
+        <button
+          onClick={clearConversation}
+          style={{
+            alignSelf: 'flex-end', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            color: '#58595B', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          }}
+        >Clear conversation</button>
+      )}
       <div style={{
         background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)',
         padding: 24, display: 'flex', flexDirection: 'column', gap: 16, minHeight: 320,
