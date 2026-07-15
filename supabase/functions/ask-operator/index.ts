@@ -126,7 +126,7 @@ Deno.serve(async (req: Request) => {
       headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-opus-4-8',
-        max_tokens: 1500,
+        max_tokens: 4096,
         system: systemText,
         messages: [{ role: 'user', content: [...contextBlocks, { type: 'text', text: `QUESTION: ${question}` }] }],
         output_config: { format: { type: 'json_schema', schema: SCHEMA } },
@@ -140,8 +140,19 @@ Deno.serve(async (req: Request) => {
     let parsed: any
     try {
       parsed = JSON.parse(block?.text ?? '')
-    } catch {
-      return json({ error: 'Unexpected non-JSON response. Try again.' }, 502)
+    } catch (e) {
+      if (d.stop_reason === 'max_tokens') {
+        return json({ error: 'The answer was too long and got cut off — try asking a more specific question.' }, 502)
+      }
+      return json({
+        error: 'Unexpected non-JSON response. Try again.',
+        debug: {
+          stop_reason: d.stop_reason,
+          parseError: e instanceof Error ? e.message : String(e),
+          rawText: (block?.text ?? '').slice(0, 1000),
+          contentTypes: d.content?.map((b: any) => b.type),
+        },
+      }, 502)
     }
 
     const coverage = ['full', 'partial', 'none'].includes(parsed.coverage) ? parsed.coverage : 'partial'
