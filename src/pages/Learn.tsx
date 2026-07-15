@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
 import Onboarding from './Onboarding'
+import AskOperator from './AskOperator'
 
-type SubView = 'articles' | 'onboarding'
+type SubView = 'articles' | 'onboarding' | 'ask'
 
 interface KBArticle {
   id: string
@@ -205,13 +206,19 @@ export default function Learn() {
       // scope to the active operator.
       operator_id:  formGlobal ? null : (selectedOperator?.id ?? null),
     }
+    let savedId: string | null = null
     if (editTarget) {
       const { error } = await supabase.from('kb_articles').update(payload).eq('id', editTarget.id)
       if (error) { alert(error.message); setSaving(false); return }
+      savedId = editTarget.id
     } else {
-      const { error } = await supabase.from('kb_articles').insert([{ ...payload, created_by: user.email }])
+      const { data, error } = await supabase.from('kb_articles').insert([{ ...payload, created_by: user.email }]).select('id').single()
       if (error) { alert(error.message); setSaving(false); return }
+      savedId = data?.id ?? null
     }
+    // Fire-and-forget — (re)builds this article's search chunks so it's
+    // immediately askable in "Ask the Operator" without a separate step.
+    if (savedId) supabase.functions.invoke('index-kb-article', { body: { article_id: savedId } }).catch(() => {})
     setSaving(false)
     setView('list')
     loadArticles()
@@ -530,6 +537,29 @@ export default function Learn() {
     )
   }
 
+  // ── Ask sub-view ─────────────────────────────────────────────────────────────
+  if (subView === 'ask') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+              SOPs, guides, and resources for the team
+            </p>
+          </div>
+          <SubNavTabs subView={subView} setSubView={setSubView} />
+        </div>
+        <AskOperator
+          onOpenArticle={articleId => {
+            const found = articles.find(a => a.id === articleId)
+            if (found) { setReadTarget(found); setView('read') }
+          }}
+        />
+      </div>
+    )
+  }
+
   // ── List view ────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -615,7 +645,7 @@ export default function Learn() {
 function SubNavTabs({ subView, setSubView }: { subView: SubView; setSubView: (v: SubView) => void }) {
   return (
     <div style={{ display: 'flex', gap: 2, padding: 4, background: 'rgba(0,0,0,0.05)', borderRadius: 12, alignSelf: 'flex-start' }}>
-      {(['articles', 'onboarding'] as SubView[]).map(tab => (
+      {(['articles', 'onboarding', 'ask'] as SubView[]).map(tab => (
         <button
           key={tab}
           onClick={() => setSubView(tab)}
@@ -628,7 +658,7 @@ function SubNavTabs({ subView, setSubView }: { subView: SubView; setSubView: (v:
             transition: 'all 0.15s',
           }}
         >
-          {tab === 'articles' ? 'Articles' : 'Onboarding'}
+          {tab === 'articles' ? 'Articles' : tab === 'onboarding' ? 'Onboarding' : 'Ask'}
         </button>
       ))}
     </div>
