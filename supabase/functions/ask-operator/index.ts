@@ -20,6 +20,11 @@ const ANTHROPIC_API_KEY    = Deno.env.get('ANTHROPIC_API_KEY')!
 const sb = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' }
 
 const MATCH_COUNT = 12
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6h — long enough to catch repeat questions within a shift, short enough to self-heal as KB content changes
+
+function normalizeQuestion(q: string): string {
+  return q.trim().toLowerCase().replace(/\s+/g, ' ')
+}
 
 const SCHEMA = {
   type: 'object',
@@ -63,6 +68,33 @@ Deno.serve(async (req: Request) => {
     const opRes = await fetch(`${SUPABASE_URL}/rest/v1/operators?id=eq.${operatorId}&select=name`, { headers: sb })
     const opRows = opRes.ok ? await opRes.json() : []
     const operatorName: string = opRows?.[0]?.name ?? 'this operator'
+
+    const questionKey = normalizeQuestion(question)
+    const cacheRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/ask_operator_cache?operator_id=eq.${operatorId}&question_key=eq.${encodeURIComponent(questionKey)}&select=answer,sources,coverage,excluded_count,created_at`,
+      { headers: sb }
+    )
+    const cacheRows = cacheRes.ok ? await cacheRes.json() : []
+    const cached = cacheRows?.[0]
+    if (cached && Date.now() - new Date(cached.created_at).getTime() < CACHE_TTL_MS) {
+      fetch(`${SUPABASE_URL}/rest/v1/ask_operator_logs`, {
+        method: 'POST',
+        headers: { ...sb, Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          operator_id: operatorId,
+          user_id: typeof body.user_id === 'string' ? body.user_id : null,
+          question,
+          answer: cached.answer,
+          coverage: cached.coverage,
+          source_ids: (cached.sources ?? []).map((s: any) => s.id),
+          excluded_count: cached.excluded_count,
+        }),
+      }).catch(() => {})
+      return json({
+        answer: cached.answer, sources: cached.sources ?? [], coverage: cached.coverage,
+        excluded_count: cached.excluded_count, usage: { input: 0, cacheWrite: 0, cacheRead: 0 }, cached: true,
+      })
+    }
 
     const [queryEmbedding] = await embedTexts([question])
 
@@ -125,7 +157,7 @@ Deno.serve(async (req: Request) => {
       method: 'POST',
       headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-opus-4-8',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         system: systemText,
         messages: [{ role: 'user', content: [...contextBlocks, { type: 'text', text: `QUESTION: ${question}` }] }],
@@ -178,6 +210,21 @@ Deno.serve(async (req: Request) => {
         coverage,
         source_ids: sources.map((s: any) => s.id),
         excluded_count: excludedCount,
+      }),
+    }).catch(() => {})
+
+    // Fire-and-forget cache write — upsert so re-asking the same question refreshes the TTL.
+    fetch(`${SUPABASE_URL}/rest/v1/ask_operator_cache?on_conflict=operator_id,question_key`, {
+      method: 'POST',
+      headers: { ...sb, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({
+        operator_id: operatorId,
+        question_key: questionKey,
+        answer: parsed.answer ?? '',
+        sources,
+        coverage,
+        excluded_count: excludedCount,
+        created_at: new Date().toISOString(),
       }),
     }).catch(() => {})
 
