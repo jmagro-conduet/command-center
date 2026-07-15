@@ -5,27 +5,21 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
-import { supabase } from '../../lib/supabase'
+import { computeHealthIssues, fetchDismissals, filterActive } from '../../lib/dataHealth'
+import type { HealthSeverity } from '../../lib/dataHealth'
 
-// Eval-pipeline health check (SuperAdmin only) — flags the Admin settings nav
-// item when tickets are sitting unevaluated for too long (e.g. Anthropic credits
-// ran out again). "Stale" = more than a handful of eligible tickets older than
-// STALE_AFTER_MS still have no accuracy score. Re-checked periodically so the
-// dot clears itself once Backfill Evaluations (or the next auto-eval run) catches up.
-const STALE_AFTER_MS   = 3 * 60 * 60 * 1000 // 3 hours
-const STALE_MIN_COUNT  = 5
+// Data Health check (SuperAdmin only) — flags the Admin settings nav item
+// when an active (non-dismissed) issue exists; color reflects the highest
+// severity among them. Re-checked periodically so it clears itself once the
+// underlying issue is fixed (or dismissed in Settings → Data Health).
 const HEALTH_CHECK_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 
-async function checkEvalHealth(): Promise<boolean> {
-  const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString()
-  const { count } = await supabase
-    .from('ticket_issues')
-    .select('id', { count: 'exact', head: true })
-    .neq('issue_type', 'No response')
-    .not('suggested_response', 'is', null)
-    .is('accuracy_error_class', null)
-    .lt('created_at', cutoff)
-  return (count ?? 0) > STALE_MIN_COUNT
+async function checkHealthSeverity(): Promise<HealthSeverity | null> {
+  const [issues, dismissals] = await Promise.all([computeHealthIssues(), fetchDismissals()])
+  const active = filterActive(issues, dismissals)
+  if (active.some(i => i.severity === 'red')) return 'red'
+  if (active.length > 0) return 'orange'
+  return null
 }
 
 export type Page =
@@ -121,12 +115,12 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const initial    = user?.name ? user.name[0].toUpperCase() : '?'
   const isOperator = user?.role === 'operator'
   const isSuperAdmin = !!user?.isSuperAdmin
-  const [evalStale, setEvalStale] = useState(false)
+  const [healthSeverity, setHealthSeverity] = useState<HealthSeverity | null>(null)
 
   useEffect(() => {
     if (!isSuperAdmin) return
     let cancelled = false
-    const run = () => checkEvalHealth().then(stale => { if (!cancelled) setEvalStale(stale) })
+    const run = () => checkHealthSeverity().then(sev => { if (!cancelled) setHealthSeverity(sev) })
     run()
     const interval = setInterval(run, HEALTH_CHECK_INTERVAL_MS)
     return () => { cancelled = true; clearInterval(interval) }
@@ -448,13 +442,13 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             flexShrink: 0,
           }}>
             <SettingsIcon />
-            {isSuperAdmin && evalStale && (
+            {isSuperAdmin && healthSeverity && (
               <span
-                title="Evals are falling behind — check Backfill Evaluations"
+                title={healthSeverity === 'red' ? 'Data Health issue needs attention — see Settings' : 'Data Health issue detected — see Settings'}
                 style={{
                   position: 'absolute', top: 2, right: 2,
                   width: 8, height: 8, borderRadius: '50%',
-                  background: '#e53e3e',
+                  background: healthSeverity === 'red' ? '#e53e3e' : '#f39c12',
                   border: '1.5px solid #fff',
                 }}
               />

@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
 import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
+import { computeHealthIssues, fetchDismissals, filterActive, dismissIssue } from '../lib/dataHealth'
+import type { HealthIssue } from '../lib/dataHealth'
 import Users from './Users'
 
 type SettingsTab = 'general' | 'users' | 'evals' | 'config'
@@ -182,7 +184,8 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [importPreview,   setImportPreview]   = useState<ImportPreview | null>(null)
   const [importStatus,    setImportStatus]    = useState<'idle' | 'parsing' | 'ready' | 'importing' | 'done' | 'error'>('idle')
-  const [health,          setHealth]          = useState<{ usersNoOp: number; issuesNoOp: number } | null>(null)
+  const [healthIssues,    setHealthIssues]    = useState<HealthIssue[] | null>(null)
+  const [healthDismissals, setHealthDismissals] = useState<Record<string, number>>({})
   const [importLog,       setImportLog]       = useState<string[]>([])
   const [importError,     setImportError]     = useState('')
   const [repairMode,      setRepairMode]      = useState(false)
@@ -353,18 +356,20 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
   useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
 
-  // Data-health: surface operator-attribution gaps loudly (these silently drop rows
-  // from operator-scoped views like the leaderboard/analytics).
-  useEffect(() => {
-    if (!isAdmin) return
-    ;(async () => {
-      const u = await supabase.from('users').select('id', { count: 'exact', head: true })
-        .is('operator_id', null).not('operator_team', 'is', null)
-      const ti = await supabase.from('ticket_issues').select('id', { count: 'exact', head: true })
-        .is('operator_id', null)
-      setHealth({ usersNoOp: u.count ?? 0, issuesNoOp: ti.count ?? 0 })
-    })()
-  }, [isAdmin])
+  // Data Health: surface known data/eval gaps loudly, with severity split by how
+  // urgent they are (red = needs a person to fix data/config now; orange = usually
+  // self-heals via an existing tool, e.g. re-running Backfill Evaluations).
+  async function loadHealth() {
+    const [issues, dismissals] = await Promise.all([computeHealthIssues(), fetchDismissals()])
+    setHealthIssues(issues)
+    setHealthDismissals(dismissals)
+  }
+  useEffect(() => { if (isAdmin) loadHealth() }, [isAdmin])
+
+  async function handleDismissHealthIssue(issue: HealthIssue) {
+    await dismissIssue(issue.key, issue.count, user?.email ?? null)
+    setHealthDismissals(d => ({ ...d, [issue.key]: issue.count }))
+  }
 
   async function loadTeams() {
     setTeamsLoading(true)
@@ -1402,34 +1407,56 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
       {/* ── Admin-only ──────────────────────────────────────────────────────── */}
       {isAdmin && (
         <>
-          {/* Data Health — operator attribution coverage */}
+          {/* Data Health */}
           <SectionCard
             title="Data Health"
-            subtitle="Operator-attribution coverage. Gaps here silently hide agents/teams from the leaderboard and analytics."
+            subtitle="Known data/eval gaps. Red needs a person to fix data or config now; orange usually self-heals via an existing tool. Dismiss once acknowledged — it resurfaces automatically if the underlying count grows."
           >
-            {health === null ? (
+            {healthIssues === null ? (
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Checking…</p>
-            ) : (health.usersNoOp === 0 && health.issuesNoOp === 0) ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
-                ✓ All users and logged submissions have an operator assigned.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 14px', borderRadius: 10, background: 'rgba(229,62,62,0.06)', border: '1.5px solid rgba(229,62,62,0.25)' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', fontWeight: 600 }}>
-                  ⚠ Operator attribution gaps detected — these rows are hidden from operator-scoped views:
-                </p>
-                {health.usersNoOp > 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                    • <strong>{health.usersNoOp}</strong> user(s) have a team but no operator — set their operator in the Users tab.
+            ) : (() => {
+              const active = filterActive(healthIssues, healthDismissals)
+              if (active.length === 0) {
+                return (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
+                    ✓ No open Data Health issues.
                   </p>
-                )}
-                {health.issuesNoOp > 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
-                    • <strong>{health.issuesNoOp}</strong> logged issue(s) have no operator — confirm every team value matches an Operator name.
-                  </p>
-                )}
-              </div>
-            )}
+                )
+              }
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {active.map(issue => {
+                    const isRed = issue.severity === 'red'
+                    const color = isRed ? '#e53e3e' : '#b45309'
+                    const bg    = isRed ? 'rgba(229,62,62,0.06)' : 'rgba(243,156,18,0.08)'
+                    const border = isRed ? 'rgba(229,62,62,0.25)' : 'rgba(243,156,18,0.3)'
+                    return (
+                      <div key={issue.key} style={{
+                        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+                        padding: '12px 14px', borderRadius: 10, background: bg, border: `1.5px solid ${border}`,
+                      }}>
+                        <div>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color, fontWeight: 600, marginBottom: 4 }}>
+                            {isRed ? '⚠' : '●'} {issue.title}
+                          </p>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.5 }}>
+                            {issue.description}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleDismissHealthIssue(issue)}
+                          style={{
+                            flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                            padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
+                            background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                          }}
+                        >Dismiss</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </SectionCard>
 
           {/* Daily Ticket Target */}
