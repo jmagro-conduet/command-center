@@ -23,10 +23,18 @@ interface DataRow {
   loggedAt:     string | null   // ticket_issues.logged_at  (set for live tickets)
   issuedAt:     string | null   // ticket_issues.created_at (set for imported tickets)
   ticketNumber: string
+  ticketId:     string          // real tickets.id -- used instead of ticketNumber in QA mode
   agentName:    string
   agentEmail:   string
   category:     string
   createdAt:    string          // tickets.created_at (last-resort fallback)
+}
+
+// In QA mode, duplicate placeholder ticket numbers are expected -- this picks
+// the real per-row id instead so distinct test submissions aren't collapsed
+// into one. Production operators are unaffected (isQaMode is always false).
+function ticketKey(r: DataRow, isQaMode: boolean): string {
+  return isQaMode ? r.ticketId : r.ticketNumber
 }
 
 // ticket_issues.created_at (issuedAt) is always set — it's the historical date for imports
@@ -146,12 +154,15 @@ function buildMetricTrendData(rows: DataRow[], days: number, issueType: string, 
   })
 }
 
-function buildChartData(rows: DataRow[], days: number, target: number, endDate: Date = new Date(), windowSize: number = 7) {
+function buildChartData(
+  rows: DataRow[], days: number, target: number, endDate: Date = new Date(),
+  windowSize: number = 7, isQaMode: boolean = false
+) {
   const byDate = new Map<string, Set<string>>()
   for (const r of rows) {
     const label = rowDate(r).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     if (!byDate.has(label)) byDate.set(label, new Set())
-    byDate.get(label)!.add(r.ticketNumber)
+    byDate.get(label)!.add(ticketKey(r, isQaMode))
   }
   const result: { date: string; fullDate: string; count: number; movingAvg: number; target: number }[] = []
   for (let i = days - 1; i >= 0; i--) {
@@ -167,7 +178,7 @@ function buildChartData(rows: DataRow[], days: number, target: number, endDate: 
 
 // rosterRows = all-time rows (for building the full agent list)
 // periodRows = time-filtered rows (for computing stats)
-function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number) {
+function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number, isQaMode: boolean = false) {
   // Identity key = email (case-insensitive) when present, else name. Keying by
   // email prevents two distinct agents who share a display name from merging into
   // one row — important as the roster grows across operators.
@@ -188,7 +199,7 @@ function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number) 
     if (!k) continue
     if (!statsMap.has(k)) statsMap.set(k, { tickets: new Set(), counts: {} })
     const entry = statsMap.get(k)!
-    entry.tickets.add(r.ticketNumber)
+    entry.tickets.add(ticketKey(r, isQaMode))
     entry.counts[r.issueType] = (entry.counts[r.issueType] ?? 0) + 1
   }
 
@@ -214,15 +225,15 @@ function agentStats(periodRows: DataRow[], rosterRows: DataRow[], days: number) 
   }).sort((a, b) => b.total - a.total)
 }
 
-function categoryStats(rows: DataRow[]) {
+function categoryStats(rows: DataRow[], isQaMode: boolean = false) {
   const map = new Map<string, { counts: Record<string, number>; tickets: Set<string>; noRespTickets: Set<string> }>()
   for (const r of rows) {
     const cat = r.category || 'Uncategorized'
     if (!map.has(cat)) map.set(cat, { counts: {}, tickets: new Set(), noRespTickets: new Set() })
     const entry = map.get(cat)!
     entry.counts[r.issueType] = (entry.counts[r.issueType] ?? 0) + 1
-    entry.tickets.add(r.ticketNumber)
-    if (r.issueType === 'No response') entry.noRespTickets.add(r.ticketNumber)
+    entry.tickets.add(ticketKey(r, isQaMode))
+    if (r.issueType === 'No response') entry.noRespTickets.add(ticketKey(r, isQaMode))
   }
   return [...map.entries()].map(([name, { counts, tickets, noRespTickets }]) => {
     const perfect  = counts['Perfect']       ?? 0
@@ -263,7 +274,7 @@ async function fetchAllIssues(operatorId: string | null) {
   while (true) {
     let q = supabase
       .from('ticket_issues')
-      .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, agent_email, ticket_category, created_at)')
+      .select('issue_type, logged_at, created_at, tickets!inner(id, ticket_number, agent_name, agent_email, ticket_category, created_at)')
       .order('created_at', { ascending: false })   // created_at is never NULL — safe for pagination
       .range(from, from + PAGE - 1)
     if (operatorId) q = q.eq('operator_id', operatorId)
@@ -344,6 +355,7 @@ export default function Analytics() {
         loggedAt:     ti.logged_at  ?? null,
         issuedAt:     ti.created_at ?? null,   // ticket_issues.created_at — set for all rows
         ticketNumber: ti.tickets?.ticket_number ?? '',
+        ticketId:     ti.tickets?.id ?? '',
         agentName:    ti.tickets?.agent_name  ?? '',
         agentEmail:   ti.tickets?.agent_email ?? '',
         category:     normalizeCategory(ti.tickets?.ticket_category ?? ''),
@@ -445,6 +457,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   // contaminated by agents' unrelated work on other brands.
   const zendeskBrandId = selectedOperator?.zendeskBrandId ?? null
   const tracksZd = !!zendeskBrandId
+  const isQaMode = !!selectedOperator?.isQaMode
   const agentTableColumns = tracksZd
     ? ['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'ZD Tickets', 'Adoption %', 'Status']
     : ['Agent', 'Tickets', 'Avg/Day', 'Perfect %', 'Majority %', 'Partial %', 'Status']
@@ -513,10 +526,10 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
   const days = useMemo(() => effectiveDays(rows, range, customRange), [rows, range, customRange])
   const chartEndDate = useMemo(() => rangeEndDate(range, customRange), [range, customRange])
 
-  const agents = useMemo(() => agentStats(rows, allRows, days), [rows, allRows, days])
+  const agents = useMemo(() => agentStats(rows, allRows, days, isQaMode), [rows, allRows, days, isQaMode])
 
   const kpis = useMemo(() => {
-    const tickets = new Set(rows.map(r => r.ticketNumber))
+    const tickets = new Set(rows.map(r => ticketKey(r, isQaMode)))
     const total   = rows.length
     const perfect = rows.filter(r => r.issueType === 'Perfect').length
     const majority = rows.filter(r => r.issueType === 'Majority edit').length
@@ -533,14 +546,14 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
       partialPct:  pct(partial, qd).toFixed(1),
       noRespPct:   pct(noResp, total).toFixed(1),
     }
-  }, [rows, days])
+  }, [rows, days, isQaMode])
 
   const agentRows = useMemo(() => {
     if (!selectedAgent) return rows
     return rows.filter(r => r.agentName === selectedAgent)
   }, [rows, selectedAgent])
 
-  const chartData = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate), [agentRows, days, dailyTarget.max, chartEndDate])
+  const chartData = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate, 7, isQaMode), [agentRows, days, dailyTarget.max, chartEndDate, isQaMode])
   const metricChartData = useMemo(
     () => selectedMetric ? buildMetricTrendData(agentRows, days, selectedMetric, chartEndDate) : [],
     [agentRows, days, selectedMetric, chartEndDate]
@@ -804,13 +817,15 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
 // ── Per Agent ─────────────────────────────────────────────────────────────────
 
 function PerAgent({ allRows }: { allRows: DataRow[] }) {
+  const { selectedOperator } = useOperator()
+  const isQaMode = !!selectedOperator?.isQaMode
   const [range, setRange]             = useState<TimeRange>('last30')
   const [customRange, setCustomRange] = useState<CustomRange | null>(null)
   const dailyTarget = getDailyTarget()
   const rows  = useMemo(() => filterByRange(allRows, range, customRange), [allRows, range, customRange])
   const days  = useMemo(() => effectiveDays(rows, range, customRange), [rows, range, customRange])
   const chartEndDate = useMemo(() => rangeEndDate(range, customRange), [range, customRange])
-  const agents = useMemo(() => agentStats(rows, allRows, days), [rows, allRows, days])
+  const agents = useMemo(() => agentStats(rows, allRows, days, isQaMode), [rows, allRows, days, isQaMode])
 
   const [selected, setSelected] = useState('')
   const activeAgent = useMemo(() => agents[0]?.name ?? '', [agents])
@@ -821,7 +836,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
   const agentRows  = useMemo(() => rows.filter(r => r.agentName === agentName), [rows, agentName])
   // 5-day window, not 7 — agents work a 5-day week, so a 7-day trailing
   // average gets diluted by their off days (team-level trend stays 7-day).
-  const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate, 5), [agentRows, days, dailyTarget.max, chartEndDate])
+  const chartData  = useMemo(() => buildChartData(agentRows, days, dailyTarget.max, chartEndDate, 5, isQaMode), [agentRows, days, dailyTarget.max, chartEndDate, isQaMode])
 
   // Clicking a node (day) on the chart pins the view to that single day —
   // lets a lead drill straight into this agent's good/bad day. Recharts 3's
@@ -928,6 +943,8 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
 // ── Event Analytics ───────────────────────────────────────────────────────────
 
 function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: HotEvent[] }) {
+  const { selectedOperator } = useOperator()
+  const isQaMode = !!selectedOperator?.isQaMode
   const now = new Date()
 
   const eventsWithStats = useMemo(() => events.map(evt => {
@@ -937,7 +954,7 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
       const d = rowDate(r)
       return d >= start && d <= end
     })
-    const tickets = new Set(evtRows.map(r => r.ticketNumber)).size
+    const tickets = new Set(evtRows.map(r => ticketKey(r, isQaMode))).size
     const total   = evtRows.length
     const perfect = evtRows.filter(r => r.issueType === 'Perfect').length
     return {
@@ -948,7 +965,7 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
       noRespPct:   pct(evtRows.filter(r => r.issueType === 'No response').length, total),
       isPast:      new Date(evt.end_date) < now,
     }
-  }), [allRows, events])
+  }), [allRows, events, isQaMode])
 
   const past     = eventsWithStats.filter(e => e.isPast)
   const upcoming = eventsWithStats.filter(e => !e.isPast)
@@ -1026,6 +1043,8 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
 // ── Category Performance ──────────────────────────────────────────────────────
 
 function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
+  const { selectedOperator } = useOperator()
+  const isQaMode = !!selectedOperator?.isQaMode
   const [range, setRange]             = useState<TimeRange>('last7')
   const [customRange, setCustomRange] = useState<CustomRange | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -1033,7 +1052,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
   const rows = useMemo(() => filterByRange(allRows, range, customRange), [allRows, range, customRange])
   const days = useMemo(() => effectiveDays(rows, range, customRange), [rows, range, customRange])
-  const cats = useMemo(() => categoryStats(rows), [rows])
+  const cats = useMemo(() => categoryStats(rows, isQaMode), [rows, isQaMode])
 
   const ready    = cats.filter(c => c.status === 'ready').length
   const almost   = cats.filter(c => c.status === 'almost').length
@@ -1046,8 +1065,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const overallMajority = qualityIssues ? Math.round(rows.filter(r => r.issueType === 'Majority edit').length / qualityIssues * 100) : 0
   const overallPartial  = qualityIssues ? Math.round(rows.filter(r => r.issueType === 'Partial edit').length  / qualityIssues * 100) : 0
   // Escalation rate: tickets with ≥1 No Response / all tickets (ticket-level, not issue-level)
-  const allTicketNums        = new Set(rows.map(r => r.ticketNumber))
-  const escalatedTicketNums  = new Set(rows.filter(r => r.issueType === 'No response').map(r => r.ticketNumber))
+  const allTicketNums        = new Set(rows.map(r => ticketKey(r, isQaMode)))
+  const escalatedTicketNums  = new Set(rows.filter(r => r.issueType === 'No response').map(r => ticketKey(r, isQaMode)))
   const overallEscalationRate = allTicketNums.size ? Math.round(escalatedTicketNums.size / allTicketNums.size * 100) : 0
 
   const totalVol = cats.reduce((s, c) => s + c.vol, 0)
@@ -1183,7 +1202,7 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
           // category's rows, not allRows, otherwise every agent in the system is
           // listed under every category with 0 issues / 0% (padding the breakdown).
           const catAgentRows = rows.filter(r => (r.category || 'Uncategorized') === cat.name)
-          const catAgents = agentStats(catAgentRows, catAgentRows, days)
+          const catAgents = agentStats(catAgentRows, catAgentRows, days, isQaMode)
 
           return (
             <div key={cat.name}>

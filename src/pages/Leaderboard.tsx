@@ -11,6 +11,7 @@ interface DataRow {
   createdAt:    string
   issueType:    string
   ticketNumber: string
+  ticketId:     string  // real tickets.id -- used instead of ticketNumber in QA mode
   agentName:    string
   agentEmail:   string
 }
@@ -20,6 +21,13 @@ function rowDate(r: DataRow): Date {
   // insert time (issuedAt/createdAt), so late-submitted drafts don't inflate
   // the current window and gameLM date windows align with ZD's.
   return new Date(r.loggedAt ?? r.issuedAt ?? r.createdAt)
+}
+
+// In QA mode, duplicate placeholder ticket numbers are expected -- this picks
+// the real per-row id instead so distinct test submissions aren't collapsed
+// into one. Production operators are unaffected (isQaMode is always false).
+function ticketKey(r: DataRow, isQaMode: boolean): string {
+  return isQaMode ? r.ticketId : r.ticketNumber
 }
 
 function rangeDays(range: TimeRange) {
@@ -46,7 +54,7 @@ async function fetchAllIssues(operatorId: string | null) {
   while (true) {
     let q = supabase
       .from('ticket_issues')
-      .select('issue_type, logged_at, created_at, tickets!inner(ticket_number, agent_name, agent_email, created_at)')
+      .select('issue_type, logged_at, created_at, tickets!inner(id, ticket_number, agent_name, agent_email, created_at)')
       .gte('created_at', sinceStr)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -250,6 +258,7 @@ export default function Leaderboard() {
   const { user } = useAuth()
   const { selectedOperator } = useOperator()
   const isSuperAdmin = !!user?.isSuperAdmin
+  const isQaMode = !!selectedOperator?.isQaMode
   const [range, setRange]       = useState<TimeRange>('last7')
   const [allRows, setAllRows]   = useState<DataRow[]>([])
   const [loading, setLoading]   = useState(true)
@@ -323,6 +332,7 @@ export default function Leaderboard() {
         loggedAt:     ti.logged_at  ?? null,
         issuedAt:     ti.created_at ?? null,
         ticketNumber: ti.tickets?.ticket_number ?? '',
+        ticketId:     ti.tickets?.id ?? '',
         agentName:    ti.tickets?.agent_name  ?? '',
         agentEmail:   ti.tickets?.agent_email ?? '',
         createdAt:    ti.tickets?.created_at ?? '',
@@ -416,7 +426,7 @@ export default function Leaderboard() {
     for (const r of rows) {
       if (!statsMap.has(r.agentName)) statsMap.set(r.agentName, { tickets: new Set(), counts: {} })
       const e = statsMap.get(r.agentName)!
-      e.tickets.add(r.ticketNumber)
+      e.tickets.add(ticketKey(r, isQaMode))
       e.counts[r.issueType] = (e.counts[r.issueType] ?? 0) + 1
     }
 
@@ -440,7 +450,7 @@ export default function Leaderboard() {
         noResp:   pct(noResp, total),
       }
     }).sort((a, b) => b.tickets - a.tickets)   // initial sort; re-ranked below once ZD data arrives
-  }, [rows, scopedRows, days, adminEmails])
+  }, [rows, scopedRows, days, adminEmails, isQaMode])
 
   // Agents ranked by adoption % (gameLM tickets / ZD tickets).
   // Falls back to ticket count sort when ZD data is unavailable.
@@ -464,9 +474,9 @@ export default function Leaderboard() {
 
   // Team totals
   const teamGameLM = useMemo(() => {
-    const s = new Set(rows.map(r => r.ticketNumber).filter(Boolean))
+    const s = new Set(rows.map(r => ticketKey(r, isQaMode)).filter(Boolean))
     return s.size
-  }, [rows])
+  }, [rows, isQaMode])
 
   if (loading) {
     return (

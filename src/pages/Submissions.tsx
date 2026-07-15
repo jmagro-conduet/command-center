@@ -232,7 +232,7 @@ export default function Submissions() {
 
     let tcQ = supabase
       .from('ticket_issues')
-      .select('tickets!inner(ticket_number, agent_name, ticket_category)')
+      .select('tickets!inner(id, ticket_number, agent_name, ticket_category)')
 
     if (opId)     tcQ = tcQ.eq('operator_id', opId)
     if (issueType !== 'All issue types') tcQ = tcQ.eq('issue_type', issueType)
@@ -265,7 +265,11 @@ export default function Submissions() {
         notes:             ti.issue_comment ?? '',
       }))
 
-      const uniqueTickets = new Set((tcData ?? []).map((ti: any) => ti.tickets?.ticket_number))
+      // In QA mode, duplicate placeholder ticket numbers are expected -- fall
+      // back to the real per-row id so distinct test submissions aren't
+      // collapsed into one. Production operators are unaffected (default false).
+      const uniqueTickets = new Set((tcData ?? []).map((ti: any) =>
+        selectedOperator?.isQaMode ? ti.tickets?.id : ti.tickets?.ticket_number))
 
       setRows(mapped)
       setTotal(count ?? 0)
@@ -274,7 +278,7 @@ export default function Submissions() {
     })
 
     return () => { cancelled = true }
-  }, [buildQuery, refreshKey])
+  }, [buildQuery, refreshKey, selectedOperator?.isQaMode])
 
   useEffect(() => { setPage(1) }, [search, agent, category, issueType, team, dateFrom, dateTo, opId])
 

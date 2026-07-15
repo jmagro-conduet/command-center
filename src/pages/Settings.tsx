@@ -7,7 +7,7 @@ import Users from './Users'
 
 type SettingsTab = 'general' | 'users' | 'evals' | 'config'
 
-interface Team { id: string; name: string; zendeskBrandId: string | null }
+interface Team { id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean }
 
 function toSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -368,8 +368,10 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
 
   async function loadTeams() {
     setTeamsLoading(true)
-    const { data } = await supabase.from('operators').select('id, name, zendesk_brand_id').order('name')
-    setTeams((data ?? []).map((o: any) => ({ id: o.id, name: o.name, zendeskBrandId: o.zendesk_brand_id ?? null })))
+    const { data } = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode').order('name')
+    setTeams((data ?? []).map((o: any) => ({
+      id: o.id, name: o.name, zendeskBrandId: o.zendesk_brand_id ?? null, isQaMode: !!o.is_qa_mode,
+    })))
     setTeamsLoading(false)
   }
 
@@ -428,6 +430,14 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
     setConfigTarget(t => t && { ...t, zendeskBrandId: brandId })
     setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, zendeskBrandId: brandId } : t))
     setZdBrandSaving(false)
+  }
+
+  async function toggleQaMode() {
+    if (!configTarget) return
+    const next = !configTarget.isQaMode
+    await supabase.from('operators').update({ is_qa_mode: next }).eq('id', configTarget.id)
+    setConfigTarget(t => t && { ...t, isQaMode: next })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, isQaMode: next } : t))
   }
 
   async function deleteTeam(id: string, name: string) {
@@ -1638,6 +1648,15 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                   }}>
                     {t.name}
                   </span>
+                  {t.isQaMode && (
+                    <span style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                      padding: '3px 9px', borderRadius: 100,
+                      background: 'rgba(155,89,208,0.1)', color: '#9B59D0',
+                    }}>
+                      QA mode
+                    </span>
+                  )}
                   <span style={{
                     fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
                     padding: '3px 9px', borderRadius: 100,
@@ -1749,6 +1768,36 @@ export default function Settings({ initialTab = 'general' }: SettingsProps) {
                     ))}
                   </select>
                 )}
+              </div>
+
+              {/* QA mode */}
+              <div
+                onClick={toggleQaMode}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  padding: '10px 14px', borderRadius: 10,
+                  background: configTarget.isQaMode ? 'rgba(155,89,208,0.07)' : 'rgba(0,0,0,0.03)',
+                  border: `1.5px solid ${configTarget.isQaMode ? 'rgba(155,89,208,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={configTarget.isQaMode}
+                  onChange={() => {}}
+                  style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+                />
+                <div>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                    QA / UAT mode
+                  </p>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                    Turn on while this operator is in testing — duplicate placeholder ticket numbers are expected then,
+                    so ticket counts on Submissions, Executive Summary, Analytics, and Leaderboard fall back to counting
+                    each row instead of collapsing duplicates. Turn off once this operator goes live; production
+                    counting is unaffected either way.
+                  </p>
+                </div>
               </div>
 
               {/* Issue Categories */}

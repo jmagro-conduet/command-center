@@ -12,6 +12,7 @@ interface Row {
   issueType:     string
   date:          Date
   ticketNumber:  string
+  ticketId:      string
   agentEmail:    string
   category:      string
   accClass:      string | null
@@ -138,7 +139,7 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
   const sinceStr = since.toISOString()
   while (true) {
     let q = supabase.from('ticket_issues')
-      .select('id, issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, eval_verdict, theme_tag, tickets!inner(ticket_number, ticket_category, agent_email, created_at)')
+      .select('id, issue_type, logged_at, created_at, accuracy_error_class, accuracy_ran_at, accuracy_prompt_version, quality_score, quality_ran_at, quality_prompt_version, eval_verdict, theme_tag, tickets!inner(id, ticket_number, ticket_category, agent_email, created_at)')
       .gte('created_at', sinceStr)
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1)
@@ -154,6 +155,7 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
     issueType:   ti.issue_type ?? '',
     date:        new Date(ti.created_at ?? ti.logged_at ?? ti.tickets?.created_at),
     ticketNumber: ti.tickets?.ticket_number ?? '',
+    ticketId:    ti.tickets?.id ?? '',
     agentEmail:  ti.tickets?.agent_email ?? '',
     category:    normalizeCategory(ti.tickets?.ticket_category ?? ''),
     accClass:      ti.accuracy_error_class ?? null,
@@ -345,7 +347,14 @@ export default function ExecutiveSummary() {
   // like RSI that don't use Zendesk at all.
   const zendeskBrandId = selectedOperator?.zendeskBrandId ?? null
   const tracksZd = !!zendeskBrandId
-  const loggedTickets = useMemo(() => new Set(cur.map(r => r.ticketNumber)).size, [cur])
+  // In QA mode, duplicate placeholder ticket numbers are expected -- fall back
+  // to the real per-row id so distinct test submissions aren't collapsed into
+  // one. Production operators are unaffected (default false).
+  const isQaMode = !!selectedOperator?.isQaMode
+  const loggedTickets = useMemo(
+    () => new Set(cur.map(r => isQaMode ? r.ticketId : r.ticketNumber)).size,
+    [cur, isQaMode]
+  )
   const rosterEmails = useMemo(() => [...new Set(cur.map(r => r.agentEmail).filter(Boolean))], [cur])
   const rosterKey = rosterEmails.slice().sort().join(',')
   useEffect(() => {
