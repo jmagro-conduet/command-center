@@ -109,6 +109,32 @@ export default function LogTicket() {
     ))
   }, [selectedOperator?.id, allTabs])
 
+  // Tabs for other operators stay open in the background, not visible or
+  // reachable while you're on a different one — switching operators is
+  // switching workspaces, not just changing what a submit button targets.
+  const visibleTabs = allTabs.filter(t => t.operatorId === selectedOperator?.id)
+
+  // When the global operator changes, make sure there's something to land on:
+  // reuse this operator's existing tabs if any, or start one fresh. Also
+  // depends on allTabs so it self-corrects once the backfill effect above
+  // lands (it deliberately no-ops while a tab is still an orphan pending
+  // that backfill, so the two effects can't race into creating a duplicate).
+  useEffect(() => {
+    if (!selectedOperator) return
+    const visible = allTabs.filter(t => t.operatorId === selectedOperator.id)
+    if (visible.length === 0) {
+      const pendingBackfill = allTabs.some(t => !t.operatorId)
+      if (pendingBackfill) return
+      const id = nextId.current++
+      setAllTabs(tabs => [...tabs, newTab(id, selectedOperator)])
+      setActiveTabId(id)
+      return
+    }
+    if (!visible.some(t => t.id === activeTabId)) {
+      setActiveTabId(visible[visible.length - 1].id)
+    }
+  }, [selectedOperator?.id, allTabs])
+
   const categoryOperatorId = active.operatorId ?? selectedOperator?.id ?? null
   useEffect(() => {
     if (!categoryOperatorId) { setOpCategories([]); return }
@@ -190,7 +216,7 @@ export default function LogTicket() {
 
   function closeTab(id: number, e: React.MouseEvent) {
     e.stopPropagation()
-    if (allTabs.length === 1) return
+    if (visibleTabs.length === 1) return
     // If the tab has any data, ask for confirmation first
     const tab = allTabs.find(t => t.id === id)
     const hasData = tab && (tab.ticketNumber.trim() || tab.responses.length > 0)
@@ -201,7 +227,10 @@ export default function LogTicket() {
   function doCloseTab(id: number) {
     const remaining = allTabs.filter(t => t.id !== id)
     setAllTabs(remaining)
-    if (activeTabId === id) setActiveTabId(remaining[remaining.length - 1].id)
+    if (activeTabId === id) {
+      const remainingVisible = remaining.filter(t => t.operatorId === selectedOperator?.id)
+      setActiveTabId(remainingVisible[remainingVisible.length - 1].id)
+    }
     setClosePending(null)
   }
 
@@ -298,15 +327,18 @@ export default function LogTicket() {
       }).catch(() => {})
     }
 
-    // Remove the submitted tab; if it was the last one, replace with a fresh tab
+    // Remove the submitted tab; if it was this operator's last one, replace
+    // with a fresh tab for the SAME operator — other operators' tabs are
+    // untouched either way, never collapsed into this reset.
     const remaining = allTabs.filter(t => t.id !== activeTabId)
-    if (remaining.length === 0) {
+    const remainingVisible = remaining.filter(t => t.operatorId === selectedOperator?.id)
+    if (remainingVisible.length === 0) {
       const freshId = nextId.current++
-      setAllTabs([newTab(freshId, selectedOperator)])
+      setAllTabs([...remaining, newTab(freshId, selectedOperator)])
       setActiveTabId(freshId)
     } else {
       setAllTabs(remaining)
-      setActiveTabId(remaining[remaining.length - 1].id)
+      setActiveTabId(remainingVisible[remainingVisible.length - 1].id)
     }
 
     setTimeout(() => setSubmitSuccess(false), 4000)
@@ -342,13 +374,13 @@ export default function LogTicket() {
         )}
       </div>
 
-      {/* Tab bar */}
+      {/* Tab bar — only this operator's tabs; other operators' tabs stay open
+          in the background and reappear when you switch back to them. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1.5px solid rgba(0,0,0,0.09)' }}>
-        {allTabs.map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTabId(tab.id)}
-            title={tab.operatorName ? `Logging for ${tab.operatorName}` : undefined}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -362,12 +394,7 @@ export default function LogTicket() {
             }}
           >
             {tab.ticketNumber || 'New ticket'}
-            {tab.operatorName && (
-              <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', fontWeight: 400 }}>
-                · {tab.operatorName}
-              </span>
-            )}
-            {allTabs.length > 1 && (
+            {visibleTabs.length > 1 && (
               <span
                 onClick={e => closeTab(tab.id, e)}
                 style={{
