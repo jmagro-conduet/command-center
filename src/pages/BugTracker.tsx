@@ -359,6 +359,30 @@ export default function BugTracker() {
     setTimeout(() => setReportCopied(null), 2000)
   }
 
+  // Export the whole triage report as CSV -- one row per resolution brief,
+  // columns aligned to what most ticket trackers expect on CSV import
+  // (title/description/steps/severity) so this can seed real tickets directly
+  // rather than needing every brief copied over one at a time.
+  function exportTriageReportCSV() {
+    if (!triageReport) return
+    const headers = ['Bug ID', 'Ticket ID', 'Ticket #', 'Severity', 'Mode', 'Failing Component', 'Status', 'Title', 'Description', 'Steps to Reproduce', 'Expected Behavior', 'Actual Behavior', 'Suggested Fix', 'Impact']
+    const rows = triageReport.briefs.map(b => [
+      shortId(b.bug_id), b.ticket_id ?? '', b.ticket_number ?? '', b.severity, b.mode, failLabel(b.failing_component), b.status,
+      b.error ? `Brief generation failed: ${b.error}` : (b.description ?? '').slice(0, 80),
+      b.error ? '' : (b.description ?? '—'),
+      b.error ? '' : (b.steps_to_reproduce ?? '—'),
+      b.error ? '' : (b.expected_behavior ?? '—'),
+      b.error ? '' : (b.actual_behavior ?? '—'),
+      b.error ? '' : (b.suggested_fix ?? '—'),
+      b.error ? '' : (b.impact ?? '—'),
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const csv = [headers.join(','), ...rows].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `eng_triage_report_${new Date(triageReport.generated_at).toISOString().slice(0,10)}.csv`
+    a.click()
+  }
+
   // Fetches every bug for the current operator regardless of role — agents/QA get
   // view-only access to the full log (not just their own reports) so they can
   // cross-reference status and stay bought into logging accurately. RLS already
@@ -899,14 +923,28 @@ export default function BugTracker() {
 
             {triageReport && !reportError && (
               <div style={{ marginTop: 14, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
-                  {triageReport.isHistorical ? 'Generated' : 'Last generated'} {new Date(triageReport.generated_at).toLocaleString()}
-                  {triageReport.generated_by ? ` · by ${triageReport.generated_by}` : ''}
-                </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
-                  Analyzed {triageReport.meta?.analyzed ?? triageReport.bug_count} open/investigating bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'}
-                  {triageReport.meta?.truncated ? ` (of ${triageReport.meta.total_open} total — highest severity + most recent kept)` : ''}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                      {triageReport.isHistorical ? 'Generated' : 'Last generated'} {new Date(triageReport.generated_at).toLocaleString()}
+                      {triageReport.generated_by ? ` · by ${triageReport.generated_by}` : ''}
+                    </p>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                      Analyzed {triageReport.meta?.analyzed ?? triageReport.bug_count} open/investigating bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'}
+                      {triageReport.meta?.truncated ? ` (of ${triageReport.meta.total_open} total — highest severity + most recent kept)` : ''}
+                    </p>
+                  </div>
+                  {triageReport.briefs.length > 0 && (
+                    <button
+                      onClick={exportTriageReportCSV}
+                      style={{
+                        flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                        padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
+                        background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                    >Export CSV</button>
+                  )}
+                </div>
                 {triageReport.isHistorical && (
                   <button
                     onClick={backToLatestReport}
