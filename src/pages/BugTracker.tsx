@@ -362,20 +362,38 @@ export default function BugTracker() {
   // Export the whole triage report as CSV -- one row per resolution brief,
   // columns aligned to what most ticket trackers expect on CSV import
   // (title/description/steps/severity) so this can seed real tickets directly
-  // rather than needing every brief copied over one at a time.
+  // rather than needing every brief copied over one at a time. Root Cause
+  // Theme membership is folded in as columns on each bug's row (rather than a
+  // separate themes table) so whoever's creating tickets sees the clustering
+  // right there and doesn't duplicate a ticket for bugs that share one root cause.
   function exportTriageReportCSV() {
     if (!triageReport) return
-    const headers = ['Bug ID', 'Ticket ID', 'Ticket #', 'Severity', 'Mode', 'Failing Component', 'Status', 'Title', 'Description', 'Steps to Reproduce', 'Expected Behavior', 'Actual Behavior', 'Suggested Fix', 'Impact']
-    const rows = triageReport.briefs.map(b => [
-      shortId(b.bug_id), b.ticket_id ?? '', b.ticket_number ?? '', b.severity, b.mode, failLabel(b.failing_component), b.status,
-      b.error ? `Brief generation failed: ${b.error}` : (b.description ?? '').slice(0, 80),
-      b.error ? '' : (b.description ?? '—'),
-      b.error ? '' : (b.steps_to_reproduce ?? '—'),
-      b.error ? '' : (b.expected_behavior ?? '—'),
-      b.error ? '' : (b.actual_behavior ?? '—'),
-      b.error ? '' : (b.suggested_fix ?? '—'),
-      b.error ? '' : (b.impact ?? '—'),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const themesByBug = new Map<string, { titles: string[]; explanations: string[] }>()
+    for (const t of triageReport.themes) {
+      for (const b of t.bugs) {
+        const entry = themesByBug.get(b.bug_id) ?? { titles: [], explanations: [] }
+        entry.titles.push(t.title)
+        entry.explanations.push(t.explanation)
+        themesByBug.set(b.bug_id, entry)
+      }
+    }
+
+    const headers = ['Bug ID', 'Ticket ID', 'Ticket #', 'Severity', 'Mode', 'Failing Component', 'Status', 'Title', 'Description', 'Steps to Reproduce', 'Expected Behavior', 'Actual Behavior', 'Suggested Fix', 'Impact', 'Root Cause Theme', 'Theme Rationale']
+    const rows = triageReport.briefs.map(b => {
+      const theme = themesByBug.get(b.bug_id)
+      return [
+        shortId(b.bug_id), b.ticket_id ?? '', b.ticket_number ?? '', b.severity, b.mode, failLabel(b.failing_component), b.status,
+        b.error ? `Brief generation failed: ${b.error}` : (b.description ?? '').slice(0, 80),
+        b.error ? '' : (b.description ?? '—'),
+        b.error ? '' : (b.steps_to_reproduce ?? '—'),
+        b.error ? '' : (b.expected_behavior ?? '—'),
+        b.error ? '' : (b.actual_behavior ?? '—'),
+        b.error ? '' : (b.suggested_fix ?? '—'),
+        b.error ? '' : (b.impact ?? '—'),
+        theme?.titles.join(' | ') ?? '',
+        theme?.explanations.join(' | ') ?? '',
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
+    })
     const csv = [headers.join(','), ...rows].join('\n')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
