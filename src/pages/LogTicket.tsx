@@ -44,6 +44,12 @@ interface GamLMResponse {
 
 interface TabState {
   id: number
+  // Pinned to whichever operator was active when this tab was created — a tab
+  // keeps submitting to that operator no matter what the global switcher does
+  // afterward, so an agent flipping between operators to work multiple tickets
+  // in parallel can't have one silently submit under the wrong operator.
+  operatorId: string | null
+  operatorName: string | null
   ticketNumber: string
   category: string
   otherDetail: string
@@ -58,9 +64,11 @@ interface TabState {
   draftEnhancementNote: string
 }
 
-function newTab(id: number): TabState {
+function newTab(id: number, operator?: { id: string; name: string } | null): TabState {
   return {
     id,
+    operatorId: operator?.id ?? null,
+    operatorName: operator?.name ?? null,
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
@@ -82,18 +90,36 @@ export default function LogTicket() {
   const [opCategories,  setOpCategories]  = useState<OpCategory[]>([])
   const [catsLoading,   setCatsLoading]   = useState(false)
 
+  const active = allTabs.find(t => t.id === activeTabId) ?? allTabs[0]
+
+  // Pin any tab that doesn't have an operator yet (a brand-new tab created
+  // before selectedOperator finished loading, or a draft restored from
+  // localStorage from before this field existed) to whatever operator is
+  // active right now. This only ever fills a gap — a tab that's already
+  // pinned never changes just because the global switcher does. Depends on
+  // allTabs (not just selectedOperator) so it also catches tabs that show up
+  // *after* selectedOperator already loaded (e.g. the localStorage-restore
+  // effect below firing later and replacing the initial tab set) — bails out
+  // to the same array reference when nothing needs backfilling, so this
+  // can't loop or cause extra renders on ordinary edits.
   useEffect(() => {
-    if (!selectedOperator) { setOpCategories([]); return }
+    if (!selectedOperator) return
+    setAllTabs(tabs => tabs.every(t => t.operatorId) ? tabs : tabs.map(t =>
+      t.operatorId ? t : { ...t, operatorId: selectedOperator.id, operatorName: selectedOperator.name }
+    ))
+  }, [selectedOperator?.id, allTabs])
+
+  const categoryOperatorId = active.operatorId ?? selectedOperator?.id ?? null
+  useEffect(() => {
+    if (!categoryOperatorId) { setOpCategories([]); return }
     setCatsLoading(true)
     supabase.from('operator_issue_categories')
       .select('id, main_category, sub_category, detail')
-      .eq('operator_id', selectedOperator.id)
+      .eq('operator_id', categoryOperatorId)
       .eq('active', true)
       .order('main_category').order('sub_category', { nullsFirst: true }).order('detail', { nullsFirst: true })
       .then(({ data }) => { setOpCategories(data ?? []); setCatsLoading(false) })
-  }, [selectedOperator?.id])
-
-  const active = allTabs.find(t => t.id === activeTabId) ?? allTabs[0]
+  }, [categoryOperatorId])
 
   function updateActive(patch: Partial<TabState>) {
     setAllTabs(tabs => tabs.map(t => t.id === activeTabId ? { ...t, ...patch } : t))
@@ -158,7 +184,7 @@ export default function LogTicket() {
 
   function addTab() {
     const id = nextId.current++
-    setAllTabs(tabs => [...tabs, newTab(id)])
+    setAllTabs(tabs => [...tabs, newTab(id, selectedOperator)])
     setActiveTabId(id)
   }
 
@@ -187,6 +213,11 @@ export default function LogTicket() {
     setSubmitError('')
     setSubmitSuccess(false)
 
+    // Pinned to this tab, not the live global selector — that's the whole
+    // point: a ticket submits to the operator it was started under, even if
+    // the agent has since switched operators to work a different tab.
+    const submitOperatorId = active.operatorId ?? selectedOperator?.id ?? user?.operatorId ?? null
+
     const { data: ticket, error: ticketErr } = await supabase
       .from('tickets')
       .insert({
@@ -197,9 +228,7 @@ export default function LogTicket() {
         agent_email:            user?.email ?? '',
         agent_team:             user?.operatorTeam ?? null,
         notes:                  active.notes.trim(),
-        // Fall back to the user's own operator if no operator is actively selected.
-        // (DB trigger is the final backstop, deriving from agent_team.)
-        operator_id:            selectedOperator?.id ?? user?.operatorId ?? null,
+        operator_id:            submitOperatorId,
       })
       .select('id')
       .single()
@@ -222,7 +251,7 @@ export default function LogTicket() {
         final_edits:        r.finalEdits || null,
         enhancement_note:   r.enhancementNote || null,
         logged_at:          r.loggedAt,
-        operator_id:        selectedOperator?.id ?? user?.operatorId ?? null,
+        operator_id:        submitOperatorId,
       }
     })
 
@@ -273,7 +302,7 @@ export default function LogTicket() {
     const remaining = allTabs.filter(t => t.id !== activeTabId)
     if (remaining.length === 0) {
       const freshId = nextId.current++
-      setAllTabs([newTab(freshId)])
+      setAllTabs([newTab(freshId, selectedOperator)])
       setActiveTabId(freshId)
     } else {
       setAllTabs(remaining)
@@ -290,14 +319,28 @@ export default function LogTicket() {
   const canSubmit      = ticketValid && active.category &&
     (!otherDetailRequired || active.otherDetail.trim().length > 0) &&
     active.responses.length > 0 &&
-    !!selectedOperator && !operatorLoading
+    !!active.operatorId && !operatorLoading
+  const operatorMismatch = !!active.operatorId && !!selectedOperator && active.operatorId !== selectedOperator.id
 
   return (
     <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
-        Log ticket
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+          Log ticket
+        </h1>
+        {active.operatorName && (
+          <span style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            color: operatorMismatch ? '#b45309' : '#58595B',
+            background: operatorMismatch ? 'rgba(243,156,18,0.1)' : 'transparent',
+            padding: operatorMismatch ? '4px 10px' : 0, borderRadius: 8,
+          }}>
+            Logging for: <strong>{active.operatorName}</strong>
+            {operatorMismatch && ` — you're currently viewing ${selectedOperator?.name}`}
+          </span>
+        )}
+      </div>
 
       {/* Tab bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1.5px solid rgba(0,0,0,0.09)' }}>
@@ -305,6 +348,7 @@ export default function LogTicket() {
           <button
             key={tab.id}
             onClick={() => setActiveTabId(tab.id)}
+            title={tab.operatorName ? `Logging for ${tab.operatorName}` : undefined}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -318,6 +362,11 @@ export default function LogTicket() {
             }}
           >
             {tab.ticketNumber || 'New ticket'}
+            {tab.operatorName && (
+              <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.35)', fontWeight: 400 }}>
+                · {tab.operatorName}
+              </span>
+            )}
             {allTabs.length > 1 && (
               <span
                 onClick={e => closeTab(tab.id, e)}
