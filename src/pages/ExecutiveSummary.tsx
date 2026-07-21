@@ -120,6 +120,25 @@ function categoryReadiness(rows: Row[]) {
   }).sort((a, b) => b.vol - a.vol)
 }
 
+// Automation rate: % of logged TICKETS (not interactions) where every single
+// logged interaction was Perfect -- one edit anywhere on a ticket means a
+// human still had to step in, so the ticket as a whole wasn't fully
+// automatable, even if most of its interactions were fine on their own.
+function automationRateFor(rows: Row[], isQaMode: boolean): number | null {
+  if (rows.length === 0) return null
+  const byTicket = new Map<string, Row[]>()
+  for (const r of rows) {
+    const key = isQaMode ? r.ticketId : r.ticketNumber
+    const list = byTicket.get(key)
+    if (list) list.push(r); else byTicket.set(key, [r])
+  }
+  let fullyPerfect = 0
+  for (const issues of byTicket.values()) {
+    if (issues.every(r => r.issueType === 'Perfect')) fullyPerfect++
+  }
+  return pct(fullyPerfect, byTicket.size)
+}
+
 // Keep only rows scored under the newest prompt version for an eval type (honest metrics)
 function latestVerRows(rows: Row[], verKey: 'accVer' | 'qVer', ranKey: 'accRanAt' | 'qRanAt') {
   const scored = rows.filter(r => r[ranKey])
@@ -355,24 +374,8 @@ export default function ExecutiveSummary() {
     () => new Set(cur.map(r => isQaMode ? r.ticketId : r.ticketNumber)).size,
     [cur, isQaMode]
   )
-  // Automation rate: % of logged TICKETS (not interactions) where every single
-  // logged interaction was Perfect -- one edit anywhere on a ticket means a
-  // human still had to step in, so the ticket as a whole wasn't fully
-  // automatable, even if most of its interactions were fine on their own.
-  const automationRate = useMemo(() => {
-    if (cur.length === 0) return null
-    const byTicket = new Map<string, Row[]>()
-    for (const r of cur) {
-      const key = isQaMode ? r.ticketId : r.ticketNumber
-      const list = byTicket.get(key)
-      if (list) list.push(r); else byTicket.set(key, [r])
-    }
-    let fullyPerfect = 0
-    for (const issues of byTicket.values()) {
-      if (issues.every(r => r.issueType === 'Perfect')) fullyPerfect++
-    }
-    return pct(fullyPerfect, byTicket.size)
-  }, [cur, isQaMode])
+  const automationRate     = useMemo(() => automationRateFor(cur, isQaMode),  [cur, isQaMode])
+  const prevAutomationRate = useMemo(() => automationRateFor(prev, isQaMode), [prev, isQaMode])
   const rosterEmails = useMemo(() => [...new Set(cur.map(r => r.agentEmail).filter(Boolean))], [cur])
   const rosterKey = rosterEmails.slice().sort().join(',')
   useEffect(() => {
@@ -474,8 +477,8 @@ export default function ExecutiveSummary() {
         </button>
       </div>
 
-      {/* Headline band — the COO's three priorities + adoption */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      {/* Headline band — the COO's three priorities + adoption + automation */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {/* gameLM Perfect Rate — split actual vs projected */}
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>gameLM Perfect Rate</p>
@@ -522,11 +525,16 @@ export default function ExecutiveSummary() {
           color="#166534"
           sub={
             tracksZd
-              ? (adoption !== null
-                  ? `${loggedTickets} of ${zdTotal} chat tickets logged${automationRate !== null ? ` · ${automationRate}% fully automatable` : ''}`
-                  : undefined)
-              : `gameLM responses logged${automationRate !== null ? ` · ${automationRate}% fully automatable` : ''}`
+              ? (adoption !== null ? `${loggedTickets} of ${zdTotal} chat tickets logged` : undefined)
+              : 'gameLM responses logged'
           }
+        />
+        <StatCard
+          label="Fully Automatable"
+          value={automationRate !== null ? `${automationRate}%` : '—'}
+          color={automationRate === null ? '#58595B' : automationRate >= 80 ? '#166534' : automationRate >= 70 ? '#854d0e' : '#e53e3e'}
+          sub={`of ${loggedTickets.toLocaleString()} logged tickets needed zero edits, end to end`}
+          delta={automationRate !== null ? <Delta curr={automationRate} prev={prev.length ? prevAutomationRate : null} good="up" /> : undefined}
         />
       </div>
 
