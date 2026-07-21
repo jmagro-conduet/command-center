@@ -355,6 +355,24 @@ export default function ExecutiveSummary() {
     () => new Set(cur.map(r => isQaMode ? r.ticketId : r.ticketNumber)).size,
     [cur, isQaMode]
   )
+  // Automation rate: % of logged TICKETS (not interactions) where every single
+  // logged interaction was Perfect -- one edit anywhere on a ticket means a
+  // human still had to step in, so the ticket as a whole wasn't fully
+  // automatable, even if most of its interactions were fine on their own.
+  const automationRate = useMemo(() => {
+    if (cur.length === 0) return null
+    const byTicket = new Map<string, Row[]>()
+    for (const r of cur) {
+      const key = isQaMode ? r.ticketId : r.ticketNumber
+      const list = byTicket.get(key)
+      if (list) list.push(r); else byTicket.set(key, [r])
+    }
+    let fullyPerfect = 0
+    for (const issues of byTicket.values()) {
+      if (issues.every(r => r.issueType === 'Perfect')) fullyPerfect++
+    }
+    return pct(fullyPerfect, byTicket.size)
+  }, [cur, isQaMode])
   const rosterEmails = useMemo(() => [...new Set(cur.map(r => r.agentEmail).filter(Boolean))], [cur])
   const rosterKey = rosterEmails.slice().sort().join(',')
   useEffect(() => {
@@ -502,7 +520,13 @@ export default function ExecutiveSummary() {
           label={tracksZd ? 'Agent Adoption' : 'Interactions Captured'}
           value={tracksZd ? (adoption !== null ? `${adoption}%` : '—') : loggedTickets.toLocaleString()}
           color="#166534"
-          sub={tracksZd ? (adoption !== null ? `${loggedTickets} of ${zdTotal} chat tickets logged` : undefined) : 'gameLM responses logged'}
+          sub={
+            tracksZd
+              ? (adoption !== null
+                  ? `${loggedTickets} of ${zdTotal} chat tickets logged${automationRate !== null ? ` · ${automationRate}% fully automatable` : ''}`
+                  : undefined)
+              : `gameLM responses logged${automationRate !== null ? ` · ${automationRate}% fully automatable` : ''}`
+          }
         />
       </div>
 
