@@ -205,6 +205,18 @@ function fmtBytes(bytes: number) {
 
 function isImageType(type: string) { return type.startsWith('image/') }
 
+// Persists which sub-tab was active. App.tsx force-remounts the current page
+// after the tab has been backgrounded a couple minutes (to guarantee a fresh
+// data fetch on return) -- with no persistence, that remount silently reset
+// this back to "log" every time, even mid-review of the tracker or a report.
+type BugTrackerTab = 'log' | 'tracker' | 'report'
+const activeTabKey = (email: string) => `bug_tracker_active_tab_${email}`
+function initialActiveTab(email: string | undefined): BugTrackerTab {
+  if (!email) return 'log'
+  const saved = localStorage.getItem(activeTabKey(email))
+  return saved === 'log' || saved === 'tracker' || saved === 'report' ? saved : 'log'
+}
+
 // ── Copy formatter ───────────────────────────────────────────────────────────
 function buildCopyText(bug: BugReport): string {
   const lines: string[] = [
@@ -243,7 +255,10 @@ export default function BugTracker() {
   const { selectedOperator } = useOperator()
   const isAdmin = user?.role === 'admin'
 
-  const [activeTab, setActiveTab] = useState<'log' | 'tracker' | 'report'>('log')
+  const [activeTab, setActiveTab] = useState<BugTrackerTab>(() => initialActiveTab(user?.email))
+  useEffect(() => {
+    if (user?.email) localStorage.setItem(activeTabKey(user.email), activeTab)
+  }, [activeTab, user?.email])
   const [bugs, setBugs]           = useState<BugReport[]>([])
   const [loading, setLoading]     = useState(true)
   const [submitting, setSubmitting] = useState(false)
