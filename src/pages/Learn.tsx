@@ -7,6 +7,18 @@ import AskOperator from './AskOperator'
 
 type SubView = 'articles' | 'onboarding' | 'ask'
 
+// Persists which sub-view was active. App.tsx force-remounts the current page
+// after it's been backgrounded a couple minutes (to guarantee a fresh data
+// fetch on return) -- with no persistence, that remount silently reset this
+// back to "articles" every time, even mid-conversation on Ask (same root
+// cause as the equivalent Bug Tracker fix).
+const subViewKey = (email: string) => `learn_sub_view_${email}`
+function initialSubView(email: string | undefined): SubView {
+  if (!email) return 'articles'
+  const saved = localStorage.getItem(subViewKey(email))
+  return saved === 'articles' || saved === 'onboarding' || saved === 'ask' ? saved : 'articles'
+}
+
 interface KBArticle {
   id: string
   title: string
@@ -92,7 +104,10 @@ export default function Learn() {
   const isAdmin = user?.role === 'admin'
   const { selectedOperator } = useOperator()
 
-  const [subView, setSubView]   = useState<SubView>('articles')
+  const [subView, setSubView]   = useState<SubView>(() => initialSubView(user?.email))
+  useEffect(() => {
+    if (user?.email) localStorage.setItem(subViewKey(user.email), subView)
+  }, [subView, user?.email])
   const [articles, setArticles] = useState<KBArticle[]>([])
   const [loading, setLoading]   = useState(true)
   const [filter, setFilter]     = useState('All')
