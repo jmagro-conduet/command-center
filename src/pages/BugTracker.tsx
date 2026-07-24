@@ -217,6 +217,22 @@ function initialActiveTab(email: string | undefined): BugTrackerTab {
   return saved === 'log' || saved === 'tracker' || saved === 'report' ? saved : 'log'
 }
 
+// Same reason, for the tracker's filters -- otherwise an idle-remount makes
+// it look like the list silently reset to "everything" when you come back.
+interface BugTrackerFilters { status: string; severity: string; mode: string }
+const filtersKey = (email: string) => `bug_tracker_filters_${email}`
+const DEFAULT_FILTERS: BugTrackerFilters = { status: 'all', severity: 'all', mode: 'all' }
+function initialFilters(email: string | undefined): BugTrackerFilters {
+  if (!email) return DEFAULT_FILTERS
+  try {
+    const saved = JSON.parse(localStorage.getItem(filtersKey(email)) ?? 'null')
+    if (saved && typeof saved.status === 'string' && typeof saved.severity === 'string' && typeof saved.mode === 'string') {
+      return saved
+    }
+  } catch { /* corrupt storage — fall back to defaults */ }
+  return DEFAULT_FILTERS
+}
+
 // ── Copy formatter ───────────────────────────────────────────────────────────
 function buildCopyText(bug: BugReport): string {
   const lines: string[] = [
@@ -274,9 +290,15 @@ export default function BugTracker() {
   const evidenceInputRef = useRef<HTMLInputElement>(null)
 
   // Filters (admin tracker tab)
-  const [filterStatus,   setFilterStatus]   = useState<string>('all')
-  const [filterSeverity, setFilterSeverity] = useState<string>('all')
-  const [filterMode,     setFilterMode]     = useState<string>('all')
+  const [initFilters] = useState(() => initialFilters(user?.email))
+  const [filterStatus,   setFilterStatus]   = useState<string>(initFilters.status)
+  const [filterSeverity, setFilterSeverity] = useState<string>(initFilters.severity)
+  const [filterMode,     setFilterMode]     = useState<string>(initFilters.mode)
+  useEffect(() => {
+    if (user?.email) {
+      localStorage.setItem(filtersKey(user.email), JSON.stringify({ status: filterStatus, severity: filterSeverity, mode: filterMode }))
+    }
+  }, [filterStatus, filterSeverity, filterMode, user?.email])
 
   // Engineering Report (admin-only tab)
   const [triageReport, setTriageReport]           = useState<TriageReport | null>(null)
