@@ -11,6 +11,16 @@ import { useAuth } from '../context/AuthContext'
 
 type Tab       = 'team' | 'agent' | 'events' | 'category'
 type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime' | 'custom'
+
+// Persists which tab was active. App.tsx force-remounts the current page
+// after it's been backgrounded a couple minutes (to guarantee a fresh data
+// fetch on return), which otherwise silently resets this to "team".
+const tabKey = (email: string) => `analytics_tab_${email}`
+function initialTab(email: string | undefined): Tab {
+  if (!email) return 'team'
+  const saved = localStorage.getItem(tabKey(email))
+  return saved === 'team' || saved === 'agent' || saved === 'events' || saved === 'category' ? saved : 'team'
+}
 // yyyy-mm-dd strings, inclusive on both ends — matches <input type="date"> value format
 interface CustomRange { start: string; end: string }
 
@@ -294,7 +304,10 @@ export default function Analytics() {
   const { selectedOperator } = useOperator()
   const { user } = useAuth()
   const isSuperAdmin = !!user?.isSuperAdmin
-  const [tab, setTab]         = useState<Tab>('team')
+  const [tab, setTab]         = useState<Tab>(() => initialTab(user?.email))
+  useEffect(() => {
+    if (user?.email) localStorage.setItem(tabKey(user.email), tab)
+  }, [tab, user?.email])
   const [allRows, setAllRows] = useState<DataRow[]>([])
   const [events, setEvents]   = useState<HotEvent[]>([])
   const [loading, setLoading] = useState(true)

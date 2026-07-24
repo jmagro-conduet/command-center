@@ -145,14 +145,32 @@ interface SettingsProps {
   initialTab?: SettingsTab
 }
 
-export default function Settings({ initialTab = 'general' }: SettingsProps) {
+// Persists which tab was active, but only as a fallback default -- an
+// explicit initialTab prop (the sidebar's dedicated "Users" shortcut) always
+// wins, since that's a deliberate deep link, not just a remount to recover
+// from. Without this fallback, App.tsx's idle-remount (backgrounded a couple
+// minutes, forces a fresh fetch on return) would silently reset a SuperAdmin
+// mid-task on Evals/Config back to General.
+const settingsTabKey = (email: string) => `settings_tab_${email}`
+function initialSettingsTab(email: string | undefined): SettingsTab {
+  if (!email) return 'general'
+  const saved = localStorage.getItem(settingsTabKey(email))
+  return saved === 'general' || saved === 'users' || saved === 'evals' || saved === 'config' ? saved : 'general'
+}
+
+export default function Settings({ initialTab }: SettingsProps) {
   const { user } = useAuth()
   // Admin Settings (users / evals / config tabs) are SuperAdmin-only. Regular
   // admins keep all their other features but see only the personal "general" tab.
   const isAdmin = !!user?.isSuperAdmin
   const { selectedOperator } = useOperator()
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>(isAdmin ? initialTab : 'general')
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() =>
+    isAdmin ? (initialTab ?? initialSettingsTab(user?.email)) : 'general'
+  )
+  useEffect(() => {
+    if (user?.email) localStorage.setItem(settingsTabKey(user.email), activeTab)
+  }, [activeTab, user?.email])
 
   // ── My Account ────────────────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(user?.name ?? '')

@@ -8,6 +8,16 @@ type Verdict      = 'CORRECTION' | 'ENHANCEMENT' | 'PREFERENCE' | 'AGENT_ERROR'
 type TopTab       = 'dashboard' | 'evals' | 'accuracy' | 'quality'
 type AccuracyClass = 'P1A' | 'P1B' | 'P2' | 'NONE'
 
+// Persists which top tab was active. App.tsx force-remounts the current page
+// after it's been backgrounded a couple minutes (to guarantee a fresh data
+// fetch on return), which otherwise silently resets this to "dashboard".
+const topTabKey = (email: string) => `report_card_top_tab_${email}`
+function initialTopTab(email: string | undefined): TopTab {
+  if (!email) return 'dashboard'
+  const saved = localStorage.getItem(topTabKey(email))
+  return saved === 'dashboard' || saved === 'evals' || saved === 'accuracy' || saved === 'quality' ? saved : 'dashboard'
+}
+
 interface EvalRow {
   id:                 string
   issueType:          string
@@ -2972,7 +2982,10 @@ export default function ReportCard() {
   const [range, setRange]                 = useState<TimeRange>('last30')
   const [selected, setSelected]           = useState<string | null>(null)
   const [showWins, setShowWins]           = useState(false)
-  const [topTab, setTopTab]               = useState<TopTab>('dashboard')
+  const [topTab, setTopTab]               = useState<TopTab>(() => initialTopTab(user?.email))
+  useEffect(() => {
+    if (user?.email) localStorage.setItem(topTabKey(user.email), topTab)
+  }, [topTab, user?.email])
   const [evalsViewMode, setEvalsViewMode] = useState<'agents' | 'tickets'>('tickets')
   const [verdictModal, setVerdictModal]   = useState<Verdict | null>(null)
   // Show only the newest prompt version per eval type (excludes legacy/stale scores)
