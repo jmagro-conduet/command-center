@@ -26,12 +26,18 @@ function AppShell() {
   const [activePage, setActivePage] = useState<Page>('log-ticket')
   const [pageKey, setPageKey] = useState(0)
   const lastActiveRef = useRef(Date.now())
+  const mainRef = useRef<HTMLElement>(null)
+  // Scroll position to restore after an idle-remount (not a real navigation
+  // — those should land at the top like any normal page load). Null means
+  // "nothing pending" so the restore effect below is a no-op most of the time.
+  const pendingScrollRef = useRef<number | null>(null)
 
   // Bump pageKey on window focus if the tab has been backgrounded ≥2 min
   useEffect(() => {
     function onBlur()  { lastActiveRef.current = Date.now() }
     function onFocus() {
       if (Date.now() - lastActiveRef.current >= FOCUS_STALE_MS) {
+        pendingScrollRef.current = mainRef.current?.scrollTop ?? null
         setPageKey(k => k + 1)
       }
     }
@@ -42,6 +48,19 @@ function AppShell() {
       window.removeEventListener('focus', onFocus)
     }
   }, [])
+
+  // The remounted page's content starts empty/short while its own data loads,
+  // so restoring scrollTop once right at mount would just clamp to nothing.
+  // Re-apply over a short window to catch it once real content has grown in.
+  useEffect(() => {
+    const target = pendingScrollRef.current
+    if (target === null) return
+    pendingScrollRef.current = null
+    const timers = [0, 50, 150, 300, 600, 1000].map(delay => setTimeout(() => {
+      if (mainRef.current) mainRef.current.scrollTop = target
+    }, delay))
+    return () => timers.forEach(clearTimeout)
+  }, [pageKey])
 
   function handleNavigate(page: Page) {
     setActivePage(page)
@@ -95,7 +114,7 @@ function AppShell() {
       background: '#F1F1F2', overflow: 'hidden', boxSizing: 'border-box',
     }}>
       <Sidebar activePage={activePage} onNavigate={handleNavigate} />
-      <main className="app-main" style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
+      <main ref={mainRef} className="app-main" style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
         {renderPage()}
       </main>
     </div>
