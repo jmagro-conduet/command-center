@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
@@ -12,13 +12,11 @@ interface Message {
   excludedCount?: number
 }
 
-interface CommonQuestion { sample_question: string; ask_count: number }
+interface CommonQuestion { summarized_question: string; count: number }
 
 interface Props {
   onOpenArticle: (articleId: string) => void
 }
-
-const COMMON_QUESTIONS_WINDOW_DAYS = 30
 
 // Persists just enough to survive a refresh/navigation mid-shift — not a
 // Claude-style multi-thread history. Each question is already independent
@@ -40,6 +38,29 @@ export default function AskOperator({ onOpenArticle }: Props) {
   const [error, setError]       = useState<string | null>(null)
   const [commonQuestions, setCommonQuestions] = useState<CommonQuestion[]>([])
 
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
+  const [showJump, setShowJump] = useState(false)
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+    isAtBottomRef.current = atBottom
+    setShowJump(!atBottom)
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior })
+  }
+
+  // Auto-follow new messages only if the user was already at the bottom —
+  // if they've scrolled up to re-read something, a new answer shouldn't
+  // yank them back down; the jump button lets them catch up on their terms.
+  useEffect(() => {
+    if (isAtBottomRef.current) scrollToBottom('auto')
+  }, [messages.length, asking])
+
   // Restore this operator's persisted thread (if any, and not stale) instead
   // of always starting blank — but never show a DIFFERENT operator's stale
   // answers, so still resets first on every switch.
@@ -47,6 +68,8 @@ export default function AskOperator({ onOpenArticle }: Props) {
     setMessages([])
     setError(null)
     setCommonQuestions([])
+    isAtBottomRef.current = true
+    setShowJump(false)
     if (!selectedOperator) return
     try {
       const raw = localStorage.getItem(threadKey(user?.id, selectedOperator.id))
@@ -57,9 +80,8 @@ export default function AskOperator({ onOpenArticle }: Props) {
         }
       }
     } catch { /* corrupt/blocked storage — just start blank */ }
-    const since = new Date(Date.now() - COMMON_QUESTIONS_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
-    supabase.rpc('common_asked_questions', { match_operator_id: selectedOperator.id, since, result_limit: 8 })
-      .then(({ data }) => setCommonQuestions(data ?? []))
+    supabase.functions.invoke('summarize-common-questions', { body: { operator_id: selectedOperator.id } })
+      .then(({ data }) => setCommonQuestions(data?.themes ?? []))
   }, [selectedOperator?.id])
 
   useEffect(() => {
@@ -135,10 +157,15 @@ export default function AskOperator({ onOpenArticle }: Props) {
           }}
         >Clear conversation</button>
       )}
-      <div style={{
-        background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)',
-        padding: 24, display: 'flex', flexDirection: 'column', gap: 16, minHeight: 320,
-      }}>
+      <div style={{ position: 'relative' }}>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        style={{
+          background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)',
+          padding: 24, display: 'flex', flexDirection: 'column', gap: 16,
+          minHeight: 320, maxHeight: '55vh', overflowY: 'auto',
+        }}>
         {messages.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
@@ -154,7 +181,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
                   {commonQuestions.map((cq, i) => (
                     <button
                       key={i}
-                      onClick={() => handleAsk(cq.sample_question)}
+                      onClick={() => handleAsk(cq.summarized_question)}
                       disabled={asking}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -165,9 +192,9 @@ export default function AskOperator({ onOpenArticle }: Props) {
                       onMouseEnter={e => { if (!asking) e.currentTarget.style.background = 'rgba(206,164,255,0.06)' }}
                       onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
                     >
-                      <span>{cq.sample_question}</span>
+                      <span>{cq.summarized_question}</span>
                       <span style={{ flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
-                        Asked {cq.ask_count}×
+                        Asked {cq.count}×
                       </span>
                     </button>
                   ))}
@@ -237,6 +264,24 @@ export default function AskOperator({ onOpenArticle }: Props) {
             Thinking…
           </div>
         )}
+      </div>
+      {showJump && (
+        <button
+          onClick={() => scrollToBottom()}
+          title="Jump to latest"
+          style={{
+            position: 'absolute', bottom: 14, right: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: '50%',
+            background: '#000', color: '#fff', border: 'none', cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)', transition: 'opacity 0.15s',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+      )}
       </div>
 
       {error && (
