@@ -553,9 +553,10 @@ export default function BugTracker() {
   // Bug Tracker is visible to every role now — agents/QA get view-only access
   // so they can cross-reference the status of what they've logged; admin keeps
   // the extra filters, CSV export, and status-change controls.
+  const openCount = bugs.filter(b => b.status === 'open').length
   const tabs = [
     { id: 'log' as const, label: 'Report a Bug' },
-    { id: 'tracker' as const, label: `Bug Tracker${bugs.length > 0 ? ` (${bugs.length})` : ''}` },
+    { id: 'tracker' as const, label: `Bug Tracker${openCount > 0 ? ` (${openCount})` : ''}` },
     ...(isAdmin ? [{ id: 'report' as const, label: 'Engineering Report' }] : []),
   ]
 
@@ -847,7 +848,12 @@ export default function BugTracker() {
 
       {/* ── Tracker tab (everyone — admin can filter/export/update status, agents & QA get view-only) ── */}
       {activeTab === 'tracker' && (
-        <BugThemeDistribution bugs={bugs} />
+        <>
+          <BugThemeDistribution bugs={bugs} />
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
+            <strong style={{ color: '#58595B' }}>{bugs.length.toLocaleString()}</strong> total bug{bugs.length === 1 ? '' : 's'} logged
+          </p>
+        </>
       )}
       {activeTab === 'tracker' && (
         <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
