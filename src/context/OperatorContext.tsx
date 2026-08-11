@@ -26,7 +26,7 @@ interface OperatorContextValue {
 
 const OperatorContext = createContext<OperatorContextValue | null>(null)
 
-const STORAGE_KEY = 'conduet_selected_operator'
+const STORAGE_KEY = 'raphie_selected_operator'
 
 function mapOperator(o: any): Operator {
   return {

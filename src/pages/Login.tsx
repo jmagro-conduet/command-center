@@ -28,7 +28,7 @@ export default function Login() {
         {/* Logo */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#000', lineHeight: 1 }}>
-            conduet<sup style={{ fontSize: 10, verticalAlign: 'super' }}>®</sup>
+            raphie<span style={{ color: '#14B8A6' }}>.</span>
           </div>
           <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 4 }}>
             CS Command Center
@@ -69,7 +69,7 @@ function SignInForm({ onForgot, onCreateAccount, signIn }: {
         Sign in
       </h2>
       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 24 }}>
-        Use your Conduet account credentials.
+        Use your Raphie account credentials.
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -361,7 +361,7 @@ export function ResetPasswordPage({ updatePassword }: {
         {/* Logo */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#000', lineHeight: 1 }}>
-            conduet<sup style={{ fontSize: 10, verticalAlign: 'super' }}>®</sup>
+            raphie<span style={{ color: '#14B8A6' }}>.</span>
           </div>
           <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 4 }}>
             CS Command Center

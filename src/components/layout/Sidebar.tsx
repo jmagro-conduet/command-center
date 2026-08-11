@@ -169,7 +169,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
         {!collapsed && (
           <div>
             <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', lineHeight: 1 }}>
-              conduet<sup style={{ fontSize: 9, verticalAlign: 'super' }}>®</sup>
+              raphie<span style={{ color: '#14B8A6' }}>.</span>
             </div>
             <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 3 }}>
               CS Command Center
