@@ -403,17 +403,19 @@ export default function ExecutiveSummary() {
     type TrendPoint = { week: string; perfect: number | null; edits: number | null; noResponse: number | null }
     const out: TrendPoint[] = []
 
-    if (trendPeriod === 'quarter') {
-      const WEEKS = 12
+    if (trendPeriod === 'quarter' || trendPeriod === '30d') {
+      // Weekly buckets — daily was too noisy to read a trend out of past 14 days.
+      const WINDOW_DAYS = trendPeriod === 'quarter' ? 12 * 7 : 30
+      const WEEKS = Math.ceil(WINDOW_DAYS / 7)
       const buckets = Array.from({ length: WEEKS }, () => [] as Row[])
       for (const r of rows) {
         const age = now - r.date.getTime()
-        if (age < 0 || age >= WEEKS * 7 * DAY) continue
+        if (age < 0 || age >= WINDOW_DAYS * DAY) continue
         buckets[Math.floor(age / (7 * DAY))].push(r)
       }
       for (let i = WEEKS - 1; i >= 0; i--) {
         const s = qualitySplit(buckets[i])
-        const start = new Date(now); start.setDate(start.getDate() - (i + 1) * 7)
+        const start = new Date(now); start.setDate(start.getDate() - Math.min((i + 1) * 7, WINDOW_DAYS))
         out.push({
           week:       start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           perfect:    s.qualityDenom ? s.perfectRate : null,
@@ -422,8 +424,8 @@ export default function ExecutiveSummary() {
         })
       }
     } else {
-      // Daily buckets — 14 or 30 days
-      const DAYS = trendPeriod === '14d' ? 14 : 30
+      // Daily buckets — 14 days only
+      const DAYS = 14
       const buckets = Array.from({ length: DAYS }, () => [] as Row[])
       for (const r of rows) {
         const age = now - r.date.getTime()
@@ -543,9 +545,12 @@ export default function ExecutiveSummary() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <SectionTitle
             title="Is gameLM improving?"
-            subtitle={trendPeriod === 'quarter'
-              ? 'Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Weekly, last 12 weeks.'
-              : `Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. Daily, last ${trendPeriod === '14d' ? 14 : 30} days.`}
+            subtitle={
+              'Perfect rate climbing, edit dependency and no-response falling = the co-pilot is getting better. ' +
+              (trendPeriod === 'quarter' ? 'Weekly, last 12 weeks.'
+                : trendPeriod === '30d' ? 'Weekly, last 30 days.'
+                : 'Daily, last 14 days.')
+            }
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {/* Period toggle */}
