@@ -281,8 +281,25 @@ export default function Settings({ initialTab }: SettingsProps) {
   const [snapHandleRate,   setSnapHandleRate]    = useState('')
   const [snapSaving,       setSnapSaving]        = useState(false)
   const [snapError,        setSnapError]         = useState('')
+  const [snapZdNote,       setSnapZdNote]        = useState('')
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null)
   const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null)
+
+  // Window for the Zendesk pull: since the most recent EARLIER snapshot
+  // (exclusive), or a trailing 7 days if there isn't one yet -- keeps
+  // consecutive snapshots' Total Tickets from double-counting the same
+  // tickets, while still giving the first snapshot a sensible default.
+  function zdWindowFor(targetDate: string): { start: string; end: string } {
+    const priorDates = snapshots.map(s => s.snapshotDate).filter(d => d < targetDate).sort()
+    if (priorDates.length > 0) {
+      const prior = new Date(priorDates[priorDates.length - 1] + 'T00:00:00')
+      prior.setDate(prior.getDate() + 1)
+      return { start: prior.toISOString().slice(0, 10), end: targetDate }
+    }
+    const weekAgo = new Date(targetDate + 'T00:00:00')
+    weekAgo.setDate(weekAgo.getDate() - 6)
+    return { start: weekAgo.toISOString().slice(0, 10), end: targetDate }
+  }
 
   useEffect(() => {
     if (configTarget) { loadCategories(); loadSnapshots() }
@@ -310,6 +327,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     setSnapResolutionTime(''); setSnapHandleRate('')
     setEditingSnapshotId(null)
     setSnapError('')
+    setSnapZdNote('')
   }
 
   function startEditSnapshot(s: AutomationSnapshot) {
@@ -321,26 +339,56 @@ export default function Settings({ initialTab }: SettingsProps) {
     setSnapResolutionTime(s.resolutionTimeMinutes?.toString() ?? '')
     setSnapHandleRate(s.handleRate?.toString() ?? '')
     setSnapError('')
+    setSnapZdNote('')
   }
 
   async function saveSnapshot() {
     if (!configTarget || !snapDate) return
     setSnapSaving(true)
     setSnapError('')
+    setSnapZdNote('')
     const num = (v: string) => v.trim() === '' ? null : parseFloat(v)
+
+    // Total Tickets / Resolution Time / Handle Rate come straight from
+    // Zendesk on ADD (not edit) for ZD-tracked operators -- Automation Rate
+    // and Escalation Rate are always manual (see the migration's note on why).
+    let totalTickets = snapTotalTickets.trim() === '' ? null : parseInt(snapTotalTickets, 10)
+    let resolutionTime = num(snapResolutionTime)
+    let handleRate = num(snapHandleRate)
+
+    if (!editingSnapshotId && configTarget.zendeskBrandId) {
+      const { start, end } = zdWindowFor(snapDate)
+      const { data: zd, error: zdError } = await supabase.functions.invoke('zendesk-snapshot-metrics', {
+        body: { brand_id: configTarget.zendeskBrandId, start_date: start, end_date: end },
+      })
+      if (zdError || zd?.error) {
+        setSnapError(`Zendesk pull failed: ${zdError?.message ?? zd?.error}`)
+        setSnapSaving(false)
+        return
+      }
+      totalTickets = zd.total_tickets ?? null
+      resolutionTime = zd.resolution_time_minutes ?? null
+      handleRate = zd.handle_rate ?? null
+      setSnapZdNote(`Pulled from Zendesk · ${start} → ${end} · ${zd.sampled_tickets} ticket${zd.sampled_tickets === 1 ? '' : 's'} sampled${zd.capped ? ' (capped)' : ''}`)
+    }
+
     const { error } = await supabase.from('operator_automation_snapshots').upsert({
       operator_id:             configTarget.id,
       snapshot_date:           snapDate,
-      total_tickets:           snapTotalTickets.trim() === '' ? null : parseInt(snapTotalTickets, 10),
+      total_tickets:           totalTickets,
       automation_rate:         num(snapAutomationRate),
       escalation_rate:         num(snapEscalationRate),
-      resolution_time_minutes: num(snapResolutionTime),
-      handle_rate:             num(snapHandleRate),
+      resolution_time_minutes: resolutionTime,
+      handle_rate:             handleRate,
       created_by_email:        user?.email ?? null,
       updated_at:              new Date().toISOString(),
     }, { onConflict: 'operator_id,snapshot_date' })
     if (error) { setSnapError(error.message); setSnapSaving(false); return }
-    resetSnapForm()
+    setSnapDate(new Date().toISOString().slice(0, 10))
+    setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
+    setSnapResolutionTime(''); setSnapHandleRate('')
+    setEditingSnapshotId(null)
+    setSnapError('')
     await loadSnapshots()
     setSnapSaving(false)
   }
@@ -2037,33 +2085,59 @@ export default function Settings({ initialTab }: SettingsProps) {
                       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
                         {editingSnapshotId ? 'Edit snapshot' : 'Add snapshot'}
                       </p>
+                      {(() => {
+                        const zdAuto = !editingSnapshotId && !!configTarget.zendeskBrandId
+                        return (
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <div style={{ flex: '0 0 150px' }}>
                           <label style={labelStyle}>Date</label>
                           <input type="date" value={snapDate} onChange={e => setSnapDate(e.target.value)} style={inputStyle} />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Total tickets</label>
-                          <input type="number" min={0} value={snapTotalTickets} onChange={e => setSnapTotalTickets(e.target.value)} placeholder="e.g. 1250" style={inputStyle} />
+                          <label style={labelStyle}>Total tickets{zdAuto && ' (Zendesk)'}</label>
+                          <input
+                            type="number" min={0} value={snapTotalTickets} disabled={zdAuto}
+                            onChange={e => setSnapTotalTickets(e.target.value)}
+                            placeholder={zdAuto ? 'Pulled on save' : 'e.g. 1250'}
+                            style={{ ...inputStyle, opacity: zdAuto ? 0.5 : 1, cursor: zdAuto ? 'not-allowed' : 'text' }}
+                          />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Automation %</label>
+                          <label style={labelStyle}>Automation % (manual)</label>
                           <input type="number" min={0} max={100} step={0.1} value={snapAutomationRate} onChange={e => setSnapAutomationRate(e.target.value)} placeholder="e.g. 62" style={inputStyle} />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Escalation %</label>
+                          <label style={labelStyle}>Escalation % (manual)</label>
                           <input type="number" min={0} max={100} step={0.1} value={snapEscalationRate} onChange={e => setSnapEscalationRate(e.target.value)} placeholder="e.g. 18" style={inputStyle} />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Resolution (min)</label>
-                          <input type="number" min={0} step={0.1} value={snapResolutionTime} onChange={e => setSnapResolutionTime(e.target.value)} placeholder="e.g. 6.5" style={inputStyle} />
+                          <label style={labelStyle}>Resolution (min){zdAuto && ' (Zendesk)'}</label>
+                          <input
+                            type="number" min={0} step={0.1} value={snapResolutionTime} disabled={zdAuto}
+                            onChange={e => setSnapResolutionTime(e.target.value)}
+                            placeholder={zdAuto ? 'Pulled on save' : 'e.g. 6.5'}
+                            style={{ ...inputStyle, opacity: zdAuto ? 0.5 : 1, cursor: zdAuto ? 'not-allowed' : 'text' }}
+                          />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Handle %</label>
-                          <input type="number" min={0} max={100} step={0.1} value={snapHandleRate} onChange={e => setSnapHandleRate(e.target.value)} placeholder="e.g. 91" style={inputStyle} />
+                          <label style={labelStyle}>Handle %{zdAuto && ' (Zendesk)'}</label>
+                          <input
+                            type="number" min={0} max={100} step={0.1} value={snapHandleRate} disabled={zdAuto}
+                            onChange={e => setSnapHandleRate(e.target.value)}
+                            placeholder={zdAuto ? 'Pulled on save' : 'e.g. 91'}
+                            style={{ ...inputStyle, opacity: zdAuto ? 0.5 : 1, cursor: zdAuto ? 'not-allowed' : 'text' }}
+                          />
                         </div>
                       </div>
+                        )
+                      })()}
+                      {!configTarget.zendeskBrandId && (
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                          This operator has no Zendesk brand configured — all 5 fields are manual. Set a brand above to auto-pull Total Tickets, Resolution Time, and Handle Rate on future snapshots.
+                        </p>
+                      )}
                       {snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>{snapError}</p>}
+                      {snapZdNote && !snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#166534' }}>✓ {snapZdNote}</p>}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           onClick={saveSnapshot}
@@ -2074,7 +2148,9 @@ export default function Settings({ initialTab }: SettingsProps) {
                             padding: '9px 20px', cursor: 'pointer', opacity: snapSaving || !snapDate ? 0.5 : 1, transition: 'opacity 0.15s',
                           }}
                         >
-                          {snapSaving ? 'Saving…' : editingSnapshotId ? 'Save changes' : '+ Add snapshot'}
+                          {snapSaving
+                            ? (!editingSnapshotId && configTarget.zendeskBrandId ? 'Pulling from Zendesk…' : 'Saving…')
+                            : editingSnapshotId ? 'Save changes' : '+ Add snapshot'}
                         </button>
                         {editingSnapshotId && (
                           <button onClick={resetSnapForm} style={resetBtnStyle}>Cancel</button>
