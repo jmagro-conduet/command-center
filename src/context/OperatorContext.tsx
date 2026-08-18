@@ -15,6 +15,10 @@ export interface Operator {
   // counting logic falls back to the real per-row id instead of ticket_number
   // — production operators are unaffected, this is always false for them.
   isQaMode: boolean
+  // True for operators being migrated toward the production Full Auto
+  // dashboard — shows a second "Full Auto" tab on Executive Summary with
+  // manually-entered preview data. False (default) hides it entirely.
+  fullAutoEnabled: boolean
 }
 
 interface OperatorContextValue {
@@ -32,7 +36,21 @@ function mapOperator(o: any): Operator {
   return {
     id: o.id, name: o.name, slug: o.slug, logoUrl: o.logo_url ?? null,
     zendeskBrandId: o.zendesk_brand_id ?? null, isQaMode: !!o.is_qa_mode,
+    fullAutoEnabled: !!o.full_auto_enabled,
   }
+}
+
+const OPERATOR_COLS = 'id, name, slug, logo_url, zendesk_brand_id, is_qa_mode, full_auto_enabled'
+const OPERATOR_COLS_PRE_MIGRATION = 'id, name, slug, logo_url, zendesk_brand_id, is_qa_mode'
+
+// Falls back to the pre-migration column list if `full_auto_enabled` doesn't
+// exist yet on `operators` -- otherwise a single unknown-column error would
+// fail this query entirely and no operator would ever load app-wide.
+async function selectOperators(applyFilter: (q: any) => any): Promise<any[]> {
+  const first = await applyFilter(supabase.from('operators').select(OPERATOR_COLS))
+  if (!first.error) return first.data ?? []
+  const fallback = await applyFilter(supabase.from('operators').select(OPERATOR_COLS_PRE_MIGRATION))
+  return fallback.data ?? []
 }
 
 export function OperatorProvider({ children }: { children: React.ReactNode }) {
@@ -50,30 +68,25 @@ export function OperatorProvider({ children }: { children: React.ReactNode }) {
 
       if (user!.role === 'admin') {
         // Admins/SuperAdmins can switch between every operator.
-        const { data } = await supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id, is_qa_mode').order('name')
-        ops = (data ?? []).map(mapOperator)
+        ops = (await selectOperators(q => q.order('name'))).map(mapOperator)
       } else if (user!.role === 'operator') {
         // External client logins — always exactly their one operator, never extra
         // access even if something were ever granted to them.
-        const { data } = await supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id, is_qa_mode').eq('id', user!.operatorId ?? '')
-        ops = (data ?? []).map(mapOperator)
+        ops = (await selectOperators(q => q.eq('id', user!.operatorId ?? ''))).map(mapOperator)
       } else {
         // Agent / QA — their home operator, plus anything a SuperAdmin has granted
         // via user_operator_access (e.g. a QA person covering RSI on top of BetSaracen).
-        const [{ data: home }, { data: grants }] = await Promise.all([
-          user!.operatorId
-            ? supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id, is_qa_mode').eq('id', user!.operatorId)
-            : Promise.resolve({ data: [] as any[] }),
+        const [home, { data: grants }] = await Promise.all([
+          user!.operatorId ? selectOperators(q => q.eq('id', user!.operatorId)) : Promise.resolve([]),
           supabase.from('user_operator_access').select('operator_id').eq('user_id', user!.id),
         ])
-        const homeOps = (home ?? []).map(mapOperator)
+        const homeOps = home.map(mapOperator)
         const homeIds = new Set(homeOps.map(o => o.id))
         const grantedIds = (grants ?? []).map((g: any) => g.operator_id).filter((id: string) => !homeIds.has(id))
 
         let grantedOps: Operator[] = []
         if (grantedIds.length > 0) {
-          const { data: gOps } = await supabase.from('operators').select('id, name, slug, logo_url, zendesk_brand_id, is_qa_mode').in('id', grantedIds)
-          grantedOps = (gOps ?? []).map(mapOperator)
+          grantedOps = (await selectOperators(q => q.in('id', grantedIds))).map(mapOperator)
         }
         ops = [...homeOps, ...grantedOps]
       }

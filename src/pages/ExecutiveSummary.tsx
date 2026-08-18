@@ -139,6 +139,29 @@ function automationRateFor(rows: Row[], isQaMode: boolean): number | null {
   return pct(fullyPerfect, byTicket.size)
 }
 
+interface AutomationSnapshot {
+  id: string
+  snapshotDate: string
+  totalTickets: number | null
+  automationRate: number | null
+  escalationRate: number | null
+  resolutionTimeMinutes: number | null
+  handleRate: number | null
+}
+
+async function fetchSnapshots(operatorId: string): Promise<AutomationSnapshot[]> {
+  const { data } = await supabase.from('operator_automation_snapshots')
+    .select('id, snapshot_date, total_tickets, automation_rate, escalation_rate, resolution_time_minutes, handle_rate')
+    .eq('operator_id', operatorId)
+    .order('snapshot_date', { ascending: true })
+  return (data ?? []).map((s: any) => ({
+    id: s.id, snapshotDate: s.snapshot_date,
+    totalTickets: s.total_tickets, automationRate: s.automation_rate,
+    escalationRate: s.escalation_rate, resolutionTimeMinutes: s.resolution_time_minutes,
+    handleRate: s.handle_rate,
+  }))
+}
+
 // Keep only rows scored under the newest prompt version for an eval type (honest metrics)
 function latestVerRows(rows: Row[], verKey: 'accVer' | 'qVer', ranKey: 'accRanAt' | 'qRanAt') {
   const scored = rows.filter(r => r[ranKey])
@@ -243,6 +266,14 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
 
 const STATUS_COLOR: Record<string, string> = { ready: '#166534', almost: '#854d0e', 'not-ready': '#e53e3e', 'low-data': '#9ca3af' }
 
+type ExecView = 'copilot' | 'fullauto'
+const execViewKey = (email: string) => `exec_view_${email}`
+function initialExecView(email: string | undefined): ExecView {
+  if (!email) return 'copilot'
+  const saved = localStorage.getItem(execViewKey(email))
+  return saved === 'fullauto' ? 'fullauto' : 'copilot'
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function ExecutiveSummary() {
   const { selectedOperator } = useOperator()
@@ -250,6 +281,9 @@ export default function ExecutiveSummary() {
   const isOperator = user?.role === 'operator'
   const [rows, setRows]         = useState<Row[]>([])
   const [loading, setLoading]   = useState(true)
+  const [view, setView]         = useState<ExecView>(() => initialExecView(user?.email))
+  const [snapshots, setSnapshots]           = useState<AutomationSnapshot[]>([])
+  const [snapshotsLoading, setSnapshotsLoading] = useState(true)
   const [zdTotal, setZdTotal]   = useState<number | null>(null)
   const [trendPeriod, setTrendPeriod]     = useState<'14d' | '30d' | 'quarter'>('14d')
   const [expandedCat, setExpandedCat]     = useState<string | null>(null)
@@ -323,6 +357,22 @@ export default function ExecutiveSummary() {
   useEffect(() => {
     setLoading(true)
     fetchIssues(selectedOperator?.id ?? null).then(r => { setRows(r); setLoading(false) })
+  }, [selectedOperator?.id])
+
+  useEffect(() => {
+    if (user?.email) localStorage.setItem(execViewKey(user.email), view)
+  }, [view, user?.email])
+
+  // Fall back to CoPilot if the currently-viewed operator doesn't have Full
+  // Auto enabled (e.g. switched operators while a prior one had it saved).
+  useEffect(() => {
+    if (view === 'fullauto' && !selectedOperator?.fullAutoEnabled) setView('copilot')
+  }, [selectedOperator?.fullAutoEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!selectedOperator?.id) { setSnapshots([]); setSnapshotsLoading(false); return }
+    setSnapshotsLoading(true)
+    fetchSnapshots(selectedOperator.id).then(s => { setSnapshots(s); setSnapshotsLoading(false) })
   }, [selectedOperator?.id])
 
   useEffect(() => {
@@ -458,27 +508,54 @@ export default function ExecutiveSummary() {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Executive Summary</h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
-            gameLM performance &amp; path to automation{selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · last 30 days · as of {today}
+            {view === 'fullauto'
+              ? `Full Auto path to production${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · as of ${today}`
+              : `gameLM performance & path to automation${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · last 30 days · as of ${today}`}
           </p>
         </div>
-        <button
-          onClick={() => window.print()}
-          style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '8px 16px',
-            borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
-            cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#CEA4FF' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)' }}
-        >
-          ⎙ Export / Print
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {selectedOperator?.fullAutoEnabled && (
+            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: 10, padding: 3, gap: 2 }}>
+              {(['copilot', 'fullauto'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  style={{
+                    padding: '6px 16px', fontSize: 13, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+                    background: view === v ? '#fff' : 'transparent',
+                    color: view === v ? '#000' : '#58595B',
+                    border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
+                    boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  }}
+                >
+                  {v === 'copilot' ? 'CoPilot' : 'Full Auto'}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => window.print()}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '8px 16px',
+              borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+              cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#CEA4FF' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)' }}
+          >
+            ⎙ Export / Print
+          </button>
+        </div>
       </div>
 
+      {view === 'fullauto' ? (
+        <FullAutoView snapshots={snapshots} loading={snapshotsLoading} isAdmin={!!user?.isSuperAdmin} operatorName={selectedOperator?.name ?? null} />
+      ) : (
+      <>
       {/* Headline band — the COO's three priorities + adoption + automation */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {/* gameLM Perfect Rate — split actual vs projected */}
@@ -743,6 +820,8 @@ export default function ExecutiveSummary() {
           </div>
         </div>
       </div>
+      </>
+      )}
 
     </div>
 
@@ -799,6 +878,110 @@ export default function ExecutiveSummary() {
         </div>
       </div>
     )}
+    </>
+  )
+}
+
+function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
+  snapshots: AutomationSnapshot[]; loading: boolean; isAdmin: boolean; operatorName: string | null
+}) {
+  if (loading) {
+    return <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', padding: 40 }}>Loading…</div>
+  }
+
+  if (snapshots.length === 0) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 6 }}>No Full Auto data yet</p>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', maxWidth: 460, margin: '0 auto' }}>
+          {isAdmin
+            ? 'Add a snapshot in Admin Settings → Config → Edit operator to populate this tab.'
+            : "Preview data for this operator's path to Full Auto hasn't been added yet — check back soon."}
+        </p>
+      </div>
+    )
+  }
+
+  const latest = snapshots[snapshots.length - 1]
+  const prevSnap = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
+  const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  const chartData = snapshots.map(s => ({
+    date: fmtDate(s.snapshotDate),
+    automation: s.automationRate,
+    escalation: s.escalationRate,
+    handle: s.handleRate,
+  }))
+
+  return (
+    <>
+      {/* KPI cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        <StatCard
+          label="Total Tickets"
+          value={latest.totalTickets !== null ? latest.totalTickets.toLocaleString() : '—'}
+          color="#000"
+          sub={`as of ${fmtDate(latest.snapshotDate)}`}
+        />
+        <StatCard
+          label="Automation Rate"
+          value={latest.automationRate !== null ? `${latest.automationRate}%` : '—'}
+          color={latest.automationRate === null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
+          delta={latest.automationRate !== null && prevSnap?.automationRate != null ? <Delta curr={latest.automationRate} prev={prevSnap.automationRate} good="up" suffix="pp" /> : undefined}
+        />
+        <StatCard
+          label="Escalation Rate"
+          value={latest.escalationRate !== null ? `${latest.escalationRate}%` : '—'}
+          color={latest.escalationRate === null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
+          delta={latest.escalationRate !== null && prevSnap?.escalationRate != null ? <Delta curr={latest.escalationRate} prev={prevSnap.escalationRate} good="down" suffix="pp" /> : undefined}
+        />
+        <StatCard
+          label="Resolution Time"
+          value={latest.resolutionTimeMinutes !== null ? `${latest.resolutionTimeMinutes}m` : '—'}
+          color={latest.resolutionTimeMinutes === null ? '#58595B' : '#9B59D0'}
+          delta={latest.resolutionTimeMinutes !== null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" /> : undefined}
+        />
+        <StatCard
+          label="Handle Rate"
+          value={latest.handleRate !== null ? `${latest.handleRate}%` : '—'}
+          color={latest.handleRate === null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
+          delta={latest.handleRate !== null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" /> : undefined}
+        />
+      </div>
+
+      {/* Trend */}
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <SectionTitle title="Path to Full Auto" subtitle="Manually entered snapshots over time." />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Legend color="#166534" label="Automation rate" />
+            <Legend color="#e53e3e" label="Escalation rate" />
+            <Legend color="#9B59D0" label="Handle rate" />
+          </div>
+        </div>
+        {snapshots.length < 2 ? (
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '20px 0' }}>
+            Add at least one more snapshot to see a trend line.
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={chartData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
+              <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
+              <Line type="monotone" dataKey="automation" name="Automation rate" stroke="#166534" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+              <Line type="monotone" dataKey="escalation" name="Escalation rate" stroke="#e53e3e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+              <Line type="monotone" dataKey="handle" name="Handle rate" stroke="#9B59D0" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>
+        Preview data — manually entered, not yet connected to live systems. Mirrors the planned production Full Auto dashboard until {operatorName ?? 'this operator'} moves off Command Center entirely.
+        {isAdmin && ' Manage snapshots in Admin Settings → Config → Edit operator.'}
+      </p>
     </>
   )
 }

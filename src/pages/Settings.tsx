@@ -9,7 +9,7 @@ import Users from './Users'
 
 type SettingsTab = 'general' | 'users' | 'evals' | 'config'
 
-interface Team { id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean }
+interface Team { id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean; fullAutoEnabled: boolean }
 
 function toSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -261,9 +261,95 @@ export default function Settings({ initialTab }: SettingsProps) {
   const [editCatDetail, setEditCatDetail] = useState('')
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null)
 
+  // ── Operator Config — Full Auto preview snapshots ─────────────────────────
+  interface AutomationSnapshot {
+    id: string
+    snapshotDate: string
+    totalTickets: number | null
+    automationRate: number | null
+    escalationRate: number | null
+    resolutionTimeMinutes: number | null
+    handleRate: number | null
+  }
+  const [snapshots,        setSnapshots]        = useState<AutomationSnapshot[]>([])
+  const [snapshotsLoading, setSnapshotsLoading]  = useState(false)
+  const [snapDate,         setSnapDate]          = useState(() => new Date().toISOString().slice(0, 10))
+  const [snapTotalTickets, setSnapTotalTickets]  = useState('')
+  const [snapAutomationRate, setSnapAutomationRate] = useState('')
+  const [snapEscalationRate, setSnapEscalationRate] = useState('')
+  const [snapResolutionTime, setSnapResolutionTime] = useState('')
+  const [snapHandleRate,   setSnapHandleRate]    = useState('')
+  const [snapSaving,       setSnapSaving]        = useState(false)
+  const [snapError,        setSnapError]         = useState('')
+  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null)
+  const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null)
+
   useEffect(() => {
-    if (configTarget) loadCategories()
+    if (configTarget) { loadCategories(); loadSnapshots() }
   }, [configTarget])
+
+  async function loadSnapshots() {
+    if (!configTarget) return
+    setSnapshotsLoading(true)
+    const { data } = await supabase.from('operator_automation_snapshots')
+      .select('id, snapshot_date, total_tickets, automation_rate, escalation_rate, resolution_time_minutes, handle_rate')
+      .eq('operator_id', configTarget.id)
+      .order('snapshot_date', { ascending: false })
+    setSnapshots((data ?? []).map((s: any) => ({
+      id: s.id, snapshotDate: s.snapshot_date,
+      totalTickets: s.total_tickets, automationRate: s.automation_rate,
+      escalationRate: s.escalation_rate, resolutionTimeMinutes: s.resolution_time_minutes,
+      handleRate: s.handle_rate,
+    })))
+    setSnapshotsLoading(false)
+  }
+
+  function resetSnapForm() {
+    setSnapDate(new Date().toISOString().slice(0, 10))
+    setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
+    setSnapResolutionTime(''); setSnapHandleRate('')
+    setEditingSnapshotId(null)
+    setSnapError('')
+  }
+
+  function startEditSnapshot(s: AutomationSnapshot) {
+    setEditingSnapshotId(s.id)
+    setSnapDate(s.snapshotDate)
+    setSnapTotalTickets(s.totalTickets?.toString() ?? '')
+    setSnapAutomationRate(s.automationRate?.toString() ?? '')
+    setSnapEscalationRate(s.escalationRate?.toString() ?? '')
+    setSnapResolutionTime(s.resolutionTimeMinutes?.toString() ?? '')
+    setSnapHandleRate(s.handleRate?.toString() ?? '')
+    setSnapError('')
+  }
+
+  async function saveSnapshot() {
+    if (!configTarget || !snapDate) return
+    setSnapSaving(true)
+    setSnapError('')
+    const num = (v: string) => v.trim() === '' ? null : parseFloat(v)
+    const { error } = await supabase.from('operator_automation_snapshots').upsert({
+      operator_id:             configTarget.id,
+      snapshot_date:           snapDate,
+      total_tickets:           snapTotalTickets.trim() === '' ? null : parseInt(snapTotalTickets, 10),
+      automation_rate:         num(snapAutomationRate),
+      escalation_rate:         num(snapEscalationRate),
+      resolution_time_minutes: num(snapResolutionTime),
+      handle_rate:             num(snapHandleRate),
+      created_by_email:        user?.email ?? null,
+      updated_at:              new Date().toISOString(),
+    }, { onConflict: 'operator_id,snapshot_date' })
+    if (error) { setSnapError(error.message); setSnapSaving(false); return }
+    resetSnapForm()
+    await loadSnapshots()
+    setSnapSaving(false)
+  }
+
+  async function deleteSnapshot(id: string) {
+    await supabase.from('operator_automation_snapshots').delete().eq('id', id)
+    setSnapshots(prev => prev.filter(s => s.id !== id))
+    setDeletingSnapshotId(null)
+  }
 
   async function loadCategories() {
     if (!configTarget) return
@@ -391,9 +477,20 @@ export default function Settings({ initialTab }: SettingsProps) {
 
   async function loadTeams() {
     setTeamsLoading(true)
-    const { data } = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode').order('name')
+    // Falls back if `full_auto_enabled` doesn't exist yet (migration not run) —
+    // otherwise the unknown column would fail this query and no operators
+    // would load in Admin Settings at all.
+    let data: any[] | null
+    const first = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled').order('name')
+    if (!first.error) {
+      data = first.data
+    } else {
+      const fallback = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode').order('name')
+      data = fallback.data
+    }
     setTeams((data ?? []).map((o: any) => ({
       id: o.id, name: o.name, zendeskBrandId: o.zendesk_brand_id ?? null, isQaMode: !!o.is_qa_mode,
+      fullAutoEnabled: !!o.full_auto_enabled,
     })))
     setTeamsLoading(false)
   }
@@ -429,6 +526,7 @@ export default function Settings({ initialTab }: SettingsProps) {
   function closeConfigModal() {
     setConfigTarget(null)
     setAddingCat(false); setEditingCatId(null); setDeletingCatId(null)
+    resetSnapForm(); setDeletingSnapshotId(null); setSnapshots([])
   }
 
   async function saveConfigName() {
@@ -461,6 +559,14 @@ export default function Settings({ initialTab }: SettingsProps) {
     await supabase.from('operators').update({ is_qa_mode: next }).eq('id', configTarget.id)
     setConfigTarget(t => t && { ...t, isQaMode: next })
     setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, isQaMode: next } : t))
+  }
+
+  async function toggleFullAuto() {
+    if (!configTarget) return
+    const next = !configTarget.fullAutoEnabled
+    await supabase.from('operators').update({ full_auto_enabled: next }).eq('id', configTarget.id)
+    setConfigTarget(t => t && { ...t, fullAutoEnabled: next })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, fullAutoEnabled: next } : t))
   }
 
   async function deleteTeam(id: string, name: string) {
@@ -1702,6 +1808,15 @@ export default function Settings({ initialTab }: SettingsProps) {
                       QA mode
                     </span>
                   )}
+                  {t.fullAutoEnabled && (
+                    <span style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                      padding: '3px 9px', borderRadius: 100,
+                      background: 'rgba(20,184,166,0.1)', color: '#0d9488',
+                    }}>
+                      Full Auto
+                    </span>
+                  )}
                   <span style={{
                     fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
                     padding: '3px 9px', borderRadius: 100,
@@ -1843,6 +1958,134 @@ export default function Settings({ initialTab }: SettingsProps) {
                     counting is unaffected either way.
                   </p>
                 </div>
+              </div>
+
+              {/* Full Auto preview */}
+              <div>
+                <div
+                  onClick={toggleFullAuto}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '10px 14px', borderRadius: 10,
+                    background: configTarget.fullAutoEnabled ? 'rgba(155,89,208,0.07)' : 'rgba(0,0,0,0.03)',
+                    border: `1.5px solid ${configTarget.fullAutoEnabled ? 'rgba(155,89,208,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={configTarget.fullAutoEnabled}
+                    onChange={() => {}}
+                    style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+                  />
+                  <div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                      Full Auto preview tab
+                    </p>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                      Adds a "Full Auto" tab next to CoPilot on {configTarget.name}'s Executive Summary, showing the
+                      manually entered snapshots below. Use for operators being migrated toward the production Full
+                      Auto dashboard — turn off (or leave off) for everyone else.
+                    </p>
+                  </div>
+                </div>
+
+                {configTarget.fullAutoEnabled && (
+                  <div style={{ marginTop: 14 }}>
+                    <label style={labelStyle}>Full Auto snapshots</label>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 10 }}>
+                      One row per date. Leave any field blank if you don't have that number yet — its KPI card will show "—" for that date instead of a wrong value.
+                    </p>
+
+                    {snapshotsLoading ? (
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+                    ) : snapshots.length > 0 && (
+                      <div style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                          {['Date', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', ''].map(h => (
+                            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+                          ))}
+                        </div>
+                        {snapshots.map((s, i) => (
+                          <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', alignItems: 'center', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)' }}>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000' }}>{new Date(s.snapshotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.totalTickets ?? '—'}</span>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.automationRate !== null ? `${s.automationRate}%` : '—'}</span>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.escalationRate !== null ? `${s.escalationRate}%` : '—'}</span>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.resolutionTimeMinutes !== null ? `${s.resolutionTimeMinutes}m` : '—'}</span>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.handleRate !== null ? `${s.handleRate}%` : '—'}</span>
+                            <div style={{ display: 'flex', gap: 4, justifySelf: 'end' }}>
+                              {deletingSnapshotId === s.id ? (
+                                <>
+                                  <GhostBtn danger onClick={() => deleteSnapshot(s.id)}>Confirm</GhostBtn>
+                                  <GhostBtn onClick={() => setDeletingSnapshotId(null)}>Cancel</GhostBtn>
+                                </>
+                              ) : (
+                                <>
+                                  <GhostBtn onClick={() => startEditSnapshot(s)}>Edit</GhostBtn>
+                                  <GhostBtn danger onClick={() => setDeletingSnapshotId(s.id)}>Delete</GhostBtn>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add / edit form */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)' }}>
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
+                        {editingSnapshotId ? 'Edit snapshot' : 'Add snapshot'}
+                      </p>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <div style={{ flex: '0 0 150px' }}>
+                          <label style={labelStyle}>Date</label>
+                          <input type="date" value={snapDate} onChange={e => setSnapDate(e.target.value)} style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 110px' }}>
+                          <label style={labelStyle}>Total tickets</label>
+                          <input type="number" min={0} value={snapTotalTickets} onChange={e => setSnapTotalTickets(e.target.value)} placeholder="e.g. 1250" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 110px' }}>
+                          <label style={labelStyle}>Automation %</label>
+                          <input type="number" min={0} max={100} step={0.1} value={snapAutomationRate} onChange={e => setSnapAutomationRate(e.target.value)} placeholder="e.g. 62" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 110px' }}>
+                          <label style={labelStyle}>Escalation %</label>
+                          <input type="number" min={0} max={100} step={0.1} value={snapEscalationRate} onChange={e => setSnapEscalationRate(e.target.value)} placeholder="e.g. 18" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 110px' }}>
+                          <label style={labelStyle}>Resolution (min)</label>
+                          <input type="number" min={0} step={0.1} value={snapResolutionTime} onChange={e => setSnapResolutionTime(e.target.value)} placeholder="e.g. 6.5" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 110px' }}>
+                          <label style={labelStyle}>Handle %</label>
+                          <input type="number" min={0} max={100} step={0.1} value={snapHandleRate} onChange={e => setSnapHandleRate(e.target.value)} placeholder="e.g. 91" style={inputStyle} />
+                        </div>
+                      </div>
+                      {snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>{snapError}</p>}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={saveSnapshot}
+                          disabled={snapSaving || !snapDate}
+                          style={{
+                            background: '#000', color: '#fff', border: 'none', borderRadius: 10,
+                            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                            padding: '9px 20px', cursor: 'pointer', opacity: snapSaving || !snapDate ? 0.5 : 1, transition: 'opacity 0.15s',
+                          }}
+                        >
+                          {snapSaving ? 'Saving…' : editingSnapshotId ? 'Save changes' : '+ Add snapshot'}
+                        </button>
+                        {editingSnapshotId && (
+                          <button onClick={resetSnapForm} style={resetBtnStyle}>Cancel</button>
+                        )}
+                      </div>
+                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                        Saving on a date that already has a row overwrites it — one snapshot per operator per day.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Issue Categories */}
