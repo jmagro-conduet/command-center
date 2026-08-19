@@ -952,7 +952,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Handle Rate"
           value={latest.handleRate !== null ? `${latest.handleRate}%` : '—'}
           color={latest.handleRate === null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
-          sub="Zendesk — % of sampled tickets never reassigned/transferred"
+          sub="Zendesk — % of sampled tickets gameLM's pipeline engaged"
           delta={latest.handleRate !== null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
       </div>

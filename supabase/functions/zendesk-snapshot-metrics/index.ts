@@ -3,10 +3,8 @@ import { corsHeaders } from '../_shared/cors.ts'
 /**
  * Real Zendesk metrics for one Full Auto snapshot window — Total Tickets,
  * Resolution Time, and Handle Rate. Automation Rate and Escalation Rate stay
- * manual (see operator_automation_snapshots) — ZD has no native concept of
- * gameLM's "fully automatable" definition, and the pilot's own
- * gamelm_full_auto_* tag semantics aren't confirmed stable enough to build a
- * KPI on yet. Called once, at "Add snapshot" time — not polled.
+ * manual (see operator_automation_snapshots) — those are set deliberately by
+ * an admin, not derived. Called once, at "Add snapshot" time — not polled.
  *
  * Scope matches zendesk-tickets' definition of a "ticket" (native_messaging
  * chat channel + the same operational-noise exclusions), so Total Tickets
@@ -22,6 +20,14 @@ const EXCLUDED_CATEGORY_TAGS = [
   'other__wrong_number', 'other__outbound_call',
   'other__outbound_call_disconnected', 'other__outbound_tweet',
 ]
+
+// "Resolution tier" custom field (key: standard::resolution_tier) — Non-
+// automated / Assisted escalation / Contained resolution / Verified
+// resolution. Any value set means gameLM's pipeline actually engaged the
+// ticket; null means it never entered the pipeline (routed straight to a
+// human, e.g. P&F/VIP) -- that's the Handle Rate signal, verified live
+// against real BetSaracen tickets before wiring this in.
+const RESOLUTION_TIER_FIELD_ID = 50338948285851
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -54,24 +60,29 @@ Deno.serve(async (req: Request) => {
 
     const totalTickets = await zdCount(baseFilter)
 
-    // Ticket ids for this window, capped — a single-brand week/month is
-    // normally well under the cap, but never silently pretend we sampled
-    // more than we did.
-    const ticketIds: number[] = []
+    // Ticket ids + custom fields for this window, capped — a single-brand
+    // week/month is normally well under the cap, but never silently pretend
+    // we sampled more than we did. Search results already carry
+    // custom_fields, so no extra per-ticket detail call is needed for the
+    // Resolution tier lookup below.
+    const tickets: { id: number; hasResolutionTier: boolean }[] = []
     let url: string | null = `${ZD_BASE}/search.json?query=${encodeURIComponent(baseFilter)}&sort_by=created_at&sort_order=desc`
     let capped = false
-    while (url && ticketIds.length < MAX_METRIC_TICKETS) {
+    while (url && tickets.length < MAX_METRIC_TICKETS) {
       const res = await fetch(url, { headers: zdHeaders })
       if (!res.ok) break
       const data = await res.json()
       for (const t of data.results ?? []) {
-        if (ticketIds.length < MAX_METRIC_TICKETS) ticketIds.push(t.id)
+        if (tickets.length >= MAX_METRIC_TICKETS) break
+        const tierField = (t.custom_fields ?? []).find((c: any) => c.id === RESOLUTION_TIER_FIELD_ID)
+        tickets.push({ id: t.id, hasResolutionTier: tierField?.value != null })
       }
       url = data.next_page ?? null
-      if (url && ticketIds.length >= MAX_METRIC_TICKETS) capped = true
+      if (url && tickets.length >= MAX_METRIC_TICKETS) capped = true
     }
 
-    // Per-ticket metrics, batched to stay within ZD rate limits.
+    // Per-ticket metrics (resolution time only), batched to stay within ZD
+    // rate limits.
     async function fetchMetrics(id: number): Promise<any | null> {
       const res = await fetch(`${ZD_BASE}/tickets/${id}/metrics.json`, { headers: zdHeaders })
       if (!res.ok) return null
@@ -80,9 +91,9 @@ Deno.serve(async (req: Request) => {
     }
     const BATCH = 20
     const metrics: any[] = []
-    for (let i = 0; i < ticketIds.length; i += BATCH) {
-      const chunk = ticketIds.slice(i, i + BATCH)
-      const results = await Promise.all(chunk.map(fetchMetrics))
+    for (let i = 0; i < tickets.length; i += BATCH) {
+      const chunk = tickets.slice(i, i + BATCH)
+      const results = await Promise.all(chunk.map(t => fetchMetrics(t.id)))
       metrics.push(...results.filter(Boolean))
     }
 
@@ -101,19 +112,20 @@ Deno.serve(async (req: Request) => {
         : Math.round(((resolved[resolved.length / 2 - 1] + resolved[resolved.length / 2]) / 2) * 10) / 10
       : null
 
-    // Handle rate proxy: % of sampled tickets that never got reassigned or
-    // transferred to another group — a single agent/group handled it start
-    // to finish.
-    const handled = metrics.filter(m => m.assignee_stations === 1 && m.group_stations === 1)
-    const handleRate = metrics.length
-      ? Math.round((handled.length / metrics.length) * 1000) / 10
+    // Handle Rate: % of sampled tickets gameLM's pipeline actually engaged
+    // (any Resolution tier value set) -- a coverage metric, not a success
+    // rate. Replaces an earlier "never reassigned" proxy that just measured
+    // each operator's own routing architecture instead.
+    const handledCount = tickets.filter(t => t.hasResolutionTier).length
+    const handleRate = tickets.length
+      ? Math.round((handledCount / tickets.length) * 1000) / 10
       : null
 
     return new Response(JSON.stringify({
       total_tickets: totalTickets,
       resolution_time_minutes: resolutionTimeMinutes,
       handle_rate: handleRate,
-      sampled_tickets: metrics.length,
+      sampled_tickets: tickets.length,
       capped,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err: unknown) {
