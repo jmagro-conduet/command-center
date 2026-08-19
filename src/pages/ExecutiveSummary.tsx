@@ -228,16 +228,20 @@ async function fetchIssues(operatorId: string | null): Promise<Row[]> {
 }
 
 // ── Small UI helpers ────────────────────────────────────────────────────────────
-function Delta({ curr, prev, good, suffix = 'pp' }: { curr: number; prev: number | null; good: 'up' | 'down'; suffix?: string }) {
+function Delta({ curr, prev, good, suffix = 'pp', label = 'vs prior 30d' }: {
+  curr: number; prev: number | null; good: 'up' | 'down'; suffix?: string; label?: string
+}) {
   if (prev === null) return null
-  const d = curr - prev
-  if (d === 0) return <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>— vs prior 30d</span>
+  // Round before comparing/displaying -- raw float subtraction (e.g. 71.9 - 14.3)
+  // produces noise like 57.599999999999994 that'd otherwise leak into the UI.
+  const d = Math.round((curr - prev) * 10) / 10
+  if (d === 0) return <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>— {label}</span>
   const up = d > 0
   const isGood = good === 'up' ? up : !up
   const color = isGood ? '#166534' : '#e53e3e'
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color, marginTop: 2 }}>
-      {up ? '↑' : '↓'} {Math.abs(d)}{suffix} vs prior 30d
+      {up ? '↑' : '↓'} {Math.abs(d)}{suffix} {label}
     </span>
   )
 }
@@ -927,25 +931,29 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Automation Rate"
           value={latest.automationRate !== null ? `${latest.automationRate}%` : '—'}
           color={latest.automationRate === null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
-          delta={latest.automationRate !== null && prevSnap?.automationRate != null ? <Delta curr={latest.automationRate} prev={prevSnap.automationRate} good="up" suffix="pp" /> : undefined}
+          sub="manually entered — % of tickets fully resolved without a human"
+          delta={latest.automationRate !== null && prevSnap?.automationRate != null ? <Delta curr={latest.automationRate} prev={prevSnap.automationRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Escalation Rate"
           value={latest.escalationRate !== null ? `${latest.escalationRate}%` : '—'}
           color={latest.escalationRate === null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
-          delta={latest.escalationRate !== null && prevSnap?.escalationRate != null ? <Delta curr={latest.escalationRate} prev={prevSnap.escalationRate} good="down" suffix="pp" /> : undefined}
+          sub="manually entered — % of tickets that needed a human"
+          delta={latest.escalationRate !== null && prevSnap?.escalationRate != null ? <Delta curr={latest.escalationRate} prev={prevSnap.escalationRate} good="down" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Resolution Time"
           value={latest.resolutionTimeMinutes !== null ? `${latest.resolutionTimeMinutes}m` : '—'}
           color={latest.resolutionTimeMinutes === null ? '#58595B' : '#9B59D0'}
-          delta={latest.resolutionTimeMinutes !== null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" /> : undefined}
+          sub="median, Zendesk — full resolution time"
+          delta={latest.resolutionTimeMinutes !== null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Handle Rate"
           value={latest.handleRate !== null ? `${latest.handleRate}%` : '—'}
           color={latest.handleRate === null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
-          delta={latest.handleRate !== null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" /> : undefined}
+          sub="Zendesk — % of sampled tickets never reassigned/transferred"
+          delta={latest.handleRate !== null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
       </div>
 

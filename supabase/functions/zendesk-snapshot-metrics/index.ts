@@ -86,9 +86,19 @@ Deno.serve(async (req: Request) => {
       metrics.push(...results.filter(Boolean))
     }
 
-    const resolved = metrics.filter(m => m.full_resolution_time_in_minutes?.calendar != null)
+    // Median, not mean -- full_resolution_time_in_minutes measures calendar
+    // time to SOLVED, so a handful of tickets left open/unresponsive for days
+    // (auto-closed later) blow the mean up by orders of magnitude. Verified
+    // live: one BetSaracen window had mean=555min vs median=13min for the
+    // exact same tickets. Median reflects what a typical handled chat took.
+    const resolved = metrics
+      .filter(m => m.full_resolution_time_in_minutes?.calendar != null)
+      .map(m => m.full_resolution_time_in_minutes.calendar as number)
+      .sort((a, b) => a - b)
     const resolutionTimeMinutes = resolved.length
-      ? Math.round((resolved.reduce((s, m) => s + m.full_resolution_time_in_minutes.calendar, 0) / resolved.length) * 10) / 10
+      ? resolved.length % 2 === 1
+        ? resolved[(resolved.length - 1) / 2]
+        : Math.round(((resolved[resolved.length / 2 - 1] + resolved[resolved.length / 2]) / 2) * 10) / 10
       : null
 
     // Handle rate proxy: % of sampled tickets that never got reassigned or
