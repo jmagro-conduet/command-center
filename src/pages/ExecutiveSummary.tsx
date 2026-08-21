@@ -368,10 +368,12 @@ export default function ExecutiveSummary() {
   }, [view, user?.email])
 
   // Fall back to CoPilot if the currently-viewed operator doesn't have Full
-  // Auto enabled (e.g. switched operators while a prior one had it saved).
+  // Auto enabled (e.g. switched operators while a prior one had it saved),
+  // or if this is an operator-role (external client) login -- Full Auto is
+  // still internal-preview-only, not yet shown to clients.
   useEffect(() => {
-    if (view === 'fullauto' && !selectedOperator?.fullAutoEnabled) setView('copilot')
-  }, [selectedOperator?.fullAutoEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (view === 'fullauto' && (!selectedOperator?.fullAutoEnabled || isOperator)) setView('copilot')
+  }, [selectedOperator?.fullAutoEnabled, isOperator]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedOperator?.id) { setSnapshots([]); setSnapshotsLoading(false); return }
@@ -516,13 +518,16 @@ export default function ExecutiveSummary() {
         <div>
           <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Executive Summary</h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
-            {view === 'fullauto'
+            {view === 'fullauto' && !isOperator
               ? `Full Auto path to production${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · as of ${today}`
               : `gameLM performance & path to automation${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · last 30 days · as of ${today}`}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {selectedOperator?.fullAutoEnabled && (
+          {/* Full Auto is still internal-preview-only -- never shown to
+              operator-role (external client) logins, regardless of the
+              per-operator flag. */}
+          {selectedOperator?.fullAutoEnabled && !isOperator && (
             <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: 10, padding: 3, gap: 2 }}>
               {(['copilot', 'fullauto'] as const).map(v => (
                 <button
@@ -556,7 +561,7 @@ export default function ExecutiveSummary() {
         </div>
       </div>
 
-      {view === 'fullauto' ? (
+      {view === 'fullauto' && !isOperator ? (
         <FullAutoView snapshots={snapshots} loading={snapshotsLoading} isAdmin={!!user?.isSuperAdmin} operatorName={selectedOperator?.name ?? null} />
       ) : (
       <>
