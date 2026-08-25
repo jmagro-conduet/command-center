@@ -75,7 +75,7 @@ function SignInForm({ onForgot, onCreateAccount, signIn }: {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Field label="Email">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            required autoFocus placeholder="you@conduet.com" style={inputStyle}
+            required autoFocus placeholder="you@raphie.com" style={inputStyle}
             onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
@@ -201,7 +201,7 @@ function CreateAccountForm({ onBack, signIn }: {
 
         <Field label="Email">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            required placeholder="you@conduet.com" style={inputStyle}
+            required placeholder="you@raphie.com" style={inputStyle}
             onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
@@ -303,7 +303,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Field label="Email">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-            required autoFocus placeholder="you@conduet.com" style={inputStyle}
+            required autoFocus placeholder="you@raphie.com" style={inputStyle}
             onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
