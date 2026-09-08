@@ -410,11 +410,20 @@ export default function Settings({ initialTab }: SettingsProps) {
       updated_at:              new Date().toISOString(),
     }, { onConflict: 'operator_id,snapshot_date,use_case' })
     if (error) { setSnapError(error.message); setSnapSaving(false); return }
-    setSnapDate(new Date().toISOString().slice(0, 10))
-    setSnapKind('all')
-    setSnapUseCase('')
-    setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
-    setSnapResolutionTime(''); setSnapHandleRate('')
+    if (snapKind === 'individual' && !editingSnapshotId) {
+      // Keep the date + kind pinned so entering several use cases for the
+      // same date doesn't require re-picking the date each time -- just
+      // clear the label and values, ready for the next one.
+      setSnapUseCase('')
+      setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
+      setSnapResolutionTime(''); setSnapHandleRate('')
+    } else {
+      setSnapDate(new Date().toISOString().slice(0, 10))
+      setSnapKind('all')
+      setSnapUseCase('')
+      setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
+      setSnapResolutionTime(''); setSnapHandleRate('')
+    }
     setEditingSnapshotId(null)
     setSnapError('')
     await loadSnapshots()
