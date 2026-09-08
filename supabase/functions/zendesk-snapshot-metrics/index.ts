@@ -6,9 +6,12 @@ import { corsHeaders } from '../_shared/cors.ts'
  * manual (see operator_automation_snapshots) — those are set deliberately by
  * an admin, not derived. Called once, at "Add snapshot" time — not polled.
  *
- * Scope matches zendesk-tickets' definition of a "ticket" (native_messaging
- * chat channel + the same operational-noise exclusions), so Total Tickets
- * here means the same thing as everywhere else gameLM touches ZD volume.
+ * Total Tickets and Resolution Time are both scoped to tickets gameLM's
+ * pipeline actually engaged (any Resolution tier value set), same
+ * population as Handle Rate's numerator -- not every native_messaging
+ * ticket in the window. A ticket that never entered the pipeline (e.g.
+ * routed straight to a human for P&F/VIP) isn't part of any of these three
+ * numbers.
  */
 
 const ZD_BASE = 'https://conduet.zendesk.com/api/v2'
@@ -28,6 +31,17 @@ const EXCLUDED_CATEGORY_TAGS = [
 // human, e.g. P&F/VIP) -- that's the Handle Rate signal, verified live
 // against real BetSaracen tickets before wiring this in.
 const RESOLUTION_TIER_FIELD_ID = 50338948285851
+// The tier values themselves are NOT real Zendesk tags (verified live --
+// tags:<value> matches zero tickets) -- they're only queryable via Zendesk's
+// custom_field_<id>:<value> search syntax, one value at a time. No "is not
+// null" search form exists for this field type, so an exact engaged-ticket
+// count means summing the exact count for each known value.
+const RESOLUTION_TIER_VALUES = [
+  'zd_resolution_tier_non_automated',
+  'zd_resolution_tier_assisted_escalation',
+  'zd_resolution_tier_contained_resolution',
+  'zd_resolution_tier_core_resolution',
+]
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -58,7 +72,10 @@ Deno.serve(async (req: Request) => {
     const dateClause = `created>=${start_date} created<=${end_date}`
     const baseFilter = `type:ticket via:native_messaging brand_id:${brand_id} ${dateClause} ${exclusion}`.replace(/\s+/g, ' ').trim()
 
-    const totalTickets = await zdCount(baseFilter)
+    // Exact engaged-ticket count -- sum of each tier value's own exact
+    // count, since there's no single query for "has any tier value."
+    const tierCounts = await Promise.all(RESOLUTION_TIER_VALUES.map(v => zdCount(`${baseFilter} custom_field_${RESOLUTION_TIER_FIELD_ID}:${v}`)))
+    const totalTickets = tierCounts.reduce((s, c) => s + c, 0)
 
     // Ticket ids + custom fields for this window, capped — a single-brand
     // week/month is normally well under the cap, but never silently pretend
@@ -81,18 +98,19 @@ Deno.serve(async (req: Request) => {
       if (url && tickets.length >= MAX_METRIC_TICKETS) capped = true
     }
 
-    // Per-ticket metrics (resolution time only), batched to stay within ZD
-    // rate limits.
+    // Per-ticket metrics (resolution time only) for ENGAGED tickets only --
+    // batched to stay within ZD rate limits.
     async function fetchMetrics(id: number): Promise<any | null> {
       const res = await fetch(`${ZD_BASE}/tickets/${id}/metrics.json`, { headers: zdHeaders })
       if (!res.ok) return null
       const d = await res.json()
       return d.ticket_metric ?? null
     }
+    const engagedTickets = tickets.filter(t => t.hasResolutionTier)
     const BATCH = 20
     const metrics: any[] = []
-    for (let i = 0; i < tickets.length; i += BATCH) {
-      const chunk = tickets.slice(i, i + BATCH)
+    for (let i = 0; i < engagedTickets.length; i += BATCH) {
+      const chunk = engagedTickets.slice(i, i + BATCH)
       const results = await Promise.all(chunk.map(t => fetchMetrics(t.id)))
       metrics.push(...results.filter(Boolean))
     }
@@ -116,16 +134,15 @@ Deno.serve(async (req: Request) => {
     // (any Resolution tier value set) -- a coverage metric, not a success
     // rate. Replaces an earlier "never reassigned" proxy that just measured
     // each operator's own routing architecture instead.
-    const handledCount = tickets.filter(t => t.hasResolutionTier).length
     const handleRate = tickets.length
-      ? Math.round((handledCount / tickets.length) * 1000) / 10
+      ? Math.round((engagedTickets.length / tickets.length) * 1000) / 10
       : null
 
     return new Response(JSON.stringify({
       total_tickets: totalTickets,
       resolution_time_minutes: resolutionTimeMinutes,
       handle_rate: handleRate,
-      sampled_tickets: tickets.length,
+      sampled_tickets: engagedTickets.length,
       capped,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err: unknown) {

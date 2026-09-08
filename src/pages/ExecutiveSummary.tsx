@@ -1001,7 +1001,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Total Tickets"
           leftLabel="All Tickets" leftValue={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'} leftColor="#000"
           rightLabel="Supported" rightValue={latestSupported?.totalTickets != null ? latestSupported.totalTickets.toLocaleString() : '—'} rightColor="#9B59D0"
-          sub={latest ? `as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
+          sub={latest ? `Zendesk — tickets gameLM's pipeline engaged, as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
         />
         <DualStatCard
           label="Automation Rate"
@@ -1025,7 +1025,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Resolution Time"
           value={latest?.resolutionTimeMinutes != null ? `${latest.resolutionTimeMinutes}m` : '—'}
           color={latest?.resolutionTimeMinutes == null ? '#58595B' : '#9B59D0'}
-          sub="median, Zendesk — full resolution time"
+          sub="median, Zendesk — engaged tickets only"
           delta={latest?.resolutionTimeMinutes != null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
