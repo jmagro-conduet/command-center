@@ -945,7 +945,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
     date: fmtDate(s.snapshotDate),
     automation: s.automationRate,
     escalation: s.escalationRate,
-    handle: s.handleRate,
+    resolutionTime: s.resolutionTimeMinutes,
   }))
 
   // Per-use-case comparison chart — Automation Rate only (the core progress
@@ -1029,7 +1029,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
             )}
             <Legend color="#166534" label="Automation rate" />
             <Legend color="#e53e3e" label="Escalation rate" />
-            <Legend color="#9B59D0" label="Handle rate" />
+            <Legend color="#9B59D0" label="Resolution time" />
           </div>
         </div>
         {seriesSnapshots.length < 2 ? (
@@ -1041,11 +1041,12 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
             <LineChart data={chartData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
-              <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
-              <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
-              <Line type="monotone" dataKey="automation" name="Automation rate" stroke="#166534" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
-              <Line type="monotone" dataKey="escalation" name="Escalation rate" stroke="#e53e3e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
-              <Line type="monotone" dataKey="handle" name="Handle rate" stroke="#9B59D0" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+              <YAxis yAxisId="pct" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="min" orientation="right" tickFormatter={v => `${v}m`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(v: any, name: any) => v === null ? '—' : name === 'Resolution time' ? `${v}m` : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
+              <Line yAxisId="pct" type="monotone" dataKey="automation" name="Automation rate" stroke="#166534" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+              <Line yAxisId="pct" type="monotone" dataKey="escalation" name="Escalation rate" stroke="#e53e3e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+              <Line yAxisId="min" type="monotone" dataKey="resolutionTime" name="Resolution time" stroke="#9B59D0" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
             </LineChart>
           </ResponsiveContainer>
         )}
