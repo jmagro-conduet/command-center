@@ -266,6 +266,34 @@ function StatCard({ label, value, color, sub, delta }: {
   )
 }
 
+// Side-by-side two-scope value, same visual pattern as the CoPilot tab's
+// gameLM Perfect Rate card (Actual | Projected split).
+function DualStatCard({ label, leftLabel, leftValue, leftColor, rightLabel, rightValue, rightColor, sub, delta }: {
+  label: string
+  leftLabel: string; leftValue: string; leftColor: string
+  rightLabel: string; rightValue: string; rightColor: string
+  sub?: string; delta?: React.ReactNode
+}) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
+      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{label}</p>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
+        <div>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{leftLabel}</p>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: leftColor, lineHeight: 1 }}>{leftValue}</p>
+        </div>
+        <div style={{ width: 1, height: 36, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
+        <div>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{rightLabel}</p>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: rightColor, lineHeight: 1 }}>{rightValue}</p>
+        </div>
+      </div>
+      {sub && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>{sub}</p>}
+      {delta && <div style={{ marginTop: 4 }}>{delta}</div>}
+    </div>
+  )
+}
+
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div style={{ marginBottom: 4 }}>
@@ -924,12 +952,17 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
 
   const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  // KPI cards always reflect the All Tickets (whole-operator, Zendesk-
-  // sourced) picture, regardless of which series the trend chart below is
-  // toggled to.
+  // Total Tickets / Automation Rate / Escalation Rate show BOTH scopes side
+  // by side (All Tickets and Supported Use Cases), independent of whichever
+  // series the trend chart below is toggled to -- Resolution Time and
+  // Handle Rate stay single-value, tied to All Tickets, since they're
+  // Zendesk-sourced and don't have a distinct Supported-scope reading.
   const allTicketsSnapshots = snapshots.filter(s => s.useCase === ALL_TICKETS_USE_CASE)
   const latest = allTicketsSnapshots[allTicketsSnapshots.length - 1] ?? null
   const prevSnap = allTicketsSnapshots.length > 1 ? allTicketsSnapshots[allTicketsSnapshots.length - 2] : null
+  const supportedSnapshots = snapshots.filter(s => s.useCase === SUPPORTED_USE_CASE)
+  const latestSupported = supportedSnapshots[supportedSnapshots.length - 1] ?? null
+  const prevSupported = supportedSnapshots.length > 1 ? supportedSnapshots[supportedSnapshots.length - 2] : null
 
   // Main chart is a fixed 2-way switcher between the two AGGREGATE views --
   // All Tickets (raw Zendesk pull) and Supported Use Cases (manual rollup
@@ -964,25 +997,29 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
     <>
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-        <StatCard
+        <DualStatCard
           label="Total Tickets"
-          value={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'}
-          color="#000"
-          sub={latest ? `as of ${fmtDate(latest.snapshotDate)}` : 'no Overall snapshot yet'}
+          leftLabel="All Tickets" leftValue={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'} leftColor="#000"
+          rightLabel="Supported" rightValue={latestSupported?.totalTickets != null ? latestSupported.totalTickets.toLocaleString() : '—'} rightColor="#9B59D0"
+          sub={latest ? `as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
         />
-        <StatCard
+        <DualStatCard
           label="Automation Rate"
-          value={latest?.automationRate != null ? `${latest.automationRate}%` : '—'}
-          color={latest?.automationRate == null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
+          leftLabel="All Tickets" leftValue={latest?.automationRate != null ? `${latest.automationRate}%` : '—'}
+          leftColor={latest?.automationRate == null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
+          rightLabel="Supported" rightValue={latestSupported?.automationRate != null ? `${latestSupported.automationRate}%` : '—'}
+          rightColor={latestSupported?.automationRate == null ? '#58595B' : latestSupported.automationRate >= 70 ? '#166534' : latestSupported.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
           sub="manually entered — % of tickets fully resolved without a human"
-          delta={latest?.automationRate != null && prevSnap?.automationRate != null ? <Delta curr={latest.automationRate} prev={prevSnap.automationRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
+          delta={latestSupported?.automationRate != null && prevSupported?.automationRate != null ? <Delta curr={latestSupported.automationRate} prev={prevSupported.automationRate} good="up" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
-        <StatCard
+        <DualStatCard
           label="Escalation Rate"
-          value={latest?.escalationRate != null ? `${latest.escalationRate}%` : '—'}
-          color={latest?.escalationRate == null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
+          leftLabel="All Tickets" leftValue={latest?.escalationRate != null ? `${latest.escalationRate}%` : '—'}
+          leftColor={latest?.escalationRate == null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
+          rightLabel="Supported" rightValue={latestSupported?.escalationRate != null ? `${latestSupported.escalationRate}%` : '—'}
+          rightColor={latestSupported?.escalationRate == null ? '#58595B' : latestSupported.escalationRate <= 20 ? '#166534' : latestSupported.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
           sub="manually entered — % of tickets that needed a human"
-          delta={latest?.escalationRate != null && prevSnap?.escalationRate != null ? <Delta curr={latest.escalationRate} prev={prevSnap.escalationRate} good="down" suffix="pp" label="vs previous snapshot" /> : undefined}
+          delta={latestSupported?.escalationRate != null && prevSupported?.escalationRate != null ? <Delta curr={latestSupported.escalationRate} prev={prevSupported.escalationRate} good="down" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
         <StatCard
           label="Resolution Time"
