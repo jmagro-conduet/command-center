@@ -903,7 +903,7 @@ const USE_CASE_COLORS = ['#166534', '#9B59D0', '#e53e3e', '#854d0e', '#0d9488', 
 function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   snapshots: AutomationSnapshot[]; loading: boolean; isAdmin: boolean; operatorName: string | null
 }) {
-  const [series, setSeries] = useState<string>(ALL_TICKETS_USE_CASE)
+  const [series, setSeries] = useState<string>(SUPPORTED_USE_CASE)
 
   if (loading) {
     return <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', padding: 40 }}>Loading…</div>
@@ -939,7 +939,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   const presentUseCases = new Set(snapshots.map(s => s.useCase))
   const individualUseCases = [...presentUseCases].filter(u => u !== ALL_TICKETS_USE_CASE && u !== SUPPORTED_USE_CASE).sort()
   const useCases = [ALL_TICKETS_USE_CASE, SUPPORTED_USE_CASE]
-  const activeSeries = useCases.includes(series) ? series : ALL_TICKETS_USE_CASE
+  const activeSeries = useCases.includes(series) ? series : SUPPORTED_USE_CASE
   const seriesSnapshots = snapshots.filter(s => s.useCase === activeSeries)
   const chartData = seriesSnapshots.map(s => ({
     date: fmtDate(s.snapshotDate),
