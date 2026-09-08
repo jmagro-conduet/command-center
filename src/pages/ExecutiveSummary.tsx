@@ -1001,7 +1001,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Total Tickets"
           leftLabel="All Tickets" leftValue={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'} leftColor="#000"
           rightLabel="Supported" rightValue={latestSupported?.totalTickets != null ? latestSupported.totalTickets.toLocaleString() : '—'} rightColor="#9B59D0"
-          sub={latest ? `Zendesk — tickets gameLM's pipeline engaged, as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
+          sub={latest ? `Zendesk, as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
         />
         <DualStatCard
           label="Automation Rate"
@@ -1009,7 +1009,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           leftColor={latest?.automationRate == null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
           rightLabel="Supported" rightValue={latestSupported?.automationRate != null ? `${latestSupported.automationRate}%` : '—'}
           rightColor={latestSupported?.automationRate == null ? '#58595B' : latestSupported.automationRate >= 70 ? '#166534' : latestSupported.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
-          sub="manually entered — % of tickets fully resolved without a human"
+          sub="Manual"
           delta={latestSupported?.automationRate != null && prevSupported?.automationRate != null ? <Delta curr={latestSupported.automationRate} prev={prevSupported.automationRate} good="up" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
         <DualStatCard
@@ -1018,21 +1018,21 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           leftColor={latest?.escalationRate == null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
           rightLabel="Supported" rightValue={latestSupported?.escalationRate != null ? `${latestSupported.escalationRate}%` : '—'}
           rightColor={latestSupported?.escalationRate == null ? '#58595B' : latestSupported.escalationRate <= 20 ? '#166534' : latestSupported.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
-          sub="manually entered — % of tickets that needed a human"
+          sub="Manual"
           delta={latestSupported?.escalationRate != null && prevSupported?.escalationRate != null ? <Delta curr={latestSupported.escalationRate} prev={prevSupported.escalationRate} good="down" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
         <StatCard
           label="Resolution Time"
           value={latest?.resolutionTimeMinutes != null ? `${latest.resolutionTimeMinutes}m` : '—'}
           color={latest?.resolutionTimeMinutes == null ? '#58595B' : '#9B59D0'}
-          sub="median, Zendesk — engaged tickets only"
+          sub="Zendesk, median"
           delta={latest?.resolutionTimeMinutes != null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Handle Rate"
           value={latest?.handleRate != null ? `${latest.handleRate}%` : '—'}
           color={latest?.handleRate == null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
-          sub="Zendesk — % of sampled tickets gameLM's pipeline engaged"
+          sub="Zendesk"
           delta={latest?.handleRate != null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
       </div>
