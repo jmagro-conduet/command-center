@@ -397,8 +397,7 @@ export default function Settings({ initialTab }: SettingsProps) {
       setSnapZdNote(`Pulled from Zendesk · ${start} → ${end} · ${zd.sampled_tickets} ticket${zd.sampled_tickets === 1 ? '' : 's'} sampled${zd.capped ? ' (capped)' : ''}`)
     }
 
-    const { error } = await supabase.from('operator_automation_snapshots').upsert({
-      operator_id:             configTarget.id,
+    const fields = {
       snapshot_date:           snapDate,
       use_case:                useCase,
       total_tickets:           totalTickets,
@@ -406,9 +405,17 @@ export default function Settings({ initialTab }: SettingsProps) {
       escalation_rate:         num(snapEscalationRate),
       resolution_time_minutes: resolutionTime,
       handle_rate:             handleRate,
-      created_by_email:        user?.email ?? null,
       updated_at:              new Date().toISOString(),
-    }, { onConflict: 'operator_id,snapshot_date,use_case' })
+    }
+    // Editing updates THIS row by its own id -- changing its date or kind
+    // must move/relabel the same row, not upsert-by-(date,use_case), which
+    // would silently leave the pre-edit row behind as an orphaned duplicate
+    // whenever the kind changed.
+    const { error } = editingSnapshotId
+      ? await supabase.from('operator_automation_snapshots').update(fields).eq('id', editingSnapshotId)
+      : await supabase.from('operator_automation_snapshots').upsert({
+          operator_id: configTarget.id, created_by_email: user?.email ?? null, ...fields,
+        }, { onConflict: 'operator_id,snapshot_date,use_case' })
     if (error) { setSnapError(error.message); setSnapSaving(false); return }
     if (snapKind === 'individual' && !editingSnapshotId) {
       // Keep the date + kind pinned so entering several use cases for the
