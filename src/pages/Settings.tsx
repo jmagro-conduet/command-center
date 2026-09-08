@@ -293,27 +293,8 @@ export default function Settings({ initialTab }: SettingsProps) {
   const [snapHandleRate,   setSnapHandleRate]    = useState('')
   const [snapSaving,       setSnapSaving]        = useState(false)
   const [snapError,        setSnapError]         = useState('')
-  const [snapZdNote,       setSnapZdNote]        = useState('')
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null)
   const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null)
-
-  // Window for the Zendesk pull: since the most recent EARLIER All Tickets
-  // snapshot (exclusive), or a trailing 7 days if there isn't one yet --
-  // keeps consecutive All Tickets snapshots' Total Tickets from double-
-  // counting the same tickets. Supported Use Cases and individual use-case
-  // snapshots are always manual and never factor into this (see the ZD-pull
-  // gate in saveSnapshot).
-  function zdWindowFor(targetDate: string): { start: string; end: string } {
-    const priorDates = snapshots.filter(s => s.useCase === ALL_TICKETS_USE_CASE).map(s => s.snapshotDate).filter(d => d < targetDate).sort()
-    if (priorDates.length > 0) {
-      const prior = new Date(priorDates[priorDates.length - 1] + 'T00:00:00')
-      prior.setDate(prior.getDate() + 1)
-      return { start: prior.toISOString().slice(0, 10), end: targetDate }
-    }
-    const weekAgo = new Date(targetDate + 'T00:00:00')
-    weekAgo.setDate(weekAgo.getDate() - 6)
-    return { start: weekAgo.toISOString().slice(0, 10), end: targetDate }
-  }
 
   useEffect(() => {
     if (configTarget) { loadCategories(); loadSnapshots() }
@@ -343,7 +324,6 @@ export default function Settings({ initialTab }: SettingsProps) {
     setSnapResolutionTime(''); setSnapHandleRate('')
     setEditingSnapshotId(null)
     setSnapError('')
-    setSnapZdNote('')
   }
 
   function startEditSnapshot(s: AutomationSnapshot) {
@@ -358,53 +338,32 @@ export default function Settings({ initialTab }: SettingsProps) {
     setSnapResolutionTime(s.resolutionTimeMinutes?.toString() ?? '')
     setSnapHandleRate(s.handleRate?.toString() ?? '')
     setSnapError('')
-    setSnapZdNote('')
   }
 
   async function saveSnapshot() {
     if (!configTarget || !snapDate) return
     setSnapSaving(true)
     setSnapError('')
-    setSnapZdNote('')
     const num = (v: string) => v.trim() === '' ? null : parseFloat(v)
 
-    // Total Tickets / Resolution Time / Handle Rate come straight from
-    // Zendesk on ADD (not edit) for ZD-tracked operators -- but ONLY for the
-    // All Tickets kind. ZD's pull isn't filterable by use case today, so
-    // Supported Use Cases and individual use-case rows are always fully
-    // manual, same as Automation Rate and Escalation Rate always are.
+    // All 5 fields are manual for every kind -- Zendesk search couldn't be
+    // made to reliably reproduce engineering's own authoritative ticket
+    // counts (tried three different query approaches; each landed in the
+    // neighborhood but never matched exactly), so this reverted to fully
+    // manual entry rather than risk a quietly-wrong number in a
+    // leadership-facing metric.
     const useCase = snapKind === 'all' ? ALL_TICKETS_USE_CASE
       : snapKind === 'supported' ? SUPPORTED_USE_CASE
       : (snapUseCase.trim() || 'Untitled use case')
-    const isAllTickets = snapKind === 'all'
-    let totalTickets = snapTotalTickets.trim() === '' ? null : parseInt(snapTotalTickets, 10)
-    let resolutionTime = num(snapResolutionTime)
-    let handleRate = num(snapHandleRate)
-
-    if (!editingSnapshotId && isAllTickets && configTarget.zendeskBrandId) {
-      const { start, end } = zdWindowFor(snapDate)
-      const { data: zd, error: zdError } = await supabase.functions.invoke('zendesk-snapshot-metrics', {
-        body: { brand_id: configTarget.zendeskBrandId, start_date: start, end_date: end },
-      })
-      if (zdError || zd?.error) {
-        setSnapError(`Zendesk pull failed: ${zdError?.message ?? zd?.error}`)
-        setSnapSaving(false)
-        return
-      }
-      totalTickets = zd.total_tickets ?? null
-      resolutionTime = zd.resolution_time_minutes ?? null
-      handleRate = zd.handle_rate ?? null
-      setSnapZdNote(`Pulled from Zendesk · ${start} → ${end} · ${zd.sampled_tickets} ticket${zd.sampled_tickets === 1 ? '' : 's'} sampled${zd.capped ? ' (capped)' : ''}`)
-    }
 
     const fields = {
       snapshot_date:           snapDate,
       use_case:                useCase,
-      total_tickets:           totalTickets,
+      total_tickets:           snapTotalTickets.trim() === '' ? null : parseInt(snapTotalTickets, 10),
       automation_rate:         num(snapAutomationRate),
       escalation_rate:         num(snapEscalationRate),
-      resolution_time_minutes: resolutionTime,
-      handle_rate:             handleRate,
+      resolution_time_minutes: num(snapResolutionTime),
+      handle_rate:             num(snapHandleRate),
       updated_at:              new Date().toISOString(),
     }
     // Editing updates THIS row by its own id -- changing its date or kind
@@ -2086,7 +2045,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   <div style={{ marginTop: 14 }}>
                     <label style={labelStyle}>Full Auto snapshots</label>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 10 }}>
-                      Three kinds of row, one date per kind (or per use case): <strong>All Tickets</strong> is the whole-operator Zendesk-sourced number, <strong>Supported Use Cases</strong> is your own aggregate across just the use cases gameLM attempts, and <strong>individual use cases</strong> track one specific use case each. Leave any field blank if you don't have that number yet.
+                      Three kinds of row, one date per kind (or per use case), all manually entered: <strong>All Tickets</strong> is the whole-operator number, <strong>Supported Use Cases</strong> is your own aggregate across just the use cases gameLM attempts, and <strong>individual use cases</strong> track one specific use case each. Leave any field blank if you don't have that number yet.
                     </p>
 
                     {snapshotsLoading ? (
@@ -2170,9 +2129,6 @@ export default function Settings({ initialTab }: SettingsProps) {
                         ))}
                       </div>
 
-                      {(() => {
-                        const zdAuto = !editingSnapshotId && snapKind === 'all' && !!configTarget.zendeskBrandId
-                        return (
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <div style={{ flex: '0 0 150px' }}>
                           <label style={labelStyle}>Date</label>
@@ -2189,54 +2145,27 @@ export default function Settings({ initialTab }: SettingsProps) {
                           </div>
                         )}
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Total tickets{zdAuto && ' (Zendesk)'}</label>
-                          <input
-                            type="number" min={0} value={snapTotalTickets} disabled={zdAuto}
-                            onChange={e => setSnapTotalTickets(e.target.value)}
-                            placeholder={zdAuto ? 'Pulled on save' : 'e.g. 1250'}
-                            style={{ ...inputStyle, opacity: zdAuto ? 0.5 : 1, cursor: zdAuto ? 'not-allowed' : 'text' }}
-                          />
+                          <label style={labelStyle}>Total tickets</label>
+                          <input type="number" min={0} value={snapTotalTickets} onChange={e => setSnapTotalTickets(e.target.value)} placeholder="e.g. 1250" style={inputStyle} />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Automation % (manual)</label>
+                          <label style={labelStyle}>Automation %</label>
                           <input type="number" min={0} max={100} step={0.1} value={snapAutomationRate} onChange={e => setSnapAutomationRate(e.target.value)} placeholder="e.g. 62" style={inputStyle} />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Escalation % (manual)</label>
+                          <label style={labelStyle}>Escalation %</label>
                           <input type="number" min={0} max={100} step={0.1} value={snapEscalationRate} onChange={e => setSnapEscalationRate(e.target.value)} placeholder="e.g. 18" style={inputStyle} />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Resolution (min){zdAuto && ' (Zendesk)'}</label>
-                          <input
-                            type="number" min={0} step={0.1} value={snapResolutionTime} disabled={zdAuto}
-                            onChange={e => setSnapResolutionTime(e.target.value)}
-                            placeholder={zdAuto ? 'Pulled on save' : 'e.g. 6.5'}
-                            style={{ ...inputStyle, opacity: zdAuto ? 0.5 : 1, cursor: zdAuto ? 'not-allowed' : 'text' }}
-                          />
+                          <label style={labelStyle}>Resolution (min)</label>
+                          <input type="number" min={0} step={0.1} value={snapResolutionTime} onChange={e => setSnapResolutionTime(e.target.value)} placeholder="e.g. 6.5" style={inputStyle} />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
-                          <label style={labelStyle}>Handle %{zdAuto && ' (Zendesk)'}</label>
-                          <input
-                            type="number" min={0} max={100} step={0.1} value={snapHandleRate} disabled={zdAuto}
-                            onChange={e => setSnapHandleRate(e.target.value)}
-                            placeholder={zdAuto ? 'Pulled on save' : 'e.g. 91'}
-                            style={{ ...inputStyle, opacity: zdAuto ? 0.5 : 1, cursor: zdAuto ? 'not-allowed' : 'text' }}
-                          />
+                          <label style={labelStyle}>Handle %</label>
+                          <input type="number" min={0} max={100} step={0.1} value={snapHandleRate} onChange={e => setSnapHandleRate(e.target.value)} placeholder="e.g. 91" style={inputStyle} />
                         </div>
                       </div>
-                        )
-                      })()}
-                      {!configTarget.zendeskBrandId ? (
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
-                          This operator has no Zendesk brand configured — all 5 fields are manual. Set a brand above to auto-pull Total Tickets, Resolution Time, and Handle Rate on "All Tickets" snapshots.
-                        </p>
-                      ) : snapKind !== 'all' && (
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
-                          {snapKind === 'supported' ? 'Supported Use Cases' : 'Individual use case'} snapshots are always manual — the Zendesk pull only applies to "All Tickets".
-                        </p>
-                      )}
                       {snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>{snapError}</p>}
-                      {snapZdNote && !snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#166534' }}>✓ {snapZdNote}</p>}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           onClick={saveSnapshot}
@@ -2247,9 +2176,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                             padding: '9px 20px', cursor: 'pointer', opacity: snapSaving || !snapDate || (snapKind === 'individual' && !snapUseCase.trim()) ? 0.5 : 1, transition: 'opacity 0.15s',
                           }}
                         >
-                          {snapSaving
-                            ? (!editingSnapshotId && snapKind === 'all' && configTarget.zendeskBrandId ? 'Pulling from Zendesk…' : 'Saving…')
-                            : editingSnapshotId ? 'Save changes' : '+ Add snapshot'}
+                          {snapSaving ? 'Saving…' : editingSnapshotId ? 'Save changes' : '+ Add snapshot'}
                         </button>
                         {editingSnapshotId && (
                           <button onClick={resetSnapForm} style={resetBtnStyle}>Cancel</button>

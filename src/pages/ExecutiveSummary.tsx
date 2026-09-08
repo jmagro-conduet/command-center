@@ -1001,7 +1001,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Total Tickets"
           leftLabel="All Tickets" leftValue={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'} leftColor="#000"
           rightLabel="Supported" rightValue={latestSupported?.totalTickets != null ? latestSupported.totalTickets.toLocaleString() : '—'} rightColor="#9B59D0"
-          sub={latest ? `Zendesk, as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
+          sub={latest ? `Manual, as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
         />
         <DualStatCard
           label="Automation Rate"
@@ -1025,14 +1025,14 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Resolution Time"
           value={latest?.resolutionTimeMinutes != null ? `${latest.resolutionTimeMinutes}m` : '—'}
           color={latest?.resolutionTimeMinutes == null ? '#58595B' : '#9B59D0'}
-          sub="Zendesk, median"
+          sub="Manual"
           delta={latest?.resolutionTimeMinutes != null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Handle Rate"
           value={latest?.handleRate != null ? `${latest.handleRate}%` : '—'}
           color={latest?.handleRate == null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
-          sub="Zendesk"
+          sub="Manual"
           delta={latest?.handleRate != null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
       </div>
