@@ -139,7 +139,11 @@ function automationRateFor(rows: Row[], isQaMode: boolean): number | null {
   return pct(fullyPerfect, byTicket.size)
 }
 
-const OVERALL_USE_CASE = 'Overall'
+// Three kinds of snapshot share the same free-text use_case column: two
+// reserved labels for the two aggregate views, plus any other string for an
+// individually-tracked use case (see Settings.tsx's Full Auto snapshot form).
+const ALL_TICKETS_USE_CASE = 'All Tickets'
+const SUPPORTED_USE_CASE   = 'Supported Use Cases'
 
 interface AutomationSnapshot {
   id: string
@@ -158,7 +162,7 @@ async function fetchSnapshots(operatorId: string): Promise<AutomationSnapshot[]>
     .eq('operator_id', operatorId)
     .order('snapshot_date', { ascending: true })
   return (data ?? []).map((s: any) => ({
-    id: s.id, snapshotDate: s.snapshot_date, useCase: s.use_case ?? OVERALL_USE_CASE,
+    id: s.id, snapshotDate: s.snapshot_date, useCase: s.use_case ?? ALL_TICKETS_USE_CASE,
     totalTickets: s.total_tickets, automationRate: s.automation_rate,
     escalationRate: s.escalation_rate, resolutionTimeMinutes: s.resolution_time_minutes,
     handleRate: s.handle_rate,
@@ -899,7 +903,7 @@ const USE_CASE_COLORS = ['#166534', '#9B59D0', '#e53e3e', '#854d0e', '#0d9488', 
 function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   snapshots: AutomationSnapshot[]; loading: boolean; isAdmin: boolean; operatorName: string | null
 }) {
-  const [series, setSeries] = useState<string>(OVERALL_USE_CASE)
+  const [series, setSeries] = useState<string>(ALL_TICKETS_USE_CASE)
 
   if (loading) {
     return <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', padding: 40 }}>Loading…</div>
@@ -920,17 +924,24 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
 
   const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  // KPI cards always reflect the Overall (whole-operator) picture, regardless
-  // of which series the trend chart below is toggled to.
-  const overallSnapshots = snapshots.filter(s => s.useCase === OVERALL_USE_CASE)
-  const latest = overallSnapshots[overallSnapshots.length - 1] ?? null
-  const prevSnap = overallSnapshots.length > 1 ? overallSnapshots[overallSnapshots.length - 2] : null
+  // KPI cards always reflect the All Tickets (whole-operator, Zendesk-
+  // sourced) picture, regardless of which series the trend chart below is
+  // toggled to.
+  const allTicketsSnapshots = snapshots.filter(s => s.useCase === ALL_TICKETS_USE_CASE)
+  const latest = allTicketsSnapshots[allTicketsSnapshots.length - 1] ?? null
+  const prevSnap = allTicketsSnapshots.length > 1 ? allTicketsSnapshots[allTicketsSnapshots.length - 2] : null
 
-  // Every use case seen in the data, Overall first, so admins can toggle the
-  // main chart between the aggregate and any individual use case they've
-  // been tracking separately.
-  const useCases = [OVERALL_USE_CASE, ...new Set(snapshots.filter(s => s.useCase !== OVERALL_USE_CASE).map(s => s.useCase))]
-  const activeSeries = useCases.includes(series) ? series : OVERALL_USE_CASE
+  // Every use case seen in the data -- All Tickets first, then Supported Use
+  // Cases if it's actually been entered, then individual use cases -- so
+  // admins can toggle the main chart between any of them.
+  const presentUseCases = new Set(snapshots.map(s => s.useCase))
+  const individualUseCases = [...presentUseCases].filter(u => u !== ALL_TICKETS_USE_CASE && u !== SUPPORTED_USE_CASE).sort()
+  const useCases = [
+    ALL_TICKETS_USE_CASE,
+    ...(presentUseCases.has(SUPPORTED_USE_CASE) ? [SUPPORTED_USE_CASE] : []),
+    ...individualUseCases,
+  ]
+  const activeSeries = useCases.includes(series) ? series : ALL_TICKETS_USE_CASE
   const seriesSnapshots = snapshots.filter(s => s.useCase === activeSeries)
   const chartData = seriesSnapshots.map(s => ({
     date: fmtDate(s.snapshotDate),
@@ -940,13 +951,12 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   }))
 
   // Per-use-case comparison chart — Automation Rate only (the core progress
-  // metric), one line per use case, Overall excluded since this chart is
-  // specifically about comparing use cases against each other.
-  const nonOverallUseCases = useCases.filter(u => u !== OVERALL_USE_CASE)
-  const useCaseDates = [...new Set(snapshots.filter(s => nonOverallUseCases.includes(s.useCase)).map(s => s.snapshotDate))].sort()
+  // metric), one line per INDIVIDUAL use case. All Tickets and Supported Use
+  // Cases are both aggregates, not peers, so both are excluded here.
+  const useCaseDates = [...new Set(snapshots.filter(s => individualUseCases.includes(s.useCase)).map(s => s.snapshotDate))].sort()
   const useCaseChartData = useCaseDates.map(date => {
     const row: Record<string, string | number | null> = { date: fmtDate(date) }
-    for (const uc of nonOverallUseCases) {
+    for (const uc of individualUseCases) {
       row[uc] = snapshots.find(s => s.snapshotDate === date && s.useCase === uc)?.automationRate ?? null
     }
     return row
@@ -992,12 +1002,12 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
         />
       </div>
 
-      {/* Trend — toggle between Overall and any individually-tracked use case */}
+      {/* Trend — toggle between All Tickets, Supported Use Cases, and any individually-tracked use case */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
           <SectionTitle
             title="Full Auto Metrics Over Time"
-            subtitle={`Manually entered snapshots, tracked over time. ${activeSeries === OVERALL_USE_CASE ? 'Whole-operator aggregate.' : `Use case: ${activeSeries}.`}`}
+            subtitle={`Manually entered snapshots, tracked over time. ${activeSeries === ALL_TICKETS_USE_CASE ? 'Whole-operator, Zendesk-sourced.' : activeSeries === SUPPORTED_USE_CASE ? 'Aggregate across supported use cases.' : `Use case: ${activeSeries}.`}`}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             {useCases.length > 1 && (
@@ -1044,12 +1054,12 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
       </div>
 
       {/* Per-use-case comparison — Automation Rate only, one line per use case */}
-      {nonOverallUseCases.length > 0 && (
+      {individualUseCases.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
             <SectionTitle title="Automation Rate by Use Case" subtitle="How each individually-tracked use case is trending, side by side." />
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              {nonOverallUseCases.map((uc, i) => (
+              {individualUseCases.map((uc, i) => (
                 <Legend key={uc} color={USE_CASE_COLORS[i % USE_CASE_COLORS.length]} label={uc} />
               ))}
             </div>
@@ -1065,7 +1075,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
                 <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
                 <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
-                {nonOverallUseCases.map((uc, i) => (
+                {individualUseCases.map((uc, i) => (
                   <Line key={uc} type="monotone" dataKey={uc} name={uc} stroke={USE_CASE_COLORS[i % USE_CASE_COLORS.length]} strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
                 ))}
               </LineChart>

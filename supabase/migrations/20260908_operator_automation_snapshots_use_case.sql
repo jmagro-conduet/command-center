@@ -2,11 +2,14 @@
 -- been entering use-case-specific data all along (e.g. one row for Deposit/
 -- withdrawal, another for a different use case), not one aggregate row per
 -- date. Adds a free-text use_case column, defaulting existing + future
--- "whole operator" rows to 'Overall', and widens the uniqueness constraint
--- so a date can have one row per use case instead of just one row total.
+-- whole-operator rows to 'All Tickets' (a second reserved label,
+-- 'Supported Use Cases', is used the same way for the supported-use-case
+-- aggregate -- both are just app-level conventions on this same column, no
+-- separate columns needed). Widens the uniqueness constraint so a date can
+-- have one row per use case instead of just one row total.
 
 alter table public.operator_automation_snapshots
-  add column if not exists use_case text not null default 'Overall';
+  add column if not exists use_case text not null default 'All Tickets';
 
 -- Drop whatever unique constraint currently exists on (operator_id,
 -- snapshot_date) -- looked up dynamically rather than by a guessed

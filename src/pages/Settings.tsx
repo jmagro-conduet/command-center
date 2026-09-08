@@ -272,11 +272,20 @@ export default function Settings({ initialTab }: SettingsProps) {
     resolutionTimeMinutes: number | null
     handleRate: number | null
   }
-  const OVERALL_USE_CASE = 'Overall'
+  // Three distinct kinds of snapshot, all stored via the same free-text
+  // use_case column: two reserved labels for the two aggregate views, plus
+  // any other string for an individually-tracked use case. Only "All
+  // Tickets" pulls from Zendesk -- "Supported Use Cases" is its own
+  // deliberate manual entry (not derived from the individual rows), same as
+  // an individual use case's numbers are.
+  const ALL_TICKETS_USE_CASE = 'All Tickets'
+  const SUPPORTED_USE_CASE   = 'Supported Use Cases'
+  type SnapKind = 'all' | 'supported' | 'individual'
   const [snapshots,        setSnapshots]        = useState<AutomationSnapshot[]>([])
   const [snapshotsLoading, setSnapshotsLoading]  = useState(false)
   const [snapDate,         setSnapDate]          = useState(() => new Date().toISOString().slice(0, 10))
-  const [snapUseCase,      setSnapUseCase]       = useState(OVERALL_USE_CASE)
+  const [snapKind,         setSnapKind]          = useState<SnapKind>('all')
+  const [snapUseCase,      setSnapUseCase]       = useState('') // individual use-case label only
   const [snapTotalTickets, setSnapTotalTickets]  = useState('')
   const [snapAutomationRate, setSnapAutomationRate] = useState('')
   const [snapEscalationRate, setSnapEscalationRate] = useState('')
@@ -288,13 +297,14 @@ export default function Settings({ initialTab }: SettingsProps) {
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null)
   const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null)
 
-  // Window for the Zendesk pull: since the most recent EARLIER Overall
+  // Window for the Zendesk pull: since the most recent EARLIER All Tickets
   // snapshot (exclusive), or a trailing 7 days if there isn't one yet --
-  // keeps consecutive Overall snapshots' Total Tickets from double-counting
-  // the same tickets. Use-case-specific snapshots are always manual and
-  // never factor into this (see the ZD-pull gate in saveSnapshot).
+  // keeps consecutive All Tickets snapshots' Total Tickets from double-
+  // counting the same tickets. Supported Use Cases and individual use-case
+  // snapshots are always manual and never factor into this (see the ZD-pull
+  // gate in saveSnapshot).
   function zdWindowFor(targetDate: string): { start: string; end: string } {
-    const priorDates = snapshots.filter(s => s.useCase === OVERALL_USE_CASE).map(s => s.snapshotDate).filter(d => d < targetDate).sort()
+    const priorDates = snapshots.filter(s => s.useCase === ALL_TICKETS_USE_CASE).map(s => s.snapshotDate).filter(d => d < targetDate).sort()
     if (priorDates.length > 0) {
       const prior = new Date(priorDates[priorDates.length - 1] + 'T00:00:00')
       prior.setDate(prior.getDate() + 1)
@@ -317,7 +327,7 @@ export default function Settings({ initialTab }: SettingsProps) {
       .eq('operator_id', configTarget.id)
       .order('snapshot_date', { ascending: false })
     setSnapshots((data ?? []).map((s: any) => ({
-      id: s.id, snapshotDate: s.snapshot_date, useCase: s.use_case ?? OVERALL_USE_CASE,
+      id: s.id, snapshotDate: s.snapshot_date, useCase: s.use_case ?? ALL_TICKETS_USE_CASE,
       totalTickets: s.total_tickets, automationRate: s.automation_rate,
       escalationRate: s.escalation_rate, resolutionTimeMinutes: s.resolution_time_minutes,
       handleRate: s.handle_rate,
@@ -327,7 +337,8 @@ export default function Settings({ initialTab }: SettingsProps) {
 
   function resetSnapForm() {
     setSnapDate(new Date().toISOString().slice(0, 10))
-    setSnapUseCase(OVERALL_USE_CASE)
+    setSnapKind('all')
+    setSnapUseCase('')
     setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
     setSnapResolutionTime(''); setSnapHandleRate('')
     setEditingSnapshotId(null)
@@ -338,7 +349,9 @@ export default function Settings({ initialTab }: SettingsProps) {
   function startEditSnapshot(s: AutomationSnapshot) {
     setEditingSnapshotId(s.id)
     setSnapDate(s.snapshotDate)
-    setSnapUseCase(s.useCase)
+    if (s.useCase === ALL_TICKETS_USE_CASE)      { setSnapKind('all');       setSnapUseCase('') }
+    else if (s.useCase === SUPPORTED_USE_CASE)   { setSnapKind('supported'); setSnapUseCase('') }
+    else                                          { setSnapKind('individual'); setSnapUseCase(s.useCase) }
     setSnapTotalTickets(s.totalTickets?.toString() ?? '')
     setSnapAutomationRate(s.automationRate?.toString() ?? '')
     setSnapEscalationRate(s.escalationRate?.toString() ?? '')
@@ -357,16 +370,18 @@ export default function Settings({ initialTab }: SettingsProps) {
 
     // Total Tickets / Resolution Time / Handle Rate come straight from
     // Zendesk on ADD (not edit) for ZD-tracked operators -- but ONLY for the
-    // Overall use case. ZD's pull isn't filterable by use case today, so a
-    // use-case-specific row is always fully manual, same as Automation Rate
-    // and Escalation Rate always are (see the migration's note on why).
-    const useCase = snapUseCase.trim() || OVERALL_USE_CASE
-    const isOverall = useCase === OVERALL_USE_CASE
+    // All Tickets kind. ZD's pull isn't filterable by use case today, so
+    // Supported Use Cases and individual use-case rows are always fully
+    // manual, same as Automation Rate and Escalation Rate always are.
+    const useCase = snapKind === 'all' ? ALL_TICKETS_USE_CASE
+      : snapKind === 'supported' ? SUPPORTED_USE_CASE
+      : (snapUseCase.trim() || 'Untitled use case')
+    const isAllTickets = snapKind === 'all'
     let totalTickets = snapTotalTickets.trim() === '' ? null : parseInt(snapTotalTickets, 10)
     let resolutionTime = num(snapResolutionTime)
     let handleRate = num(snapHandleRate)
 
-    if (!editingSnapshotId && isOverall && configTarget.zendeskBrandId) {
+    if (!editingSnapshotId && isAllTickets && configTarget.zendeskBrandId) {
       const { start, end } = zdWindowFor(snapDate)
       const { data: zd, error: zdError } = await supabase.functions.invoke('zendesk-snapshot-metrics', {
         body: { brand_id: configTarget.zendeskBrandId, start_date: start, end_date: end },
@@ -396,7 +411,8 @@ export default function Settings({ initialTab }: SettingsProps) {
     }, { onConflict: 'operator_id,snapshot_date,use_case' })
     if (error) { setSnapError(error.message); setSnapSaving(false); return }
     setSnapDate(new Date().toISOString().slice(0, 10))
-    setSnapUseCase(OVERALL_USE_CASE)
+    setSnapKind('all')
+    setSnapUseCase('')
     setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
     setSnapResolutionTime(''); setSnapHandleRate('')
     setEditingSnapshotId(null)
@@ -2054,71 +2070,108 @@ export default function Settings({ initialTab }: SettingsProps) {
                   <div style={{ marginTop: 14 }}>
                     <label style={labelStyle}>Full Auto snapshots</label>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 10 }}>
-                      One row per date per use case. "Overall" is the whole-operator aggregate shown on the KPI cards — anything else is a specific use case, tracked separately. Leave any field blank if you don't have that number yet.
+                      Three kinds of row, one date per kind (or per use case): <strong>All Tickets</strong> is the whole-operator Zendesk-sourced number, <strong>Supported Use Cases</strong> is your own aggregate across just the use cases gameLM attempts, and <strong>individual use cases</strong> track one specific use case each. Leave any field blank if you don't have that number yet.
                     </p>
 
                     {snapshotsLoading ? (
                       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
-                    ) : snapshots.length > 0 && (
-                      <div style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '90px 120px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                          {['Date', 'Use case', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', ''].map(h => (
-                            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+                    ) : snapshots.length > 0 && (() => {
+                      const groups: { title: string; rows: AutomationSnapshot[] }[] = [
+                        { title: 'All Tickets', rows: snapshots.filter(s => s.useCase === ALL_TICKETS_USE_CASE) },
+                        { title: 'Supported Use Cases', rows: snapshots.filter(s => s.useCase === SUPPORTED_USE_CASE) },
+                        { title: 'Individual Use Cases', rows: snapshots.filter(s => s.useCase !== ALL_TICKETS_USE_CASE && s.useCase !== SUPPORTED_USE_CASE) },
+                      ]
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 12 }}>
+                          {groups.filter(g => g.rows.length > 0).map(g => (
+                            <div key={g.title}>
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{g.title}</p>
+                              <div style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: g.title === 'Individual Use Cases' ? '90px 120px 1fr 1fr 1fr 1fr 1fr 130px' : '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                                  {(g.title === 'Individual Use Cases' ? ['Date', 'Use case', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', ''] : ['Date', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', '']).map(h => (
+                                    <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+                                  ))}
+                                </div>
+                                {g.rows.map((s, i) => (
+                                  <div key={s.id} style={{ display: 'grid', gridTemplateColumns: g.title === 'Individual Use Cases' ? '90px 120px 1fr 1fr 1fr 1fr 1fr 130px' : '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', alignItems: 'center', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)' }}>
+                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000' }}>{new Date(s.snapshotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                    {g.title === 'Individual Use Cases' && (
+                                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.useCase}</span>
+                                    )}
+                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.totalTickets ?? '—'}</span>
+                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.automationRate !== null ? `${s.automationRate}%` : '—'}</span>
+                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.escalationRate !== null ? `${s.escalationRate}%` : '—'}</span>
+                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.resolutionTimeMinutes !== null ? `${s.resolutionTimeMinutes}m` : '—'}</span>
+                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.handleRate !== null ? `${s.handleRate}%` : '—'}</span>
+                                    <div style={{ display: 'flex', gap: 4, justifySelf: 'end' }}>
+                                      {deletingSnapshotId === s.id ? (
+                                        <>
+                                          <GhostBtn danger onClick={() => deleteSnapshot(s.id)}>Confirm</GhostBtn>
+                                          <GhostBtn onClick={() => setDeletingSnapshotId(null)}>Cancel</GhostBtn>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <GhostBtn onClick={() => startEditSnapshot(s)}>Edit</GhostBtn>
+                                          <GhostBtn danger onClick={() => setDeletingSnapshotId(s.id)}>Delete</GhostBtn>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           ))}
                         </div>
-                        {snapshots.map((s, i) => (
-                          <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '90px 120px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', alignItems: 'center', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)' }}>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000' }}>{new Date(s.snapshotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                            <span style={{
-                              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
-                              color: s.useCase === OVERALL_USE_CASE ? '#9B59D0' : '#58595B',
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>{s.useCase}</span>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.totalTickets ?? '—'}</span>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.automationRate !== null ? `${s.automationRate}%` : '—'}</span>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.escalationRate !== null ? `${s.escalationRate}%` : '—'}</span>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.resolutionTimeMinutes !== null ? `${s.resolutionTimeMinutes}m` : '—'}</span>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.handleRate !== null ? `${s.handleRate}%` : '—'}</span>
-                            <div style={{ display: 'flex', gap: 4, justifySelf: 'end' }}>
-                              {deletingSnapshotId === s.id ? (
-                                <>
-                                  <GhostBtn danger onClick={() => deleteSnapshot(s.id)}>Confirm</GhostBtn>
-                                  <GhostBtn onClick={() => setDeletingSnapshotId(null)}>Cancel</GhostBtn>
-                                </>
-                              ) : (
-                                <>
-                                  <GhostBtn onClick={() => startEditSnapshot(s)}>Edit</GhostBtn>
-                                  <GhostBtn danger onClick={() => setDeletingSnapshotId(s.id)}>Delete</GhostBtn>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      )
+                    })()}
 
                     {/* Add / edit form */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)' }}>
                       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
                         {editingSnapshotId ? 'Edit snapshot' : 'Add snapshot'}
                       </p>
+
+                      {/* Kind selector */}
+                      <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: 8, padding: 3, gap: 2, alignSelf: 'flex-start' }}>
+                        {([
+                          { key: 'all', label: 'All Tickets' },
+                          { key: 'supported', label: 'Supported Use Cases' },
+                          { key: 'individual', label: 'Individual use case' },
+                        ] as { key: SnapKind; label: string }[]).map(opt => (
+                          <button
+                            key={opt.key}
+                            onClick={() => setSnapKind(opt.key)}
+                            style={{
+                              padding: '5px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+                              background: snapKind === opt.key ? '#fff' : 'transparent',
+                              color: snapKind === opt.key ? '#000' : '#58595B',
+                              border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+                              boxShadow: snapKind === opt.key ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+
                       {(() => {
-                        const isOverall = (snapUseCase.trim() || OVERALL_USE_CASE) === OVERALL_USE_CASE
-                        const zdAuto = !editingSnapshotId && isOverall && !!configTarget.zendeskBrandId
+                        const zdAuto = !editingSnapshotId && snapKind === 'all' && !!configTarget.zendeskBrandId
                         return (
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <div style={{ flex: '0 0 150px' }}>
                           <label style={labelStyle}>Date</label>
                           <input type="date" value={snapDate} onChange={e => setSnapDate(e.target.value)} style={inputStyle} />
                         </div>
-                        <div style={{ flex: '1 1 140px' }}>
-                          <label style={labelStyle}>Use case</label>
-                          <input
-                            value={snapUseCase} onChange={e => setSnapUseCase(e.target.value)}
-                            placeholder={OVERALL_USE_CASE}
-                            style={inputStyle}
-                          />
-                        </div>
+                        {snapKind === 'individual' && (
+                          <div style={{ flex: '1 1 140px' }}>
+                            <label style={labelStyle}>Use case name</label>
+                            <input
+                              value={snapUseCase} onChange={e => setSnapUseCase(e.target.value)}
+                              placeholder="e.g. Deposit/withdrawal"
+                              style={inputStyle}
+                            />
+                          </div>
+                        )}
                         <div style={{ flex: '1 1 110px' }}>
                           <label style={labelStyle}>Total tickets{zdAuto && ' (Zendesk)'}</label>
                           <input
@@ -2159,11 +2212,11 @@ export default function Settings({ initialTab }: SettingsProps) {
                       })()}
                       {!configTarget.zendeskBrandId ? (
                         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
-                          This operator has no Zendesk brand configured — all 5 fields are manual. Set a brand above to auto-pull Total Tickets, Resolution Time, and Handle Rate on "Overall" snapshots.
+                          This operator has no Zendesk brand configured — all 5 fields are manual. Set a brand above to auto-pull Total Tickets, Resolution Time, and Handle Rate on "All Tickets" snapshots.
                         </p>
-                      ) : (snapUseCase.trim() || OVERALL_USE_CASE) !== OVERALL_USE_CASE && (
+                      ) : snapKind !== 'all' && (
                         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
-                          Use-case-specific snapshots are always manual — the Zendesk pull only applies to "{OVERALL_USE_CASE}".
+                          {snapKind === 'supported' ? 'Supported Use Cases' : 'Individual use case'} snapshots are always manual — the Zendesk pull only applies to "All Tickets".
                         </p>
                       )}
                       {snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>{snapError}</p>}
@@ -2171,15 +2224,15 @@ export default function Settings({ initialTab }: SettingsProps) {
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           onClick={saveSnapshot}
-                          disabled={snapSaving || !snapDate}
+                          disabled={snapSaving || !snapDate || (snapKind === 'individual' && !snapUseCase.trim())}
                           style={{
                             background: '#000', color: '#fff', border: 'none', borderRadius: 10,
                             fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                            padding: '9px 20px', cursor: 'pointer', opacity: snapSaving || !snapDate ? 0.5 : 1, transition: 'opacity 0.15s',
+                            padding: '9px 20px', cursor: 'pointer', opacity: snapSaving || !snapDate || (snapKind === 'individual' && !snapUseCase.trim()) ? 0.5 : 1, transition: 'opacity 0.15s',
                           }}
                         >
                           {snapSaving
-                            ? (!editingSnapshotId && configTarget.zendeskBrandId && (snapUseCase.trim() || OVERALL_USE_CASE) === OVERALL_USE_CASE ? 'Pulling from Zendesk…' : 'Saving…')
+                            ? (!editingSnapshotId && snapKind === 'all' && configTarget.zendeskBrandId ? 'Pulling from Zendesk…' : 'Saving…')
                             : editingSnapshotId ? 'Save changes' : '+ Add snapshot'}
                         </button>
                         {editingSnapshotId && (
@@ -2187,7 +2240,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                         )}
                       </div>
                       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
-                        Saving on a date that already has a row overwrites it — one snapshot per operator per day.
+                        Saving on a date that already has a row for this kind/use case overwrites it.
                       </p>
                     </div>
                   </div>
