@@ -931,16 +931,14 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   const latest = allTicketsSnapshots[allTicketsSnapshots.length - 1] ?? null
   const prevSnap = allTicketsSnapshots.length > 1 ? allTicketsSnapshots[allTicketsSnapshots.length - 2] : null
 
-  // Every use case seen in the data -- All Tickets first, then Supported Use
-  // Cases if it's actually been entered, then individual use cases -- so
-  // admins can toggle the main chart between any of them.
+  // Main chart is a fixed 2-way switcher between the two AGGREGATE views --
+  // All Tickets (raw Zendesk pull) and Supported Use Cases (manual rollup
+  // across just the use cases gameLM attempts). Individual use cases don't
+  // get a tab here; they're peers of each other, not of these two
+  // aggregates, and are compared in their own chart below instead.
   const presentUseCases = new Set(snapshots.map(s => s.useCase))
   const individualUseCases = [...presentUseCases].filter(u => u !== ALL_TICKETS_USE_CASE && u !== SUPPORTED_USE_CASE).sort()
-  const useCases = [
-    ALL_TICKETS_USE_CASE,
-    ...(presentUseCases.has(SUPPORTED_USE_CASE) ? [SUPPORTED_USE_CASE] : []),
-    ...individualUseCases,
-  ]
+  const useCases = [ALL_TICKETS_USE_CASE, SUPPORTED_USE_CASE]
   const activeSeries = useCases.includes(series) ? series : ALL_TICKETS_USE_CASE
   const seriesSnapshots = snapshots.filter(s => s.useCase === activeSeries)
   const chartData = seriesSnapshots.map(s => ({
