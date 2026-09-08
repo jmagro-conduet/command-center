@@ -139,9 +139,12 @@ function automationRateFor(rows: Row[], isQaMode: boolean): number | null {
   return pct(fullyPerfect, byTicket.size)
 }
 
+const OVERALL_USE_CASE = 'Overall'
+
 interface AutomationSnapshot {
   id: string
   snapshotDate: string
+  useCase: string
   totalTickets: number | null
   automationRate: number | null
   escalationRate: number | null
@@ -151,11 +154,11 @@ interface AutomationSnapshot {
 
 async function fetchSnapshots(operatorId: string): Promise<AutomationSnapshot[]> {
   const { data } = await supabase.from('operator_automation_snapshots')
-    .select('id, snapshot_date, total_tickets, automation_rate, escalation_rate, resolution_time_minutes, handle_rate')
+    .select('id, snapshot_date, use_case, total_tickets, automation_rate, escalation_rate, resolution_time_minutes, handle_rate')
     .eq('operator_id', operatorId)
     .order('snapshot_date', { ascending: true })
   return (data ?? []).map((s: any) => ({
-    id: s.id, snapshotDate: s.snapshot_date,
+    id: s.id, snapshotDate: s.snapshot_date, useCase: s.use_case ?? OVERALL_USE_CASE,
     totalTickets: s.total_tickets, automationRate: s.automation_rate,
     escalationRate: s.escalation_rate, resolutionTimeMinutes: s.resolution_time_minutes,
     handleRate: s.handle_rate,
@@ -891,9 +894,13 @@ export default function ExecutiveSummary() {
   )
 }
 
+const USE_CASE_COLORS = ['#166534', '#9B59D0', '#e53e3e', '#854d0e', '#0d9488', '#be185d', '#ea580c', '#65a30d']
+
 function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   snapshots: AutomationSnapshot[]; loading: boolean; isAdmin: boolean; operatorName: string | null
 }) {
+  const [series, setSeries] = useState<string>(OVERALL_USE_CASE)
+
   if (loading) {
     return <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', padding: 40 }}>Loading…</div>
   }
@@ -911,16 +918,39 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
     )
   }
 
-  const latest = snapshots[snapshots.length - 1]
-  const prevSnap = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null
   const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
-  const chartData = snapshots.map(s => ({
+  // KPI cards always reflect the Overall (whole-operator) picture, regardless
+  // of which series the trend chart below is toggled to.
+  const overallSnapshots = snapshots.filter(s => s.useCase === OVERALL_USE_CASE)
+  const latest = overallSnapshots[overallSnapshots.length - 1] ?? null
+  const prevSnap = overallSnapshots.length > 1 ? overallSnapshots[overallSnapshots.length - 2] : null
+
+  // Every use case seen in the data, Overall first, so admins can toggle the
+  // main chart between the aggregate and any individual use case they've
+  // been tracking separately.
+  const useCases = [OVERALL_USE_CASE, ...new Set(snapshots.filter(s => s.useCase !== OVERALL_USE_CASE).map(s => s.useCase))]
+  const activeSeries = useCases.includes(series) ? series : OVERALL_USE_CASE
+  const seriesSnapshots = snapshots.filter(s => s.useCase === activeSeries)
+  const chartData = seriesSnapshots.map(s => ({
     date: fmtDate(s.snapshotDate),
     automation: s.automationRate,
     escalation: s.escalationRate,
     handle: s.handleRate,
   }))
+
+  // Per-use-case comparison chart — Automation Rate only (the core progress
+  // metric), one line per use case, Overall excluded since this chart is
+  // specifically about comparing use cases against each other.
+  const nonOverallUseCases = useCases.filter(u => u !== OVERALL_USE_CASE)
+  const useCaseDates = [...new Set(snapshots.filter(s => nonOverallUseCases.includes(s.useCase)).map(s => s.snapshotDate))].sort()
+  const useCaseChartData = useCaseDates.map(date => {
+    const row: Record<string, string | number | null> = { date: fmtDate(date) }
+    for (const uc of nonOverallUseCases) {
+      row[uc] = snapshots.find(s => s.snapshotDate === date && s.useCase === uc)?.automationRate ?? null
+    }
+    return row
+  })
 
   return (
     <>
@@ -928,53 +958,75 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         <StatCard
           label="Total Tickets"
-          value={latest.totalTickets !== null ? latest.totalTickets.toLocaleString() : '—'}
+          value={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'}
           color="#000"
-          sub={`as of ${fmtDate(latest.snapshotDate)}`}
+          sub={latest ? `as of ${fmtDate(latest.snapshotDate)}` : 'no Overall snapshot yet'}
         />
         <StatCard
           label="Automation Rate"
-          value={latest.automationRate !== null ? `${latest.automationRate}%` : '—'}
-          color={latest.automationRate === null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
+          value={latest?.automationRate != null ? `${latest.automationRate}%` : '—'}
+          color={latest?.automationRate == null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
           sub="manually entered — % of tickets fully resolved without a human"
-          delta={latest.automationRate !== null && prevSnap?.automationRate != null ? <Delta curr={latest.automationRate} prev={prevSnap.automationRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
+          delta={latest?.automationRate != null && prevSnap?.automationRate != null ? <Delta curr={latest.automationRate} prev={prevSnap.automationRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Escalation Rate"
-          value={latest.escalationRate !== null ? `${latest.escalationRate}%` : '—'}
-          color={latest.escalationRate === null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
+          value={latest?.escalationRate != null ? `${latest.escalationRate}%` : '—'}
+          color={latest?.escalationRate == null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
           sub="manually entered — % of tickets that needed a human"
-          delta={latest.escalationRate !== null && prevSnap?.escalationRate != null ? <Delta curr={latest.escalationRate} prev={prevSnap.escalationRate} good="down" suffix="pp" label="vs previous snapshot" /> : undefined}
+          delta={latest?.escalationRate != null && prevSnap?.escalationRate != null ? <Delta curr={latest.escalationRate} prev={prevSnap.escalationRate} good="down" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Resolution Time"
-          value={latest.resolutionTimeMinutes !== null ? `${latest.resolutionTimeMinutes}m` : '—'}
-          color={latest.resolutionTimeMinutes === null ? '#58595B' : '#9B59D0'}
+          value={latest?.resolutionTimeMinutes != null ? `${latest.resolutionTimeMinutes}m` : '—'}
+          color={latest?.resolutionTimeMinutes == null ? '#58595B' : '#9B59D0'}
           sub="median, Zendesk — full resolution time"
-          delta={latest.resolutionTimeMinutes !== null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
+          delta={latest?.resolutionTimeMinutes != null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
         />
         <StatCard
           label="Handle Rate"
-          value={latest.handleRate !== null ? `${latest.handleRate}%` : '—'}
-          color={latest.handleRate === null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
+          value={latest?.handleRate != null ? `${latest.handleRate}%` : '—'}
+          color={latest?.handleRate == null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
           sub="Zendesk — % of sampled tickets gameLM's pipeline engaged"
-          delta={latest.handleRate !== null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
+          delta={latest?.handleRate != null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
       </div>
 
-      {/* Trend */}
+      {/* Trend — toggle between Overall and any individually-tracked use case */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <SectionTitle title="Path to Full Auto" subtitle="Manually entered snapshots over time." />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <SectionTitle
+            title="Full Auto Metrics Over Time"
+            subtitle={`Manually entered snapshots, tracked over time. ${activeSeries === OVERALL_USE_CASE ? 'Whole-operator aggregate.' : `Use case: ${activeSeries}.`}`}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            {useCases.length > 1 && (
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: 8, padding: 3, gap: 2 }}>
+                {useCases.map(uc => (
+                  <button
+                    key={uc}
+                    onClick={() => setSeries(uc)}
+                    style={{
+                      padding: '4px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+                      background: activeSeries === uc ? '#fff' : 'transparent',
+                      color: activeSeries === uc ? '#000' : '#58595B',
+                      border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
+                      boxShadow: activeSeries === uc ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                  >
+                    {uc}
+                  </button>
+                ))}
+              </div>
+            )}
             <Legend color="#166534" label="Automation rate" />
             <Legend color="#e53e3e" label="Escalation rate" />
             <Legend color="#9B59D0" label="Handle rate" />
           </div>
         </div>
-        {snapshots.length < 2 ? (
+        {seriesSnapshots.length < 2 ? (
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '20px 0' }}>
-            Add at least one more snapshot to see a trend line.
+            Add at least one more "{activeSeries}" snapshot to see a trend line.
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
@@ -990,6 +1042,37 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* Per-use-case comparison — Automation Rate only, one line per use case */}
+      {nonOverallUseCases.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+            <SectionTitle title="Automation Rate by Use Case" subtitle="How each individually-tracked use case is trending, side by side." />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              {nonOverallUseCases.map((uc, i) => (
+                <Legend key={uc} color={USE_CASE_COLORS[i % USE_CASE_COLORS.length]} label={uc} />
+              ))}
+            </div>
+          </div>
+          {useCaseDates.length < 2 ? (
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '20px 0' }}>
+              Add at least one more use-case snapshot to see a trend line.
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={useCaseChartData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
+                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
+                {nonOverallUseCases.map((uc, i) => (
+                  <Line key={uc} type="monotone" dataKey={uc} name={uc} stroke={USE_CASE_COLORS[i % USE_CASE_COLORS.length]} strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      )}
 
       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>
         Preview data — manually entered, not yet connected to live systems. Mirrors the planned production Full Auto dashboard until {operatorName ?? 'this operator'} moves off Command Center entirely.

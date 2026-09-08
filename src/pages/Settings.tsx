@@ -265,15 +265,18 @@ export default function Settings({ initialTab }: SettingsProps) {
   interface AutomationSnapshot {
     id: string
     snapshotDate: string
+    useCase: string
     totalTickets: number | null
     automationRate: number | null
     escalationRate: number | null
     resolutionTimeMinutes: number | null
     handleRate: number | null
   }
+  const OVERALL_USE_CASE = 'Overall'
   const [snapshots,        setSnapshots]        = useState<AutomationSnapshot[]>([])
   const [snapshotsLoading, setSnapshotsLoading]  = useState(false)
   const [snapDate,         setSnapDate]          = useState(() => new Date().toISOString().slice(0, 10))
+  const [snapUseCase,      setSnapUseCase]       = useState(OVERALL_USE_CASE)
   const [snapTotalTickets, setSnapTotalTickets]  = useState('')
   const [snapAutomationRate, setSnapAutomationRate] = useState('')
   const [snapEscalationRate, setSnapEscalationRate] = useState('')
@@ -285,12 +288,13 @@ export default function Settings({ initialTab }: SettingsProps) {
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null)
   const [deletingSnapshotId, setDeletingSnapshotId] = useState<string | null>(null)
 
-  // Window for the Zendesk pull: since the most recent EARLIER snapshot
-  // (exclusive), or a trailing 7 days if there isn't one yet -- keeps
-  // consecutive snapshots' Total Tickets from double-counting the same
-  // tickets, while still giving the first snapshot a sensible default.
+  // Window for the Zendesk pull: since the most recent EARLIER Overall
+  // snapshot (exclusive), or a trailing 7 days if there isn't one yet --
+  // keeps consecutive Overall snapshots' Total Tickets from double-counting
+  // the same tickets. Use-case-specific snapshots are always manual and
+  // never factor into this (see the ZD-pull gate in saveSnapshot).
   function zdWindowFor(targetDate: string): { start: string; end: string } {
-    const priorDates = snapshots.map(s => s.snapshotDate).filter(d => d < targetDate).sort()
+    const priorDates = snapshots.filter(s => s.useCase === OVERALL_USE_CASE).map(s => s.snapshotDate).filter(d => d < targetDate).sort()
     if (priorDates.length > 0) {
       const prior = new Date(priorDates[priorDates.length - 1] + 'T00:00:00')
       prior.setDate(prior.getDate() + 1)
@@ -309,11 +313,11 @@ export default function Settings({ initialTab }: SettingsProps) {
     if (!configTarget) return
     setSnapshotsLoading(true)
     const { data } = await supabase.from('operator_automation_snapshots')
-      .select('id, snapshot_date, total_tickets, automation_rate, escalation_rate, resolution_time_minutes, handle_rate')
+      .select('id, snapshot_date, use_case, total_tickets, automation_rate, escalation_rate, resolution_time_minutes, handle_rate')
       .eq('operator_id', configTarget.id)
       .order('snapshot_date', { ascending: false })
     setSnapshots((data ?? []).map((s: any) => ({
-      id: s.id, snapshotDate: s.snapshot_date,
+      id: s.id, snapshotDate: s.snapshot_date, useCase: s.use_case ?? OVERALL_USE_CASE,
       totalTickets: s.total_tickets, automationRate: s.automation_rate,
       escalationRate: s.escalation_rate, resolutionTimeMinutes: s.resolution_time_minutes,
       handleRate: s.handle_rate,
@@ -323,6 +327,7 @@ export default function Settings({ initialTab }: SettingsProps) {
 
   function resetSnapForm() {
     setSnapDate(new Date().toISOString().slice(0, 10))
+    setSnapUseCase(OVERALL_USE_CASE)
     setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
     setSnapResolutionTime(''); setSnapHandleRate('')
     setEditingSnapshotId(null)
@@ -333,6 +338,7 @@ export default function Settings({ initialTab }: SettingsProps) {
   function startEditSnapshot(s: AutomationSnapshot) {
     setEditingSnapshotId(s.id)
     setSnapDate(s.snapshotDate)
+    setSnapUseCase(s.useCase)
     setSnapTotalTickets(s.totalTickets?.toString() ?? '')
     setSnapAutomationRate(s.automationRate?.toString() ?? '')
     setSnapEscalationRate(s.escalationRate?.toString() ?? '')
@@ -350,13 +356,17 @@ export default function Settings({ initialTab }: SettingsProps) {
     const num = (v: string) => v.trim() === '' ? null : parseFloat(v)
 
     // Total Tickets / Resolution Time / Handle Rate come straight from
-    // Zendesk on ADD (not edit) for ZD-tracked operators -- Automation Rate
-    // and Escalation Rate are always manual (see the migration's note on why).
+    // Zendesk on ADD (not edit) for ZD-tracked operators -- but ONLY for the
+    // Overall use case. ZD's pull isn't filterable by use case today, so a
+    // use-case-specific row is always fully manual, same as Automation Rate
+    // and Escalation Rate always are (see the migration's note on why).
+    const useCase = snapUseCase.trim() || OVERALL_USE_CASE
+    const isOverall = useCase === OVERALL_USE_CASE
     let totalTickets = snapTotalTickets.trim() === '' ? null : parseInt(snapTotalTickets, 10)
     let resolutionTime = num(snapResolutionTime)
     let handleRate = num(snapHandleRate)
 
-    if (!editingSnapshotId && configTarget.zendeskBrandId) {
+    if (!editingSnapshotId && isOverall && configTarget.zendeskBrandId) {
       const { start, end } = zdWindowFor(snapDate)
       const { data: zd, error: zdError } = await supabase.functions.invoke('zendesk-snapshot-metrics', {
         body: { brand_id: configTarget.zendeskBrandId, start_date: start, end_date: end },
@@ -375,6 +385,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     const { error } = await supabase.from('operator_automation_snapshots').upsert({
       operator_id:             configTarget.id,
       snapshot_date:           snapDate,
+      use_case:                useCase,
       total_tickets:           totalTickets,
       automation_rate:         num(snapAutomationRate),
       escalation_rate:         num(snapEscalationRate),
@@ -382,9 +393,10 @@ export default function Settings({ initialTab }: SettingsProps) {
       handle_rate:             handleRate,
       created_by_email:        user?.email ?? null,
       updated_at:              new Date().toISOString(),
-    }, { onConflict: 'operator_id,snapshot_date' })
+    }, { onConflict: 'operator_id,snapshot_date,use_case' })
     if (error) { setSnapError(error.message); setSnapSaving(false); return }
     setSnapDate(new Date().toISOString().slice(0, 10))
+    setSnapUseCase(OVERALL_USE_CASE)
     setSnapTotalTickets(''); setSnapAutomationRate(''); setSnapEscalationRate('')
     setSnapResolutionTime(''); setSnapHandleRate('')
     setEditingSnapshotId(null)
@@ -2042,21 +2054,26 @@ export default function Settings({ initialTab }: SettingsProps) {
                   <div style={{ marginTop: 14 }}>
                     <label style={labelStyle}>Full Auto snapshots</label>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 10 }}>
-                      One row per date. Leave any field blank if you don't have that number yet — its KPI card will show "—" for that date instead of a wrong value.
+                      One row per date per use case. "Overall" is the whole-operator aggregate shown on the KPI cards — anything else is a specific use case, tracked separately. Leave any field blank if you don't have that number yet.
                     </p>
 
                     {snapshotsLoading ? (
                       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
                     ) : snapshots.length > 0 && (
                       <div style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                          {['Date', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', ''].map(h => (
+                        <div style={{ display: 'grid', gridTemplateColumns: '90px 120px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                          {['Date', 'Use case', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', ''].map(h => (
                             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
                           ))}
                         </div>
                         {snapshots.map((s, i) => (
-                          <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', alignItems: 'center', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)' }}>
+                          <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '90px 120px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', alignItems: 'center', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)' }}>
                             <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000' }}>{new Date(s.snapshotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                            <span style={{
+                              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                              color: s.useCase === OVERALL_USE_CASE ? '#9B59D0' : '#58595B',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>{s.useCase}</span>
                             <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.totalTickets ?? '—'}</span>
                             <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.automationRate !== null ? `${s.automationRate}%` : '—'}</span>
                             <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.escalationRate !== null ? `${s.escalationRate}%` : '—'}</span>
@@ -2086,12 +2103,21 @@ export default function Settings({ initialTab }: SettingsProps) {
                         {editingSnapshotId ? 'Edit snapshot' : 'Add snapshot'}
                       </p>
                       {(() => {
-                        const zdAuto = !editingSnapshotId && !!configTarget.zendeskBrandId
+                        const isOverall = (snapUseCase.trim() || OVERALL_USE_CASE) === OVERALL_USE_CASE
+                        const zdAuto = !editingSnapshotId && isOverall && !!configTarget.zendeskBrandId
                         return (
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <div style={{ flex: '0 0 150px' }}>
                           <label style={labelStyle}>Date</label>
                           <input type="date" value={snapDate} onChange={e => setSnapDate(e.target.value)} style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 140px' }}>
+                          <label style={labelStyle}>Use case</label>
+                          <input
+                            value={snapUseCase} onChange={e => setSnapUseCase(e.target.value)}
+                            placeholder={OVERALL_USE_CASE}
+                            style={inputStyle}
+                          />
                         </div>
                         <div style={{ flex: '1 1 110px' }}>
                           <label style={labelStyle}>Total tickets{zdAuto && ' (Zendesk)'}</label>
@@ -2131,9 +2157,13 @@ export default function Settings({ initialTab }: SettingsProps) {
                       </div>
                         )
                       })()}
-                      {!configTarget.zendeskBrandId && (
+                      {!configTarget.zendeskBrandId ? (
                         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
-                          This operator has no Zendesk brand configured — all 5 fields are manual. Set a brand above to auto-pull Total Tickets, Resolution Time, and Handle Rate on future snapshots.
+                          This operator has no Zendesk brand configured — all 5 fields are manual. Set a brand above to auto-pull Total Tickets, Resolution Time, and Handle Rate on "Overall" snapshots.
+                        </p>
+                      ) : (snapUseCase.trim() || OVERALL_USE_CASE) !== OVERALL_USE_CASE && (
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                          Use-case-specific snapshots are always manual — the Zendesk pull only applies to "{OVERALL_USE_CASE}".
                         </p>
                       )}
                       {snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>{snapError}</p>}
@@ -2149,7 +2179,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                           }}
                         >
                           {snapSaving
-                            ? (!editingSnapshotId && configTarget.zendeskBrandId ? 'Pulling from Zendesk…' : 'Saving…')
+                            ? (!editingSnapshotId && configTarget.zendeskBrandId && (snapUseCase.trim() || OVERALL_USE_CASE) === OVERALL_USE_CASE ? 'Pulling from Zendesk…' : 'Saving…')
                             : editingSnapshotId ? 'Save changes' : '+ Add snapshot'}
                         </button>
                         {editingSnapshotId && (
