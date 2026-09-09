@@ -1040,7 +1040,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Resolution Time"
           topLabel="All Tickets"
           value={latest?.resolutionTimeMinutes != null ? `${latest.resolutionTimeMinutes}m` : '—'}
-          color={latest?.resolutionTimeMinutes == null ? '#58595B' : '#9B59D0'}
+          color={latest?.resolutionTimeMinutes == null ? '#58595B' : ALL_TICKETS_COLOR}
           sub="Manual"
           delta={latest?.resolutionTimeMinutes != null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
         />
@@ -1048,7 +1048,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Handle Rate"
           topLabel="All Tickets"
           value={latest?.handleRate != null ? `${latest.handleRate}%` : '—'}
-          color={latest?.handleRate == null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : '#854d0e'}
+          color={latest?.handleRate == null ? '#58595B' : ALL_TICKETS_COLOR}
           sub="Manual"
           delta={latest?.handleRate != null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
