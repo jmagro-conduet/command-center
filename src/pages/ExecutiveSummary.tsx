@@ -964,6 +964,18 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   const latestSupported = supportedSnapshots[supportedSnapshots.length - 1] ?? null
   const prevSupported = supportedSnapshots.length > 1 ? supportedSnapshots[supportedSnapshots.length - 2] : null
 
+  // Automation/Escalation Rate cards share ONE color across both their All
+  // Tickets and Supported values (driven by Supported, the more meaningful
+  // scope, falling back to All Tickets if that's not entered yet) rather
+  // than each side coloring independently -- two different colors side by
+  // side on the same card read as a mismatch, not as two real numbers. Red
+  // is dropped entirely; amber covers "needs attention" instead of
+  // escalating straight to an alarm color.
+  const automationForColor = latestSupported?.automationRate ?? latest?.automationRate ?? null
+  const automationColor = automationForColor == null ? '#58595B' : automationForColor >= 70 ? '#166534' : '#854d0e'
+  const escalationForColor = latestSupported?.escalationRate ?? latest?.escalationRate ?? null
+  const escalationColor = escalationForColor == null ? '#58595B' : escalationForColor <= 20 ? '#166534' : '#854d0e'
+
   // Main chart is a fixed 2-way switcher between the two AGGREGATE views --
   // All Tickets (raw Zendesk pull) and Supported Use Cases (manual rollup
   // across just the use cases gameLM attempts). Individual use cases don't
@@ -1006,18 +1018,18 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
         <DualStatCard
           label="Automation Rate"
           leftLabel="All Tickets" leftValue={latest?.automationRate != null ? `${latest.automationRate}%` : '—'}
-          leftColor={latest?.automationRate == null ? '#58595B' : latest.automationRate >= 70 ? '#166534' : latest.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
+          leftColor={automationColor}
           rightLabel="Supported" rightValue={latestSupported?.automationRate != null ? `${latestSupported.automationRate}%` : '—'}
-          rightColor={latestSupported?.automationRate == null ? '#58595B' : latestSupported.automationRate >= 70 ? '#166534' : latestSupported.automationRate >= 50 ? '#854d0e' : '#e53e3e'}
+          rightColor={automationColor}
           sub="Manual"
           delta={latestSupported?.automationRate != null && prevSupported?.automationRate != null ? <Delta curr={latestSupported.automationRate} prev={prevSupported.automationRate} good="up" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
         <DualStatCard
           label="Escalation Rate"
           leftLabel="All Tickets" leftValue={latest?.escalationRate != null ? `${latest.escalationRate}%` : '—'}
-          leftColor={latest?.escalationRate == null ? '#58595B' : latest.escalationRate <= 20 ? '#166534' : latest.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
+          leftColor={escalationColor}
           rightLabel="Supported" rightValue={latestSupported?.escalationRate != null ? `${latestSupported.escalationRate}%` : '—'}
-          rightColor={latestSupported?.escalationRate == null ? '#58595B' : latestSupported.escalationRate <= 20 ? '#166534' : latestSupported.escalationRate <= 35 ? '#854d0e' : '#e53e3e'}
+          rightColor={escalationColor}
           sub="Manual"
           delta={latestSupported?.escalationRate != null && prevSupported?.escalationRate != null ? <Delta curr={latestSupported.escalationRate} prev={prevSupported.escalationRate} good="down" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
@@ -1031,7 +1043,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
         <StatCard
           label="Handle Rate"
           value={latest?.handleRate != null ? `${latest.handleRate}%` : '—'}
-          color={latest?.handleRate == null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : latest.handleRate >= 65 ? '#854d0e' : '#e53e3e'}
+          color={latest?.handleRate == null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : '#854d0e'}
           sub="Manual"
           delta={latest?.handleRate != null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
