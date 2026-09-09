@@ -410,12 +410,20 @@ export default function ExecutiveSummary() {
   }, [view, user?.email])
 
   // Fall back to CoPilot if the currently-viewed operator doesn't have Full
-  // Auto enabled (e.g. switched operators while a prior one had it saved),
-  // or if this is an operator-role (external client) login -- Full Auto is
-  // still internal-preview-only, not yet shown to clients.
+  // Auto enabled (e.g. switched operators while a prior one had it saved).
   useEffect(() => {
-    if (view === 'fullauto' && (!selectedOperator?.fullAutoEnabled || isOperator)) setView('copilot')
-  }, [selectedOperator?.fullAutoEnabled, isOperator]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (view === 'fullauto' && !selectedOperator?.fullAutoEnabled) setView('copilot')
+  }, [selectedOperator?.fullAutoEnabled])
+
+  // Operator-role (external client) logins land on Full Auto by default now
+  // that it's live, rather than CoPilot -- but only the FIRST time, before
+  // they've ever picked a tab themselves (operators load async, so this
+  // can't happen in the initial useState -- it runs once selectedOperator
+  // is ready instead).
+  useEffect(() => {
+    if (!isOperator || !selectedOperator?.fullAutoEnabled || !user?.email) return
+    if (localStorage.getItem(execViewKey(user.email)) === null) setView('fullauto')
+  }, [isOperator, selectedOperator?.fullAutoEnabled, user?.email])
 
   useEffect(() => {
     if (!selectedOperator?.id) { setSnapshots([]); setSnapshotsLoading(false); return }
@@ -560,16 +568,13 @@ export default function ExecutiveSummary() {
         <div>
           <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Executive Summary</h1>
           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
-            {view === 'fullauto' && !isOperator
+            {view === 'fullauto'
               ? `Full Auto path to production${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · as of ${today}`
               : `gameLM performance & path to automation${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · last 30 days · as of ${today}`}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Full Auto is still internal-preview-only -- never shown to
-              operator-role (external client) logins, regardless of the
-              per-operator flag. */}
-          {selectedOperator?.fullAutoEnabled && !isOperator && (
+          {selectedOperator?.fullAutoEnabled && (
             <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: 10, padding: 3, gap: 2 }}>
               {(['copilot', 'fullauto'] as const).map(v => (
                 <button
@@ -603,7 +608,7 @@ export default function ExecutiveSummary() {
         </div>
       </div>
 
-      {view === 'fullauto' && !isOperator ? (
+      {view === 'fullauto' ? (
         <FullAutoView snapshots={snapshots} loading={snapshotsLoading} isAdmin={!!user?.isSuperAdmin} operatorName={selectedOperator?.name ?? null} />
       ) : (
       <>
