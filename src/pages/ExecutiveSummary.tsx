@@ -253,12 +253,19 @@ function Delta({ curr, prev, good, suffix = 'pp', label = 'vs prior 30d' }: {
   )
 }
 
-function StatCard({ label, value, color, sub, delta }: {
+function StatCard({ label, value, color, sub, delta, topLabel }: {
   label: string; value: string; color: string; sub?: string; delta?: React.ReactNode
+  // Optional small scope label above the value (e.g. "All Tickets") -- only
+  // for lining a single-value card's value up horizontally with
+  // DualStatCard's value row when they sit in the same KPI row. Matches
+  // DualStatCard's label spacing exactly when set; omit for every other use
+  // of this component.
+  topLabel?: string
 }) {
   return (
     <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</p>
+      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: topLabel ? 10 : 8 }}>{label}</p>
+      {topLabel && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{topLabel}</p>}
       <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color, lineHeight: 1 }}>{value}</p>
       {sub && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 5 }}>{sub}</p>}
       {delta && <div style={{ marginTop: 3 }}>{delta}</div>}
@@ -1031,6 +1038,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
         />
         <StatCard
           label="Resolution Time"
+          topLabel="All Tickets"
           value={latest?.resolutionTimeMinutes != null ? `${latest.resolutionTimeMinutes}m` : '—'}
           color={latest?.resolutionTimeMinutes == null ? '#58595B' : '#9B59D0'}
           sub="Manual"
@@ -1038,6 +1046,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
         />
         <StatCard
           label="Handle Rate"
+          topLabel="All Tickets"
           value={latest?.handleRate != null ? `${latest.handleRate}%` : '—'}
           color={latest?.handleRate == null ? '#58595B' : latest.handleRate >= 80 ? '#166534' : '#854d0e'}
           sub="Manual"
