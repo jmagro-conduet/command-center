@@ -964,17 +964,13 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   const latestSupported = supportedSnapshots[supportedSnapshots.length - 1] ?? null
   const prevSupported = supportedSnapshots.length > 1 ? supportedSnapshots[supportedSnapshots.length - 2] : null
 
-  // Automation/Escalation Rate cards share ONE color across both their All
-  // Tickets and Supported values (driven by Supported, the more meaningful
-  // scope, falling back to All Tickets if that's not entered yet) rather
-  // than each side coloring independently -- two different colors side by
-  // side on the same card read as a mismatch, not as two real numbers. Red
-  // is dropped entirely; amber covers "needs attention" instead of
-  // escalating straight to an alarm color.
-  const automationForColor = latestSupported?.automationRate ?? latest?.automationRate ?? null
-  const automationColor = automationForColor == null ? '#58595B' : automationForColor >= 70 ? '#166534' : '#854d0e'
-  const escalationForColor = latestSupported?.escalationRate ?? latest?.escalationRate ?? null
-  const escalationColor = escalationForColor == null ? '#58595B' : escalationForColor <= 20 ? '#166534' : '#854d0e'
+  // Automation/Escalation Rate cards color each side by which SCOPE it is --
+  // black for All Tickets, purple for Supported -- same fixed identity
+  // colors Total Tickets already uses, instead of a red/amber/green
+  // threshold per value (which could put two clashing alarm colors side by
+  // side on one card). No red anywhere in this row.
+  const ALL_TICKETS_COLOR = '#000'
+  const SUPPORTED_COLOR = '#9B59D0'
 
   // Main chart is a fixed 2-way switcher between the two AGGREGATE views --
   // All Tickets (raw Zendesk pull) and Supported Use Cases (manual rollup
@@ -1011,25 +1007,25 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         <DualStatCard
           label="Total Tickets"
-          leftLabel="All Tickets" leftValue={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'} leftColor="#000"
-          rightLabel="Supported" rightValue={latestSupported?.totalTickets != null ? latestSupported.totalTickets.toLocaleString() : '—'} rightColor="#9B59D0"
+          leftLabel="All Tickets" leftValue={latest?.totalTickets != null ? latest.totalTickets.toLocaleString() : '—'} leftColor={ALL_TICKETS_COLOR}
+          rightLabel="Supported" rightValue={latestSupported?.totalTickets != null ? latestSupported.totalTickets.toLocaleString() : '—'} rightColor={SUPPORTED_COLOR}
           sub={latest ? `Manual, as of ${fmtDate(latest.snapshotDate)}` : 'no All Tickets snapshot yet'}
         />
         <DualStatCard
           label="Automation Rate"
           leftLabel="All Tickets" leftValue={latest?.automationRate != null ? `${latest.automationRate}%` : '—'}
-          leftColor={automationColor}
+          leftColor={ALL_TICKETS_COLOR}
           rightLabel="Supported" rightValue={latestSupported?.automationRate != null ? `${latestSupported.automationRate}%` : '—'}
-          rightColor={automationColor}
+          rightColor={SUPPORTED_COLOR}
           sub="Manual"
           delta={latestSupported?.automationRate != null && prevSupported?.automationRate != null ? <Delta curr={latestSupported.automationRate} prev={prevSupported.automationRate} good="up" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
         <DualStatCard
           label="Escalation Rate"
           leftLabel="All Tickets" leftValue={latest?.escalationRate != null ? `${latest.escalationRate}%` : '—'}
-          leftColor={escalationColor}
+          leftColor={ALL_TICKETS_COLOR}
           rightLabel="Supported" rightValue={latestSupported?.escalationRate != null ? `${latestSupported.escalationRate}%` : '—'}
-          rightColor={escalationColor}
+          rightColor={SUPPORTED_COLOR}
           sub="Manual"
           delta={latestSupported?.escalationRate != null && prevSupported?.escalationRate != null ? <Delta curr={latestSupported.escalationRate} prev={prevSupported.escalationRate} good="down" suffix="pp" label="vs previous snapshot (Supported)" /> : undefined}
         />
