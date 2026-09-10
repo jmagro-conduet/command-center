@@ -9,7 +9,10 @@ import Users from './Users'
 
 type SettingsTab = 'general' | 'users' | 'evals' | 'config'
 
-interface Team { id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean; fullAutoEnabled: boolean }
+interface Team {
+  id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean; fullAutoEnabled: boolean
+  linearProjectId: string | null; linearProjectName: string | null
+}
 
 function toSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -191,6 +194,39 @@ export default function Settings({ initialTab }: SettingsProps) {
   const [zdBrandsLoading, setZdBrandsLoading] = useState(false)
   const [zdBrandsError,  setZdBrandsError]  = useState<string | null>(null)
   const [zdBrandSaving,  setZdBrandSaving]  = useState(false)
+
+  // ── Operator Config modal — Linear project (for bug triage classification) ──
+  const [linearSearchTerm,    setLinearSearchTerm]    = useState('')
+  const [linearSearchResults, setLinearSearchResults] = useState<{ id: string; name: string; state: string | null }[] | null>(null)
+  const [linearSearching,     setLinearSearching]     = useState(false)
+  const [linearSearchError,   setLinearSearchError]   = useState<string | null>(null)
+  const [linearProjectSaving, setLinearProjectSaving] = useState(false)
+
+  async function searchLinearProjects() {
+    setLinearSearching(true)
+    setLinearSearchError(null)
+    const { data, error } = await supabase.functions.invoke('linear-projects', {
+      body: { search: linearSearchTerm.trim() },
+    })
+    if (error || data?.error) {
+      setLinearSearchError(error?.message ?? data?.error ?? 'Search failed')
+      setLinearSearchResults(null)
+    } else {
+      setLinearSearchResults(Array.isArray(data?.projects) ? data.projects : [])
+    }
+    setLinearSearching(false)
+  }
+
+  async function saveLinearProject(id: string | null, name: string | null) {
+    if (!configTarget) return
+    setLinearProjectSaving(true)
+    await supabase.from('operators').update({ linear_project_id: id, linear_project_name: name }).eq('id', configTarget.id)
+    setConfigTarget(t => t && { ...t, linearProjectId: id, linearProjectName: name })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, linearProjectId: id, linearProjectName: name } : t))
+    setLinearSearchResults(null)
+    setLinearSearchTerm('')
+    setLinearProjectSaving(false)
+  }
 
   // ── Daily Target (admin) ──────────────────────────────────────────────────
   const tgt = getDailyTarget()
@@ -528,20 +564,26 @@ export default function Settings({ initialTab }: SettingsProps) {
 
   async function loadTeams() {
     setTeamsLoading(true)
-    // Falls back if `full_auto_enabled` doesn't exist yet (migration not run) —
-    // otherwise the unknown column would fail this query and no operators
-    // would load in Admin Settings at all.
+    // Falls back progressively if a newer column doesn't exist yet
+    // (migration not run) — otherwise an unknown column would fail this
+    // query and no operators would load in Admin Settings at all.
     let data: any[] | null
-    const first = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled').order('name')
+    const first = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled, linear_project_id, linear_project_name').order('name')
     if (!first.error) {
       data = first.data
     } else {
-      const fallback = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode').order('name')
-      data = fallback.data
+      const second = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled').order('name')
+      if (!second.error) {
+        data = second.data
+      } else {
+        const fallback = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode').order('name')
+        data = fallback.data
+      }
     }
     setTeams((data ?? []).map((o: any) => ({
       id: o.id, name: o.name, zendeskBrandId: o.zendesk_brand_id ?? null, isQaMode: !!o.is_qa_mode,
       fullAutoEnabled: !!o.full_auto_enabled,
+      linearProjectId: o.linear_project_id ?? null, linearProjectName: o.linear_project_name ?? null,
     })))
     setTeamsLoading(false)
   }
@@ -578,6 +620,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     setConfigTarget(null)
     setAddingCat(false); setEditingCatId(null); setDeletingCatId(null)
     resetSnapForm(); setDeletingSnapshotId(null); setSnapshots([])
+    setLinearSearchTerm(''); setLinearSearchResults(null); setLinearSearchError(null)
   }
 
   async function saveConfigName() {
@@ -1978,6 +2021,70 @@ export default function Settings({ initialTab }: SettingsProps) {
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
+                )}
+              </div>
+
+              {/* Linear project */}
+              <div>
+                <label style={labelStyle}>Linear project</label>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                  The Linear project this operator's bug reports are compared against for duplicate/triage classification. The workspace has 100+ projects (mostly future-roadmap placeholders), so search by name rather than picking from a full list.
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', fontWeight: 500 }}>
+                    {configTarget.linearProjectName ?? 'Not linked'}
+                  </span>
+                  {configTarget.linearProjectId && (
+                    <GhostBtn danger onClick={() => saveLinearProject(null, null)}>Unlink</GhostBtn>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={linearSearchTerm}
+                    onChange={e => setLinearSearchTerm(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && linearSearchTerm.trim()) searchLinearProjects() }}
+                    placeholder="Search Linear projects…"
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    onClick={searchLinearProjects}
+                    disabled={linearSearching || !linearSearchTerm.trim()}
+                    style={{
+                      background: '#000', color: '#fff', border: 'none', borderRadius: 10,
+                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '9px 18px', cursor: 'pointer', whiteSpace: 'nowrap',
+                      opacity: linearSearching || !linearSearchTerm.trim() ? 0.4 : 1,
+                    }}
+                  >
+                    {linearSearching ? 'Searching…' : 'Search'}
+                  </button>
+                </div>
+                {linearSearchError && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{linearSearchError}</p>
+                )}
+                {linearSearchResults && (
+                  linearSearchResults.length === 0 ? (
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>No matching projects.</p>
+                  ) : (
+                    <div style={{ marginTop: 8, border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+                      {linearSearchResults.map((p, i) => (
+                        <div
+                          key={p.id}
+                          onClick={() => !linearProjectSaving && saveLinearProject(p.id, p.name)}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            padding: '8px 12px', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)',
+                            cursor: linearProjectSaving ? 'not-allowed' : 'pointer', transition: 'background 0.1s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                        >
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{p.name}</span>
+                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', textTransform: 'capitalize' }}>{p.state}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
 
