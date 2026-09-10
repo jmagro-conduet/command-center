@@ -11,7 +11,7 @@ type SettingsTab = 'general' | 'users' | 'evals' | 'config'
 
 interface Team {
   id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean; fullAutoEnabled: boolean
-  linearProjectId: string | null; linearProjectName: string | null
+  linearProjects: { id: string; name: string }[]
 }
 
 function toSlug(name: string): string {
@@ -217,14 +217,29 @@ export default function Settings({ initialTab }: SettingsProps) {
     setLinearSearching(false)
   }
 
-  async function saveLinearProject(id: string | null, name: string | null) {
-    if (!configTarget) return
+  // An operator can legitimately span more than one Linear project (a POC
+  // project alongside an Upgrades/New-Use-Cases project, say) -- bug triage
+  // classification compares against all of them, so this is a stack, not a
+  // single pick.
+  async function addLinearProject(id: string, name: string) {
+    if (!configTarget || configTarget.linearProjects.some(p => p.id === id)) return
     setLinearProjectSaving(true)
-    await supabase.from('operators').update({ linear_project_id: id, linear_project_name: name }).eq('id', configTarget.id)
-    setConfigTarget(t => t && { ...t, linearProjectId: id, linearProjectName: name })
-    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, linearProjectId: id, linearProjectName: name } : t))
+    const next = [...configTarget.linearProjects, { id, name }]
+    await supabase.from('operators').update({ linear_projects: next }).eq('id', configTarget.id)
+    setConfigTarget(t => t && { ...t, linearProjects: next })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, linearProjects: next } : t))
     setLinearSearchResults(null)
     setLinearSearchTerm('')
+    setLinearProjectSaving(false)
+  }
+
+  async function removeLinearProject(id: string) {
+    if (!configTarget) return
+    setLinearProjectSaving(true)
+    const next = configTarget.linearProjects.filter(p => p.id !== id)
+    await supabase.from('operators').update({ linear_projects: next }).eq('id', configTarget.id)
+    setConfigTarget(t => t && { ...t, linearProjects: next })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, linearProjects: next } : t))
     setLinearProjectSaving(false)
   }
 
@@ -568,7 +583,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     // (migration not run) — otherwise an unknown column would fail this
     // query and no operators would load in Admin Settings at all.
     let data: any[] | null
-    const first = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled, linear_project_id, linear_project_name').order('name')
+    const first = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled, linear_projects').order('name')
     if (!first.error) {
       data = first.data
     } else {
@@ -583,7 +598,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     setTeams((data ?? []).map((o: any) => ({
       id: o.id, name: o.name, zendeskBrandId: o.zendesk_brand_id ?? null, isQaMode: !!o.is_qa_mode,
       fullAutoEnabled: !!o.full_auto_enabled,
-      linearProjectId: o.linear_project_id ?? null, linearProjectName: o.linear_project_name ?? null,
+      linearProjects: Array.isArray(o.linear_projects) ? o.linear_projects : [],
     })))
     setTeamsLoading(false)
   }
@@ -2024,26 +2039,36 @@ export default function Settings({ initialTab }: SettingsProps) {
                 )}
               </div>
 
-              {/* Linear project */}
+              {/* Linear projects */}
               <div>
-                <label style={labelStyle}>Linear project</label>
+                <label style={labelStyle}>Linear projects</label>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
-                  The Linear project this operator's bug reports are compared against for duplicate/triage classification. The workspace has 100+ projects (mostly future-roadmap placeholders), so search by name rather than picking from a full list.
+                  Bug reports for this operator are compared against every Linear project linked below for duplicate/triage classification — link more than one if this operator spans e.g. a POC project and an Upgrades/New Use Cases project. The workspace has 100+ projects (mostly future-roadmap placeholders), so search by name rather than picking from a full list.
                 </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', fontWeight: 500 }}>
-                    {configTarget.linearProjectName ?? 'Not linked'}
-                  </span>
-                  {configTarget.linearProjectId && (
-                    <GhostBtn danger onClick={() => saveLinearProject(null, null)}>Unlink</GhostBtn>
-                  )}
-                </div>
+
+                {configTarget.linearProjects.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                    {configTarget.linearProjects.map(p => (
+                      <div key={p.id} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                        padding: '8px 12px', borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.25)', background: 'rgba(155,89,208,0.05)',
+                      }}>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', fontWeight: 500 }}>{p.name}</span>
+                        <GhostBtn danger onClick={() => !linearProjectSaving && removeLinearProject(p.id)}>Unlink</GhostBtn>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {configTarget.linearProjects.length === 0 && (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', marginBottom: 10 }}>Not linked</p>
+                )}
+
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input
                     value={linearSearchTerm}
                     onChange={e => setLinearSearchTerm(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && linearSearchTerm.trim()) searchLinearProjects() }}
-                    placeholder="Search Linear projects…"
+                    placeholder="Search Linear projects to add…"
                     style={{ ...inputStyle, flex: 1 }}
                   />
                   <button
@@ -2067,22 +2092,26 @@ export default function Settings({ initialTab }: SettingsProps) {
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>No matching projects.</p>
                   ) : (
                     <div style={{ marginTop: 8, border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
-                      {linearSearchResults.map((p, i) => (
-                        <div
-                          key={p.id}
-                          onClick={() => !linearProjectSaving && saveLinearProject(p.id, p.name)}
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            padding: '8px 12px', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)',
-                            cursor: linearProjectSaving ? 'not-allowed' : 'pointer', transition: 'background 0.1s',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-                        >
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{p.name}</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', textTransform: 'capitalize' }}>{p.state}</span>
-                        </div>
-                      ))}
+                      {linearSearchResults.map((p, i) => {
+                        const alreadyLinked = configTarget.linearProjects.some(lp => lp.id === p.id)
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => !linearProjectSaving && !alreadyLinked && addLinearProject(p.id, p.name)}
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                              padding: '8px 12px', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)',
+                              cursor: linearProjectSaving || alreadyLinked ? 'default' : 'pointer', transition: 'background 0.1s',
+                              opacity: alreadyLinked ? 0.5 : 1,
+                            }}
+                            onMouseEnter={e => { if (!alreadyLinked) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{p.name}</span>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', textTransform: 'capitalize' }}>{alreadyLinked ? 'Linked' : p.state}</span>
+                          </div>
+                        )
+                      })}
                     </div>
                   )
                 )}

@@ -98,8 +98,12 @@ async function callClaude(system: string, content: any, schema: unknown, maxToke
   }
 }
 
-async function fetchLinearIssues(projectId: string): Promise<any[]> {
-  if (!LINEAR_API_KEY) return []
+// An operator can legitimately span more than one Linear project (a POC
+// project alongside an Upgrades/New-Use-Cases project, say) -- one query
+// with an "in" filter pulls candidates across all of them at once rather
+// than issuing a separate request per project.
+async function fetchLinearIssues(projectIds: string[]): Promise<any[]> {
+  if (!LINEAR_API_KEY || projectIds.length === 0) return []
   const gql = `
     query($filter: IssueFilter) {
       issues(first: ${MAX_LINEAR_CANDIDATES}, filter: $filter, orderBy: updatedAt) {
@@ -110,6 +114,7 @@ async function fetchLinearIssues(projectId: string): Promise<any[]> {
           url
           state { name type }
           labels { nodes { name } }
+          project { name }
         }
       }
     }
@@ -118,7 +123,7 @@ async function fetchLinearIssues(projectId: string): Promise<any[]> {
     const res = await fetch(LINEAR_API, {
       method: 'POST',
       headers: { Authorization: LINEAR_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: gql, variables: { filter: { project: { id: { eq: projectId } } } } }),
+      body: JSON.stringify({ query: gql, variables: { filter: { project: { id: { in: projectIds } } } } }),
     })
     if (!res.ok) return []
     const data = await res.json()
@@ -144,8 +149,9 @@ Deno.serve(async (req: Request) => {
     const bug = (await bugRes.json())[0]
     if (!bug) return json({ error: 'Bug report not found' }, 404)
 
-    const opRes = await fetch(`${SUPABASE_URL}/rest/v1/operators?id=eq.${bug.operator_id}&select=id,name,linear_project_id`, { headers: sb })
+    const opRes = await fetch(`${SUPABASE_URL}/rest/v1/operators?id=eq.${bug.operator_id}&select=id,name,linear_projects`, { headers: sb })
     const operator = opRes.ok ? (await opRes.json())[0] ?? null : null
+    const linearProjects: { id: string; name: string }[] = Array.isArray(operator?.linear_projects) ? operator.linear_projects : []
 
     // Only compare against canonical/original bugs -- rows already filed as a
     // duplicate (canonical_bug_id set) point at another candidate that's
@@ -156,7 +162,7 @@ Deno.serve(async (req: Request) => {
     )
     const ccCandidates: any[] = ccRes.ok ? await ccRes.json() : []
 
-    const linearIssues = operator?.linear_project_id ? await fetchLinearIssues(operator.linear_project_id) : []
+    const linearIssues = linearProjects.length > 0 ? await fetchLinearIssues(linearProjects.map(p => p.id)) : []
 
     const resolveMatch = (ref: string) => {
       if (ref.startsWith('cc:')) {
@@ -167,7 +173,7 @@ Deno.serve(async (req: Request) => {
       if (ref.startsWith('linear:')) {
         const iss = linearIssues[parseInt(ref.slice(7), 10)]
         if (!iss) return { matched_source: null, matched_id: null, matched_title: null }
-        return { matched_source: 'linear', matched_id: iss.url, matched_title: `${iss.identifier}: ${iss.title}` }
+        return { matched_source: 'linear', matched_id: iss.url, matched_title: `${iss.identifier}: ${iss.title}${iss.project?.name ? ` (${iss.project.name})` : ''}` }
       }
       return { matched_source: null, matched_id: null, matched_title: null }
     }
@@ -182,14 +188,14 @@ Deno.serve(async (req: Request) => {
     if (ccCandidates.length === 0 && linearIssues.length === 0) {
       const result = {
         status: 'new' as const,
-        reasoning: operator?.linear_project_id
+        reasoning: linearProjects.length > 0
           ? 'No other open Command Center bugs or Linear issues found to compare against for this operator.'
-          : 'No other open Command Center bugs found to compare against, and this operator has no Linear project linked (Settings -> Linear project) for cross-checking.',
+          : 'No other open Command Center bugs found to compare against, and this operator has no Linear project linked (Settings -> Linear projects) for cross-checking.',
         matched_source: null, matched_id: null, matched_title: null,
       }
       const triaged_at = new Date().toISOString()
       await persist({ triage_status: result.status, triage_reasoning: result.reasoning, triage_matched_source: null, triage_matched_id: null, triaged_at })
-      return json({ ...result, triaged_at, meta: { cc_candidates: 0, linear_candidates: 0, linear_project_linked: !!operator?.linear_project_id } })
+      return json({ ...result, triaged_at, meta: { cc_candidates: 0, linear_candidates: 0, linear_projects_linked: linearProjects.length } })
     }
 
     const ccList = ccCandidates.map((c, i) => ({
@@ -207,6 +213,7 @@ Deno.serve(async (req: Request) => {
       identifier: iss.identifier,
       title: iss.title,
       description: trunc(iss.description, 600),
+      project: iss.project?.name,
       state: iss.state?.name,
       state_type: iss.state?.type,
       labels: (iss.labels?.nodes ?? []).map((l: any) => l.name),
@@ -214,11 +221,11 @@ Deno.serve(async (req: Request) => {
 
     const system = `You are a QA triage assistant for gameLM bug reports. ${SHARED_CONTEXT}
 
-Compare the NEW BUG REPORT below against the candidate lists (existing open Command Center bugs, and existing Linear issues for this operator, if any) and classify it as new / related / duplicate / possible_non_issue. Reference a matched candidate ONLY by its exact "ref" string copied from the input (e.g. "cc:2" or "linear:0") -- never invent a ref, ticket number, or identifier. Pick at most one best match. A Linear issue whose state_type is "duplicate" or "canceled" can still be the right match if the new report describes the same underlying scenario -- say so in your reasoning.`
+Compare the NEW BUG REPORT below against the candidate lists (existing open Command Center bugs, and existing Linear issues across this operator's linked Linear project(s), if any) and classify it as new / related / duplicate / possible_non_issue. Reference a matched candidate ONLY by its exact "ref" string copied from the input (e.g. "cc:2" or "linear:0") -- never invent a ref, ticket number, or identifier. Pick at most one best match. A Linear issue whose state_type is "duplicate" or "canceled" can still be the right match if the new report describes the same underlying scenario -- say so in your reasoning.`
 
     const content = [
       ...buildBugContent(bug),
-      { type: 'text', text: `EXISTING COMMAND CENTER BUGS FOR THIS OPERATOR:\n${JSON.stringify(ccList)}\n\nEXISTING LINEAR ISSUES FOR THIS OPERATOR'S PROJECT:\n${JSON.stringify(linearList)}` },
+      { type: 'text', text: `EXISTING COMMAND CENTER BUGS FOR THIS OPERATOR:\n${JSON.stringify(ccList)}\n\nEXISTING LINEAR ISSUES ACROSS THIS OPERATOR'S LINKED PROJECT(S):\n${JSON.stringify(linearList)}` },
     ]
 
     const result = await callClaude(system, content, CLASSIFY_SCHEMA, 900)
@@ -241,7 +248,7 @@ Compare the NEW BUG REPORT below against the candidate lists (existing open Comm
       reasoning: result.data.reasoning,
       ...matched,
       triaged_at,
-      meta: { cc_candidates: ccCandidates.length, linear_candidates: linearIssues.length, linear_project_linked: !!operator?.linear_project_id },
+      meta: { cc_candidates: ccCandidates.length, linear_candidates: linearIssues.length, linear_projects_linked: linearProjects.length },
     })
   } catch (err: unknown) {
     return json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500)
