@@ -22,7 +22,11 @@ function initialSubView(email: string | undefined): SubView {
 interface KBArticle {
   id: string
   title: string
+  // Full body -- NOT included in the list query (see loadArticles); only
+  // populated once an article is opened via openRead/openEdit. Card
+  // previews use content_preview instead, which the list query does fetch.
   content: string
+  content_preview: string
   category: string
   is_published: boolean
   created_by: string
@@ -140,14 +144,16 @@ export default function Learn() {
     const opId = selectedOperator?.id ?? null
     let q = supabase
       .from('kb_articles')
-      .select('id, title, content, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type, operator_id, include_in_ask')
+      .select('id, title, content_preview, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type, operator_id, include_in_ask')
       .order('updated_at', { ascending: false })
     // Show operator-specific articles + global articles (operator_id = null).
     // When no operator is selected, show everything.
     if (opId) q = (q as any).or(`operator_id.eq.${opId},operator_id.is.null`)
     if (!isAdmin) q = (q as any).eq('is_published', true)
     const { data } = await q
-    setArticles(data ?? [])
+    // content isn't fetched here (see select above) -- withFullContent lazily
+    // fills it in per-article once actually opened.
+    setArticles((data ?? []).map((a: any) => ({ ...a, content: '' })))
     setLoading(false)
   }
 
@@ -161,12 +167,27 @@ export default function Learn() {
     setView('create')
   }
 
-  function openEdit(a: KBArticle) {
-    setEditTarget(a)
-    setFormTitle(a.title); setFormCat(a.category); setFormBody(a.content)
-    setFormFileUrl(a.file_url ?? ''); setFormFileName(a.file_name ?? ''); setFormFileType(a.file_type ?? '')
-    setFormGlobal(a.operator_id === null)
-    setFormIncludeInAsk(a.include_in_ask)
+  // List rows don't carry full content (see loadArticles) -- fetch it lazily,
+  // the first time an article is actually opened to read or edit. A no-op if
+  // it's already been fetched (e.g. editing from within the read view).
+  async function withFullContent(a: KBArticle): Promise<KBArticle> {
+    if (a.content) return a
+    const { data } = await supabase.from('kb_articles').select('content').eq('id', a.id).single()
+    return { ...a, content: data?.content ?? '' }
+  }
+
+  async function openRead(a: KBArticle) {
+    setReadTarget(await withFullContent(a))
+    setView('read')
+  }
+
+  async function openEdit(a: KBArticle) {
+    const full = await withFullContent(a)
+    setEditTarget(full)
+    setFormTitle(full.title); setFormCat(full.category); setFormBody(full.content)
+    setFormFileUrl(full.file_url ?? ''); setFormFileName(full.file_name ?? ''); setFormFileType(full.file_type ?? '')
+    setFormGlobal(full.operator_id === null)
+    setFormIncludeInAsk(full.include_in_ask)
     setUploadError(''); setUploadPct(0)
     setView('edit')
   }
@@ -603,7 +624,7 @@ export default function Learn() {
         <AskOperator
           onOpenArticle={articleId => {
             const found = articles.find(a => a.id === articleId)
-            if (found) { setReadTarget(found); setView('read') }
+            if (found) openRead(found)
           }}
         />
       </div>
@@ -678,7 +699,7 @@ export default function Learn() {
                   key={article.id}
                   article={article}
                   isAdmin={isAdmin}
-                  onRead={() => { setReadTarget(article); setView('read') }}
+                  onRead={() => openRead(article)}
                   onEdit={() => openEdit(article)}
                   onDelete={() => handleDelete(article.id)}
                   onToggle={() => handleTogglePublish(article)}
@@ -804,8 +825,8 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
   const [menuOpen, setMenuOpen] = useState(false)
   const cs = catStyle(article.category)
   const ftLabel = fileTypeLabel(article.file_type)
-  const preview = article.content
-    ? article.content.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\*/g, '').trim().slice(0, 120)
+  const preview = article.content_preview
+    ? article.content_preview.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\*/g, '').trim().slice(0, 120)
     : ''
 
   return (
@@ -912,7 +933,7 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
           fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}>
-          {preview}{article.content.length > 120 ? '…' : ''}
+          {preview}{article.content_preview.length > 120 ? '…' : ''}
         </p>
       ) : article.file_name ? (
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', lineHeight: 1.5 }}>
