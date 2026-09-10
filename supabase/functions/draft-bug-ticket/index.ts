@@ -29,10 +29,10 @@ const DRAFT_SCHEMA = {
   required: ['title', 'description', 'steps_to_recreate', 'expected_behavior', 'actual_behavior', 'low_confidence_sections'],
   properties: {
     title: { type: 'string', description: 'short, specific ticket title (under ~100 chars) describing the concrete failure -- not a generic label like "gameLM bug"' },
-    description: { type: 'string', description: 'narrative paragraph(s) framing the bug for someone with zero prior context: what happened, in what mode/scenario, who is affected. Ground strictly in the reported fields and evidence -- never invent specifics not present in the input. May reference the ticket_number/ticket_id if one was given.' },
-    steps_to_recreate: { type: 'string', description: 'numbered list reconstructing how to reproduce the issue from the reported conversation/context. If a ticket_number or ticket_id was provided, end with a final line "Ticket ID: <that id>"; otherwise omit that line entirely rather than inventing one.' },
-    expected_behavior: { type: 'string', description: 'what gameLM should have done -- from the reporter\'s expected_outcome field, cleaned up into a clear statement' },
-    actual_behavior: { type: 'string', description: 'what gameLM actually did -- from the reporter\'s actual_outcome field, cleaned up into a clear statement' },
+    description: { type: 'string', description: 'narrative paragraph(s) framing the bug for someone with zero prior context: what happened, in what mode/scenario, who is affected. Ground strictly in the reported fields and evidence -- never invent specifics not present in the input. May reference the ticket_number/ticket_id if one was given. If there are multiple distinct observations (e.g. more than one thing went wrong), use a "- " bulleted list instead of run-on prose.' },
+    steps_to_recreate: { type: 'string', description: 'ALWAYS a numbered list ("1. ", "2. ", ...) reconstructing how to reproduce the issue from the reported conversation/context. If a ticket_number or ticket_id was provided, end with a final line "Ticket ID: <that id>"; otherwise omit that line entirely rather than inventing one.' },
+    expected_behavior: { type: 'string', description: 'what gameLM should have done -- from the reporter\'s expected_outcome field, cleaned up into a clear statement. Use a "- " bulleted list instead of one run-on sentence if there\'s more than one distinct expected behavior (e.g. different handling per scenario).' },
+    actual_behavior: { type: 'string', description: 'what gameLM actually did -- from the reporter\'s actual_outcome field, cleaned up into a clear statement. Use a "- " bulleted list instead of one run-on sentence if there\'s more than one distinct observed behavior.' },
     low_confidence_sections: {
       type: 'array',
       description: 'flag any of the four sections above that required real inference beyond what the CS agent actually provided. Empty array if the submission was already complete enough that nothing was inferred.',
@@ -102,7 +102,9 @@ Match this exact real ticket template used by this team:
 ### Expected behavior
 ### Actual behavior
 
-Do NOT write a "Suggestions" section -- that's added later by a dev or PM during triage, not generated here. Ground every field strictly in the reported fields, the conversation, and any attached evidence (screenshots/PDFs) -- never invent player words, steps, or facts you weren't given. Where the agent's submission is too thin to write a section with confidence, still produce your best-effort draft from what's there, but flag it via low_confidence_sections rather than silently presenting an inference as fact.`
+Do NOT write a "Suggestions" section -- that's added later by a dev or PM during triage, not generated here. Ground every field strictly in the reported fields, the conversation, and any attached evidence (screenshots/PDFs) -- never invent player words, steps, or facts you weren't given. Where the agent's submission is too thin to write a section with confidence, still produce your best-effort draft from what's there, but flag it via low_confidence_sections rather than silently presenting an inference as fact.
+
+Favor scannability: use plain-text "- " bullets or "1. " numbered lists inside a field whenever it holds more than one distinct item (steps are always numbered; description/expected/actual behavior become bullets only when there's genuinely more than one point, not for a single-sentence answer).`
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

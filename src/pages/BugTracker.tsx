@@ -295,6 +295,18 @@ function buildCopyText(bug: BugReport): string {
   return lines.filter(l => l !== null).join('\n').trim()
 }
 
+// One flat block so the reviewer can copy/paste the whole elaborated ticket
+// in a single step, instead of grabbing each section separately.
+function buildCombinedDraftText(d: DraftTicket): string {
+  return [
+    d.title, '',
+    '### Description', d.description, '',
+    '### Steps to recreate', d.steps_to_recreate, '',
+    '### Expected behavior', d.expected_behavior, '',
+    '### Actual behavior', d.actual_behavior,
+  ].join('\n')
+}
+
 // ── Input styles ─────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -335,7 +347,7 @@ export default function BugTracker() {
   const [matchedTitles, setMatchedTitles] = useState<Record<string, string>>({})
   const [draftingTicket, setDraftingTicket] = useState<string | null>(null)
   const [draftErrors, setDraftErrors]   = useState<Record<string, string>>({})
-  const [draftPreview, setDraftPreview] = useState<{ bugId: string; draft: DraftTicket } | null>(null)
+  const [draftPreview, setDraftPreview] = useState<{ bugId: string; text: string; lowConfidence: DraftTicket['low_confidence_sections'] } | null>(null)
   const [draftCopied, setDraftCopied]   = useState(false)
 
   // Evidence upload (Report a Bug tab)
@@ -628,23 +640,16 @@ export default function BugTracker() {
       setDraftErrors(prev => ({ ...prev, [bugId]: data?.error ?? error?.message ?? 'Draft generation failed.' }))
       return
     }
-    setDraftPreview({ bugId, draft: data })
+    setDraftPreview({ bugId, text: buildCombinedDraftText(data), lowConfidence: data.low_confidence_sections ?? [] })
   }
 
-  function updateDraftField(field: keyof DraftTicket, value: string) {
-    setDraftPreview(prev => prev ? { ...prev, draft: { ...prev.draft, [field]: value } } : prev)
+  function updateDraftText(value: string) {
+    setDraftPreview(prev => prev ? { ...prev, text: value } : prev)
   }
 
   function copyDraftAsMarkdown() {
     if (!draftPreview) return
-    const d = draftPreview.draft
-    const md = [
-      '### Description', d.description, '',
-      '### Steps to recreate', d.steps_to_recreate, '',
-      '### Expected behavior', d.expected_behavior, '',
-      '### Actual behavior', d.actual_behavior,
-    ].join('\n')
-    navigator.clipboard.writeText(md)
+    navigator.clipboard.writeText(draftPreview.text)
     setDraftCopied(true)
     setTimeout(() => setDraftCopied(false), 2000)
   }
@@ -1249,8 +1254,9 @@ export default function BugTracker() {
       {draftPreview && (
         <DraftTicketModal
           bug={bugs.find(b => b.id === draftPreview.bugId) ?? null}
-          draft={draftPreview.draft}
-          onChange={updateDraftField}
+          text={draftPreview.text}
+          lowConfidence={draftPreview.lowConfidence}
+          onChange={updateDraftText}
           onClose={() => { setDraftPreview(null); setDraftCopied(false) }}
           onCopy={copyDraftAsMarkdown}
           copied={draftCopied}
@@ -1620,10 +1626,14 @@ function BugTriagePanel({
 }
 
 // ── Draft ticket modal ──────────────────────────────────────────────────────
-function DraftTicketModal({ bug, draft, onChange, onClose, onCopy, copied }: {
+// One combined, editable field so the whole elaborated ticket can be
+// reviewed and copy/pasted in a single step, rather than grabbing each
+// section separately.
+function DraftTicketModal({ bug, text, lowConfidence, onChange, onClose, onCopy, copied }: {
   bug: BugReport | null
-  draft: DraftTicket
-  onChange: (field: keyof DraftTicket, value: string) => void
+  text: string
+  lowConfidence: DraftTicket['low_confidence_sections']
+  onChange: (value: string) => void
   onClose: () => void
   onCopy: () => void
   copied: boolean
@@ -1634,7 +1644,7 @@ function DraftTicketModal({ bug, draft, onChange, onClose, onCopy, copied }: {
       onClick={onClose}
     >
       <div
-        style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28, width: '100%', maxWidth: 680, maxHeight: '85vh', overflow: 'auto' }}
+        style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28, width: '100%', maxWidth: 680, maxHeight: '85vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
@@ -1644,44 +1654,28 @@ function DraftTicketModal({ bug, draft, onChange, onClose, onCopy, copied }: {
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#58595B', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
         </div>
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 18 }}>
-          AI-elaborated from the bug report — review and edit before copying into Linear. No Suggestions section; that's a dev/PM addition made later during triage.
+          AI-elaborated from the bug report — review and edit, then copy/paste the whole thing into Linear. No Suggestions section; that's a dev/PM addition made later during triage.
         </p>
 
-        {draft.low_confidence_sections.length > 0 && (
+        {lowConfidence.length > 0 && (
           <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, border: '1.5px solid rgba(180,83,9,0.25)', background: 'rgba(180,83,9,0.05)' }}>
             <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#b45309', marginBottom: 6 }}>Flagged for review</p>
-            {draft.low_confidence_sections.map((s, i) => (
-              <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', lineHeight: 1.5, marginBottom: i < draft.low_confidence_sections.length - 1 ? 4 : 0 }}>
+            {lowConfidence.map((s, i) => (
+              <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', lineHeight: 1.5, marginBottom: i < lowConfidence.length - 1 ? 4 : 0 }}>
                 <strong style={{ textTransform: 'capitalize' }}>{s.section.replace(/_/g, ' ')}:</strong> {s.reason}
               </p>
             ))}
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <label style={labelStyle}>Title</label>
-            <input value={draft.title} onChange={e => onChange('title', e.target.value)} style={{ ...inputStyle, height: 40 }} />
-          </div>
-          <div>
-            <label style={labelStyle}>Description</label>
-            <textarea value={draft.description} onChange={e => onChange('description', e.target.value)} rows={4} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Steps to recreate</label>
-            <textarea value={draft.steps_to_recreate} onChange={e => onChange('steps_to_recreate', e.target.value)} rows={4} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Expected behavior</label>
-            <textarea value={draft.expected_behavior} onChange={e => onChange('expected_behavior', e.target.value)} rows={3} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Actual behavior</label>
-            <textarea value={draft.actual_behavior} onChange={e => onChange('actual_behavior', e.target.value)} rows={3} style={inputStyle} />
-          </div>
-        </div>
+        <textarea
+          value={text}
+          onChange={e => onChange(e.target.value)}
+          rows={18}
+          style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12.5, lineHeight: 1.6, flex: 1 }}
+        />
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button
             onClick={onCopy}
             style={{
@@ -1690,7 +1684,7 @@ function DraftTicketModal({ bug, draft, onChange, onClose, onCopy, copied }: {
             }}
             onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
             onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-          >{copied ? '✓ Copied as Markdown' : 'Copy as Markdown'}</button>
+          >{copied ? '✓ Copied' : 'Copy'}</button>
           <button
             onClick={onClose}
             style={{
