@@ -27,6 +27,42 @@ interface BugReport {
   reported_by: string | null
   created_at: string
   evidence: EvidenceFile[]
+  // Triage assistant — set by classify-bug-report, confirmed/overridden by a reviewer
+  canonical_bug_id: string | null
+  linear_issue_id: string | null
+  linear_issue_url: string | null
+  triage_status: 'new' | 'related' | 'duplicate' | 'possible_non_issue' | null
+  triage_reasoning: string | null
+  triage_matched_source: 'linear' | 'command_center' | null
+  triage_matched_id: string | null
+  triaged_at: string | null
+}
+
+// draft-bug-ticket's elaborated output — an editable preview, not persisted
+// anywhere yet (actually creating the Linear ticket is a later phase).
+interface DraftTicket {
+  title: string
+  description: string
+  steps_to_recreate: string
+  expected_behavior: string
+  actual_behavior: string
+  low_confidence_sections: { section: string; reason: string }[]
+}
+
+// Bundles triage state + handlers so BugList/BugTriagePanel don't need a dozen
+// individual props threaded through.
+interface TriageBundle {
+  isAdmin: boolean
+  triaging: Set<string>
+  triageErrors: Record<string, string>
+  matchedTitles: Record<string, string>
+  draftingTicket: string | null
+  draftErrors: Record<string, string>
+  onClassify: (bugId: string) => void
+  onConfirmMatch: (bug: BugReport) => void
+  onDismiss: (bugId: string) => void
+  onMarkNotABug: (bugId: string) => void
+  onDraftTicket: (bugId: string) => void
 }
 
 interface TriageBrief {
@@ -118,6 +154,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 const MODE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   copilot:   { label: 'CoPilot',   color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
   full_auto: { label: 'Full Auto', color: '#9B59D0', bg: 'rgba(155,89,208,0.09)' },
+}
+
+const TRIAGE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  new:                 { label: 'New',                 color: '#166534', bg: 'rgba(22,101,52,0.08)' },
+  related:             { label: 'Related',              color: '#b45309', bg: 'rgba(180,83,9,0.08)' },
+  duplicate:           { label: 'Duplicate',            color: '#9B59D0', bg: 'rgba(155,89,208,0.09)' },
+  possible_non_issue:  { label: 'Possible Non-Issue',   color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
 }
 
 const EMPTY_FORM: FormState = {
@@ -282,6 +325,18 @@ export default function BugTracker() {
   const [form, setForm]           = useState<FormState>(EMPTY_FORM)
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [copied, setCopied]       = useState<string | null>(null)
+
+  // Triage assistant — classification + ticket drafting, keyed by bug id.
+  // matchedTitles is session-only display polish (a human-readable label for
+  // whatever triage_matched_id points at) -- not persisted, since the id
+  // itself (a CC bug uuid or a Linear URL) is enough to resolve the link.
+  const [triaging, setTriaging]         = useState<Set<string>>(new Set())
+  const [triageErrors, setTriageErrors] = useState<Record<string, string>>({})
+  const [matchedTitles, setMatchedTitles] = useState<Record<string, string>>({})
+  const [draftingTicket, setDraftingTicket] = useState<string | null>(null)
+  const [draftErrors, setDraftErrors]   = useState<Record<string, string>>({})
+  const [draftPreview, setDraftPreview] = useState<{ bugId: string; draft: DraftTicket } | null>(null)
+  const [draftCopied, setDraftCopied]   = useState(false)
 
   // Evidence upload (Report a Bug tab)
   const [evidence, setEvidence]           = useState<EvidenceFile[]>([])
@@ -515,6 +570,85 @@ export default function BugTracker() {
     setBugs(prev => prev.map(b => b.id === id ? { ...b, status: status as BugReport['status'] } : b))
   }
 
+  // ── Triage assistant ──────────────────────────────────────────────────────
+  async function classifyBug(bugId: string) {
+    setTriaging(prev => new Set(prev).add(bugId))
+    setTriageErrors(prev => { const n = { ...prev }; delete n[bugId]; return n })
+    const { data, error } = await supabase.functions.invoke('classify-bug-report', { body: { bug_report_id: bugId } })
+    if (error || data?.error) {
+      setTriageErrors(prev => ({ ...prev, [bugId]: data?.error ?? error?.message ?? 'Classification failed.' }))
+    } else {
+      setBugs(prev => prev.map(b => b.id === bugId ? {
+        ...b,
+        triage_status: data.status,
+        triage_reasoning: data.reasoning,
+        triage_matched_source: data.matched_source,
+        triage_matched_id: data.matched_id,
+        triaged_at: data.triaged_at,
+      } : b))
+      if (data.matched_title) setMatchedTitles(prev => ({ ...prev, [bugId]: data.matched_title }))
+    }
+    setTriaging(prev => { const n = new Set(prev); n.delete(bugId); return n })
+  }
+
+  // Reviewer confirms a "duplicate" classification -- links this bug to
+  // whatever it matched (a Command Center canonical bug, or an existing
+  // Linear issue) so it reads as a supporting example rather than a
+  // standalone ticket.
+  async function confirmMatch(bug: BugReport) {
+    if (!bug.triage_matched_id || !bug.triage_matched_source) return
+    if (bug.triage_matched_source === 'command_center') {
+      await supabase.from('bug_reports').update({ canonical_bug_id: bug.triage_matched_id }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, canonical_bug_id: bug.triage_matched_id } : b))
+    } else {
+      const title = matchedTitles[bug.id] ?? ''
+      const identifier = title.includes(':') ? title.split(':')[0].trim() : null
+      await supabase.from('bug_reports').update({ linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id } : b))
+    }
+  }
+
+  // Reviewer disagrees with the classification -- clears it back to
+  // untriaged rather than leaving a wrong verdict standing.
+  async function dismissClassification(bugId: string) {
+    await supabase.from('bug_reports').update({ triage_status: null, triage_reasoning: null, triage_matched_source: null, triage_matched_id: null, triaged_at: null }).eq('id', bugId)
+    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, triage_status: null, triage_reasoning: null, triage_matched_source: null, triage_matched_id: null, triaged_at: null } : b))
+  }
+
+  function markNotABug(bugId: string) {
+    updateStatus(bugId, 'wont_fix')
+  }
+
+  async function draftTicket(bugId: string) {
+    setDraftingTicket(bugId)
+    setDraftErrors(prev => { const n = { ...prev }; delete n[bugId]; return n })
+    const { data, error } = await supabase.functions.invoke('draft-bug-ticket', { body: { bug_report_id: bugId } })
+    setDraftingTicket(null)
+    if (error || data?.error) {
+      setDraftErrors(prev => ({ ...prev, [bugId]: data?.error ?? error?.message ?? 'Draft generation failed.' }))
+      return
+    }
+    setDraftPreview({ bugId, draft: data })
+  }
+
+  function updateDraftField(field: keyof DraftTicket, value: string) {
+    setDraftPreview(prev => prev ? { ...prev, draft: { ...prev.draft, [field]: value } } : prev)
+  }
+
+  function copyDraftAsMarkdown() {
+    if (!draftPreview) return
+    const d = draftPreview.draft
+    const md = [
+      '### Description', d.description, '',
+      '### Steps to recreate', d.steps_to_recreate, '',
+      '### Expected behavior', d.expected_behavior, '',
+      '### Actual behavior', d.actual_behavior,
+    ].join('\n')
+    navigator.clipboard.writeText(md)
+    setDraftCopied(true)
+    setTimeout(() => setDraftCopied(false), 2000)
+  }
+
   function copyBug(bug: BugReport) {
     navigator.clipboard.writeText(buildCopyText(bug))
     setCopied(bug.id)
@@ -559,6 +693,12 @@ export default function BugTracker() {
     { id: 'tracker' as const, label: `Bug Tracker${openCount > 0 ? ` (${openCount})` : ''}` },
     ...(isAdmin ? [{ id: 'report' as const, label: 'Engineering Report' }] : []),
   ]
+
+  const triageBundle: TriageBundle = {
+    isAdmin, triaging, triageErrors, matchedTitles, draftingTicket, draftErrors,
+    onClassify: classifyBug, onConfirmMatch: confirmMatch, onDismiss: dismissClassification,
+    onMarkNotABug: markNotABug, onDraftTicket: draftTicket,
+  }
 
   return (
     <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
@@ -841,7 +981,7 @@ export default function BugTracker() {
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No bug reports submitted yet</p>
             </div>
           ) : (
-            <BugList bugs={myBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} />
+            <BugList bugs={myBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} triage={triageBundle} />
           )}
         </div>
       )}
@@ -900,7 +1040,7 @@ export default function BugTracker() {
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No bug reports match the current filters</p>
             </div>
           ) : (
-            <BugList bugs={filteredBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} onStatusChange={isAdmin ? updateStatus : undefined} />
+            <BugList bugs={filteredBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} onStatusChange={isAdmin ? updateStatus : undefined} triage={triageBundle} />
           )}
         </div>
       )}
@@ -1105,6 +1245,17 @@ export default function BugTracker() {
           )}
         </div>
       )}
+
+      {draftPreview && (
+        <DraftTicketModal
+          bug={bugs.find(b => b.id === draftPreview.bugId) ?? null}
+          draft={draftPreview.draft}
+          onChange={updateDraftField}
+          onClose={() => { setDraftPreview(null); setDraftCopied(false) }}
+          onCopy={copyDraftAsMarkdown}
+          copied={draftCopied}
+        />
+      )}
     </div>
   )
 }
@@ -1171,13 +1322,14 @@ function FilterSelect({ value, onChange, options }: {
 // full log so they can cross-reference status) — onStatusChange being present
 // is the only thing that turns on edit affordances, and it's only ever passed
 // in for admins.
-function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange }: {
+function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, triage }: {
   bugs: BugReport[]
   expanded: string | null
   onExpand: (id: string | null) => void
   onCopy: (bug: BugReport) => void
   copied: string | null
   onStatusChange?: (id: string, status: string) => void
+  triage: TriageBundle
 }) {
   // Table header
   const cols = '80px 100px 90px 100px 1fr 130px 140px 100px 90px'
@@ -1249,6 +1401,22 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange }: {
                   <DetailBox label="Expected Outcome" value={bug.expected_outcome} />
                   <DetailBox label="Actual Outcome" value={bug.actual_outcome} highlight />
                 </div>
+
+                <BugTriagePanel
+                  bug={bug}
+                  isAdmin={triage.isAdmin}
+                  triaging={triage.triaging.has(bug.id)}
+                  triageError={triage.triageErrors[bug.id]}
+                  matchedTitle={triage.matchedTitles[bug.id]}
+                  drafting={triage.draftingTicket === bug.id}
+                  draftError={triage.draftErrors[bug.id]}
+                  onClassify={() => triage.onClassify(bug.id)}
+                  onConfirmMatch={() => triage.onConfirmMatch(bug)}
+                  onDismiss={() => triage.onDismiss(bug.id)}
+                  onMarkNotABug={() => triage.onMarkNotABug(bug.id)}
+                  onDraftTicket={() => triage.onDraftTicket(bug.id)}
+                />
+
                 {bug.additional_context && (
                   <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(0,0,0,0.03)' }}>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Additional Context</p>
@@ -1335,6 +1503,203 @@ function DetailBox({ label, value, highlight = false }: { label: string; value: 
     }}>
       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: highlight ? 'rgba(229,62,62,0.7)' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{label}</p>
       <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{value}</p>
+    </div>
+  )
+}
+
+// ── Triage panel ──────────────────────────────────────────────────────────────
+// The ticket-creation assistant: is this bug new, related to something open,
+// a near-duplicate that should be a supporting example instead of its own
+// ticket, or a possible non-issue? Read-only badge/reasoning for everyone;
+// the classify/draft/confirm actions are admin-only, same gate as status
+// changes and the Engineering Report tab.
+function BugTriagePanel({
+  bug, isAdmin, triaging, triageError, matchedTitle, drafting, draftError,
+  onClassify, onConfirmMatch, onDismiss, onMarkNotABug, onDraftTicket,
+}: {
+  bug: BugReport
+  isAdmin: boolean
+  triaging: boolean
+  triageError?: string
+  matchedTitle?: string
+  drafting: boolean
+  draftError?: string
+  onClassify: () => void
+  onConfirmMatch: () => void
+  onDismiss: () => void
+  onMarkNotABug: () => void
+  onDraftTicket: () => void
+}) {
+  const cfg = bug.triage_status ? TRIAGE_STATUS_CONFIG[bug.triage_status] : null
+  const hasMatch = !!(bug.triage_matched_id && bug.triage_matched_source)
+  const alreadyLinked = !!(bug.canonical_bug_id || bug.linear_issue_url)
+
+  return (
+    <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff' }} onClick={e => e.stopPropagation()}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Triage</p>
+        {cfg && <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} />}
+        {bug.canonical_bug_id && <Badge label="Linked as duplicate" color="#9B59D0" bg="rgba(155,89,208,0.09)" />}
+        {bug.linear_issue_url && (
+          <a href={bug.linear_issue_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', textDecoration: 'none' }}>
+            {bug.linear_issue_id ?? 'View in Linear'} ↗
+          </a>
+        )}
+        {isAdmin && (
+          <>
+            <button
+              onClick={onClassify}
+              disabled={triaging}
+              style={{
+                marginLeft: 'auto', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
+                color: '#58595B', cursor: triaging ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+              }}
+            >{triaging ? 'Classifying…' : bug.triage_status ? 'Re-classify' : 'Classify'}</button>
+            <button
+              onClick={onDraftTicket}
+              disabled={drafting}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
+                color: '#58595B', cursor: drafting ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+              }}
+            >{drafting ? 'Drafting…' : 'Draft full ticket'}</button>
+          </>
+        )}
+      </div>
+
+      {triageError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{triageError}</p>}
+      {draftError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{draftError}</p>}
+
+      {bug.triage_reasoning && (
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginTop: 8 }}>{bug.triage_reasoning}</p>
+      )}
+
+      {hasMatch && !alreadyLinked && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+            Matched:{' '}
+            {bug.triage_matched_source === 'linear' ? (
+              <a href={bug.triage_matched_id!} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#9B59D0' }}>{matchedTitle ?? 'View in Linear'} ↗</a>
+            ) : (
+              <span style={{ color: '#000' }}>{matchedTitle ?? `Bug ${shortId(bug.triage_matched_id!)}`}</span>
+            )}
+          </span>
+          {isAdmin && bug.triage_status === 'duplicate' && (
+            <button onClick={onConfirmMatch} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+              border: '1.5px solid rgba(155,89,208,0.4)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer',
+            }}>{bug.triage_matched_source === 'linear' ? 'Link to this Linear ticket' : 'Confirm as duplicate'}</button>
+          )}
+          {isAdmin && (
+            <button onClick={onDismiss} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+              border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+            }}>Not a match — dismiss</button>
+          )}
+        </div>
+      )}
+
+      {isAdmin && bug.triage_status === 'possible_non_issue' && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          {bug.status !== 'wont_fix' && (
+            <button onClick={onMarkNotABug} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+            }}>Mark not a bug</button>
+          )}
+          <button onClick={onDismiss} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+            border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+          }}>Disagree — keep as bug</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Draft ticket modal ──────────────────────────────────────────────────────
+function DraftTicketModal({ bug, draft, onChange, onClose, onCopy, copied }: {
+  bug: BugReport | null
+  draft: DraftTicket
+  onChange: (field: keyof DraftTicket, value: string) => void
+  onClose: () => void
+  onCopy: () => void
+  copied: boolean
+}) {
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28, width: '100%', maxWidth: 680, maxHeight: '85vh', overflow: 'auto' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>
+            Draft Ticket{bug?.ticket_number ? ` — #${bug.ticket_number}` : ''}
+          </p>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#58595B', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 18 }}>
+          AI-elaborated from the bug report — review and edit before copying into Linear. No Suggestions section; that's a dev/PM addition made later during triage.
+        </p>
+
+        {draft.low_confidence_sections.length > 0 && (
+          <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, border: '1.5px solid rgba(180,83,9,0.25)', background: 'rgba(180,83,9,0.05)' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#b45309', marginBottom: 6 }}>Flagged for review</p>
+            {draft.low_confidence_sections.map((s, i) => (
+              <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', lineHeight: 1.5, marginBottom: i < draft.low_confidence_sections.length - 1 ? 4 : 0 }}>
+                <strong style={{ textTransform: 'capitalize' }}>{s.section.replace(/_/g, ' ')}:</strong> {s.reason}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={labelStyle}>Title</label>
+            <input value={draft.title} onChange={e => onChange('title', e.target.value)} style={{ ...inputStyle, height: 40 }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Description</label>
+            <textarea value={draft.description} onChange={e => onChange('description', e.target.value)} rows={4} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Steps to recreate</label>
+            <textarea value={draft.steps_to_recreate} onChange={e => onChange('steps_to_recreate', e.target.value)} rows={4} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Expected behavior</label>
+            <textarea value={draft.expected_behavior} onChange={e => onChange('expected_behavior', e.target.value)} rows={3} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Actual behavior</label>
+            <textarea value={draft.actual_behavior} onChange={e => onChange('actual_behavior', e.target.value)} rows={3} style={inputStyle} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button
+            onClick={onCopy}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+              border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+          >{copied ? '✓ Copied as Markdown' : 'Copy as Markdown'}</button>
+          <button
+            onClick={onClose}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+            }}
+          >Close</button>
+        </div>
+      </div>
     </div>
   )
 }
