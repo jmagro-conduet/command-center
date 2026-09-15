@@ -142,18 +142,27 @@ export default function Learn() {
   async function loadArticles() {
     setLoading(true)
     const opId = selectedOperator?.id ?? null
-    let q = supabase
-      .from('kb_articles')
-      .select('id, title, content_preview, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type, operator_id, include_in_ask')
-      .order('updated_at', { ascending: false })
-    // Show operator-specific articles + global articles (operator_id = null).
-    // When no operator is selected, show everything.
-    if (opId) q = (q as any).or(`operator_id.eq.${opId},operator_id.is.null`)
-    if (!isAdmin) q = (q as any).eq('is_published', true)
-    const { data } = await q
+    const baseCols = 'id, title, category, is_published, created_by, updated_by, updated_at, file_url, file_name, file_type, operator_id, include_in_ask'
+    function buildQuery(cols: string) {
+      let q = supabase.from('kb_articles').select(cols).order('updated_at', { ascending: false })
+      // Show operator-specific articles + global articles (operator_id = null).
+      // When no operator is selected, show everything.
+      if (opId) q = (q as any).or(`operator_id.eq.${opId},operator_id.is.null`)
+      if (!isAdmin) q = (q as any).eq('is_published', true)
+      return q
+    }
+    // content_preview is a newer column -- if its migration hasn't run yet,
+    // selecting it errors the whole query (and previously blanked the whole
+    // list with no indication why). Fall back to the list without a preview
+    // instead of failing outright.
+    let { data, error } = await buildQuery(`${baseCols}, content_preview`)
+    if (error) {
+      const fallback = await buildQuery(baseCols)
+      data = fallback.data
+    }
     // content isn't fetched here (see select above) -- withFullContent lazily
     // fills it in per-article once actually opened.
-    setArticles((data ?? []).map((a: any) => ({ ...a, content: '' })))
+    setArticles((data ?? []).map((a: any) => ({ ...a, content: '', content_preview: a.content_preview ?? '' })))
     setLoading(false)
   }
 
