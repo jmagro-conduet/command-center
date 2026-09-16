@@ -9,7 +9,7 @@ import { getDailyTarget } from '../lib/settings'
 import { useOperator } from '../context/OperatorContext'
 import { useAuth } from '../context/AuthContext'
 
-type Tab       = 'team' | 'agent' | 'events' | 'category'
+type Tab       = 'team' | 'agent' | 'events' | 'category' | 'full_auto'
 type TimeRange = 'last7' | 'last30' | 'lastQuarter' | 'allTime' | 'custom'
 
 // Persists which tab was active. App.tsx force-remounts the current page
@@ -19,7 +19,7 @@ const tabKey = (email: string) => `analytics_tab_${email}`
 function initialTab(email: string | undefined): Tab {
   if (!email) return 'team'
   const saved = localStorage.getItem(tabKey(email))
-  return saved === 'team' || saved === 'agent' || saved === 'events' || saved === 'category' ? saved : 'team'
+  return saved === 'team' || saved === 'agent' || saved === 'events' || saved === 'category' || saved === 'full_auto' ? saved : 'team'
 }
 // yyyy-mm-dd strings, inclusive on both ends — matches <input type="date"> value format
 interface CustomRange { start: string; end: string }
@@ -383,10 +383,11 @@ export default function Analytics() {
   }, [selectedOperator?.id])
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'team',     label: 'Team View'           },
-    { id: 'agent',    label: 'Per Agent'            },
-    { id: 'events',   label: 'Event Analytics'      },
-    { id: 'category', label: 'Category Performance' },
+    { id: 'team',      label: 'Team View'           },
+    { id: 'agent',     label: 'Per Agent'            },
+    { id: 'events',    label: 'Event Analytics'      },
+    { id: 'category',  label: 'Category Performance' },
+    { id: 'full_auto', label: 'Full Auto'            },
   ]
 
   if (loading) {
@@ -439,6 +440,7 @@ export default function Analytics() {
       {tab === 'agent'    && <PerAgent     allRows={scopedRows} />}
       {tab === 'events'   && <EventAnalyticsTab allRows={scopedRows} events={events} />}
       {tab === 'category' && <CategoryPerformance allRows={scopedRows} />}
+      {tab === 'full_auto' && <FullAutoAnalytics operatorId={selectedOperator?.id ?? null} />}
     </div>
   )
 }
@@ -1411,6 +1413,108 @@ function TimeRangeFilter({ value, onChange, customRange, onCustomChange }: {
           >Apply</button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Full Auto analytics ─────────────────────────────────────────────────────
+// Full Auto tickets carry no issue_type/quality data (no draft-to-edit step
+// to grade -- see LogTicket.tsx), so there's no "Perfect rate"/Autopilot
+// Readiness equivalent here like the tabs above. This is deliberately just
+// day-over-day submission volume and category mix -- activity tracking, not
+// quality grading. Reads `tickets` directly (mode='full_auto'), not
+// ticket_issues, so it can't be affected by (or affect) the CoPilot tabs.
+interface FullAutoTicketRow { createdAt: string; category: string }
+
+function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
+  const [rows, setRows] = useState<FullAutoTicketRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      let q = supabase.from('tickets').select('created_at, ticket_category').eq('mode', 'full_auto').order('created_at', { ascending: true })
+      if (operatorId) q = q.eq('operator_id', operatorId)
+      const { data } = await q
+      if (cancelled) return
+      setRows((data ?? []).map((t: any) => ({ createdAt: t.created_at, category: t.ticket_category || 'Uncategorized' })))
+      setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [operatorId])
+
+  const byDay = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const r of rows) {
+      const day = toDateStr(new Date(r.createdAt))
+      counts[day] = (counts[day] ?? 0) + 1
+    }
+    // Last 30 days that actually have data, so a low-volume operator still
+    // gets a readable chart instead of 29 empty days.
+    return Object.keys(counts).sort().slice(-30).map(d => ({
+      date: new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      count: counts[d],
+    }))
+  }, [rows])
+
+  const byCategory = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const r of rows) counts[r.category] = (counts[r.category] ?? 0) + 1
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])
+  }, [rows])
+
+  const BAR_COLORS = ['#9B59D0', '#CEA4FF', '#0e7490', '#b45309', '#166534', '#e53e3e', '#58595B']
+
+  if (loading) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+      </div>
+    )
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No Full Auto submissions logged yet</p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 2 }}>Full Auto Submissions</p>
+        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 14 }}>
+          Day-over-day submission volume ({rows.length.toLocaleString()} total logged) — activity tracking, not quality grading
+        </p>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={byDay} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
+            <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(byDay.length / 8))} />
+            <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+            <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Submissions" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
+        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 14 }}>By Category</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {byCategory.map(([cat, count], i) => (
+            <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 190, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
+              <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                <div style={{ width: `${(count / byCategory[0][1]) * 100}%`, height: '100%', borderRadius: 100, background: BAR_COLORS[i % BAR_COLORS.length] }} />
+              </div>
+              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 30, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

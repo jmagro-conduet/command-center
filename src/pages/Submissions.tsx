@@ -108,6 +108,13 @@ export default function Submissions() {
   const isAdmin = user?.role === 'admin'
   const isSuperAdmin = !!user?.isSuperAdmin
 
+  // Full Auto has no ticket_issues row (no draft-to-edit step to grade), so it
+  // can't reuse this page's CoPilot-shaped query/table/modals at all -- kept
+  // as a fully separate view + component (FullAutoSubmissions below) rather
+  // than threaded through the logic below, so CoPilot's behavior here can't
+  // be affected by this at all.
+  const [viewMode, setViewMode] = useState<'copilot' | 'full_auto'>('copilot')
+
   const [rows,        setRows]        = useState<Row[]>([])
   const [total,       setTotal]       = useState(0)
   const [ticketCount, setTicketCount] = useState(0)
@@ -428,6 +435,10 @@ export default function Submissions() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
+  if (viewMode === 'full_auto') {
+    return <FullAutoSubmissions operatorId={opId} onBackToCopilot={() => setViewMode('copilot')} />
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -442,6 +453,19 @@ export default function Submissions() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setViewMode('full_auto')}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              padding: '9px 16px', borderRadius: 10,
+              border: '1.5px solid rgba(155,89,208,0.35)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0',
+              transition: 'all 0.15s', cursor: 'pointer',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.06)')}
+          >
+            View Full Auto
+          </button>
           {checkedRows.size > 0 && (
             <>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
@@ -1172,6 +1196,203 @@ function paginationRange(current: number, total: number): (number | '…')[] {
   if (current < total - 2) pages.push('…')
   pages.push(total)
   return pages
+}
+
+// ── Full Auto submissions ──────────────────────────────────────────────────────
+// Deliberately separate from everything above: Full Auto tickets have no
+// ticket_issues row (no draft-to-edit step to grade — see LogTicket.tsx), so
+// this reads `tickets` directly instead of the ticket_issues!inner query the
+// CoPilot view uses. Much lighter than the CoPilot table by design — no issue
+// type, no edit detail, just the submission reference (ticket number,
+// category, optional unique id, who logged it, when).
+interface FullAutoRow {
+  id: string
+  ticketNumber: string
+  category: string
+  externalTicketId: string
+  agent: string
+  agentEmail: string
+  createdAt: string
+}
+
+function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: string | null; onBackToCopilot: () => void }) {
+  const [rows, setRows] = useState<FullAutoRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      let q = supabase
+        .from('tickets')
+        .select('id, ticket_number, ticket_category, other_category_detail, external_ticket_id, agent_name, agent_email, created_at', { count: 'exact' })
+        .eq('mode', 'full_auto')
+        .order('created_at', { ascending: false })
+      if (operatorId) q = q.eq('operator_id', operatorId)
+      if (search.trim()) q = q.ilike('ticket_number', `%${search.trim()}%`)
+      if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00`)
+      if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`)
+      q = q.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+      const { data, count } = await q
+      if (cancelled) return
+      setRows((data ?? []).map((t: any) => ({
+        id: t.id,
+        ticketNumber: t.ticket_number ?? '',
+        category: t.ticket_category === 'Other' ? (t.other_category_detail || 'Other') : (t.ticket_category ?? ''),
+        externalTicketId: t.external_ticket_id ?? '',
+        agent: t.agent_name ?? '',
+        agentEmail: t.agent_email ?? '',
+        createdAt: t.created_at,
+      })))
+      setTotal(count ?? 0)
+      setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [operatorId, search, dateFrom, dateTo, page])
+
+  useEffect(() => { setPage(1) }, [search, dateFrom, dateTo])
+
+  function exportCSV() {
+    const headers = ['Ticket #', 'Category', 'Unique ID', 'Agent', 'Agent Email', 'Date']
+    const csvRows = rows.map(r => [r.ticketNumber, r.category, r.externalTicketId, r.agent, r.agentEmail, formatDate(r.createdAt)].map(csvField).join(','))
+    const csv = [headers.join(','), ...csvRows].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `full_auto_submissions_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+            Full Auto Submissions
+          </h1>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+            Ticket references logged for Full Auto — no draft-to-edit grading, just the submission record
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={onBackToCopilot}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              padding: '9px 16px', borderRadius: 10,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
+              transition: 'all 0.15s', cursor: 'pointer',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+          >
+            View CoPilot
+          </button>
+          <button
+            onClick={exportCSV}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              padding: '9px 16px', borderRadius: 10,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
+              transition: 'all 0.15s', cursor: 'pointer',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+          >
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{
+        background: '#fff', borderRadius: 16,
+        border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px',
+        display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+      }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search ticket number…"
+          style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 12px',
+            borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', minWidth: 200,
+          }}
+        />
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)' }} />
+        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>to</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)' }} />
+        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginLeft: 'auto' }}>
+          {total.toLocaleString()} submission{total === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      {/* Table */}
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: '110px 1fr 160px 160px 1fr 180px',
+          padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)',
+        }}>
+          {['Ticket #', 'Category', 'Unique ID', 'Agent', 'Agent Email', 'Date'].map(h => (
+            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+          ))}
+        </div>
+        {loading ? (
+          <div style={{ padding: 32, textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+          </div>
+        ) : rows.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No Full Auto submissions yet</p>
+          </div>
+        ) : (
+          rows.map(r => (
+            <div key={r.id} style={{
+              display: 'grid', gridTemplateColumns: '110px 1fr 160px 160px 1fr 180px',
+              padding: '11px 20px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.05)',
+            }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.externalTicketId || '—'}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agentEmail || '—'}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{formatDate(r.createdAt)}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+          {paginationRange(page, totalPages).map((p, i) => p === '…' ? (
+            <span key={`e${i}`} style={{ padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => setPage(p)}
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: p === page ? 600 : 400,
+                padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
+                border: p === page ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.1)',
+                background: p === page ? 'rgba(155,89,208,0.08)' : '#fff',
+                color: p === page ? '#9B59D0' : '#58595B',
+              }}
+            >{p}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function PageBtn({ children, onClick, disabled, active }: {

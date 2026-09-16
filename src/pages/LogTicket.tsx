@@ -50,6 +50,12 @@ interface TabState {
   // in parallel can't have one silently submit under the wrong operator.
   operatorId: string | null
   operatorName: string | null
+  // Full Auto has no "draft a human reviews and edits" step, so it doesn't
+  // carry any of the CoPilot fields below (customer input, suggested
+  // response, issue type/edit grading, final edits) -- it's deliberately
+  // just a submission record (ticket number, category, optional unique id).
+  mode: 'copilot' | 'full_auto'
+  fullAutoExternalId: string
   ticketNumber: string
   category: string
   otherDetail: string
@@ -69,6 +75,7 @@ function newTab(id: number, operator?: { id: string; name: string } | null): Tab
     id,
     operatorId: operator?.id ?? null,
     operatorName: operator?.name ?? null,
+    mode: 'copilot', fullAutoExternalId: '',
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
@@ -159,7 +166,11 @@ export default function LogTicket() {
       if (saved) {
         const d = JSON.parse(saved)
         if (Array.isArray(d.allTabs) && d.allTabs.length > 0) {
-          setAllTabs(d.allTabs)
+          // Backfill fields that didn't exist in older saved drafts.
+          const restored: TabState[] = d.allTabs.map((t: any) => ({
+            mode: 'copilot', fullAutoExternalId: '', ...t,
+          }))
+          setAllTabs(restored)
           setActiveTabId(d.activeTabId ?? d.allTabs[0].id)
           nextId.current = Math.max(...d.allTabs.map((t: TabState) => t.id)) + 1
         }
@@ -236,7 +247,8 @@ export default function LogTicket() {
 
   async function handleSubmit() {
     const validationErr = validateTicketNumber(active.ticketNumber)
-    if (validationErr || !active.category || active.responses.length === 0) return
+    const isFullAuto = active.mode === 'full_auto'
+    if (validationErr || !active.category || (!isFullAuto && active.responses.length === 0)) return
 
     setSubmitting(true)
     setSubmitError('')
@@ -258,6 +270,8 @@ export default function LogTicket() {
         agent_team:             user?.operatorTeam ?? null,
         notes:                  active.notes.trim(),
         operator_id:            submitOperatorId,
+        mode:                   active.mode,
+        external_ticket_id:     isFullAuto ? (active.fullAutoExternalId.trim() || null) : null,
       })
       .select('id')
       .single()
@@ -268,30 +282,60 @@ export default function LogTicket() {
       return
     }
 
-    const issues = active.responses.map(r => {
-      const type = ISSUE_TYPES.find(t => t.value === r.issueType)
-      return {
-        ticket_id:          ticket.id,
-        external_ticket_id: r.ticketId?.trim() || null,
-        issue_type:         type?.dbLabel ?? r.issueType,
-        customer_input:     r.customerInput,
-        suggested_response: r.suggestedResponse || null,
-        reasoning:          r.reasoning || null,
-        final_edits:        r.finalEdits || null,
-        enhancement_note:   r.enhancementNote || null,
-        logged_at:          r.loggedAt,
-        operator_id:        submitOperatorId,
-      }
-    })
+    // Full Auto has no draft-to-edit step, so there's nothing to log into
+    // ticket_issues (that table — and every page reading it — is built
+    // entirely around CoPilot's edit-grading model). The ticket row alone
+    // is the whole submission.
+    if (!isFullAuto) {
+      const issues = active.responses.map(r => {
+        const type = ISSUE_TYPES.find(t => t.value === r.issueType)
+        return {
+          ticket_id:          ticket.id,
+          external_ticket_id: r.ticketId?.trim() || null,
+          issue_type:         type?.dbLabel ?? r.issueType,
+          customer_input:     r.customerInput,
+          suggested_response: r.suggestedResponse || null,
+          reasoning:          r.reasoning || null,
+          final_edits:        r.finalEdits || null,
+          enhancement_note:   r.enhancementNote || null,
+          logged_at:          r.loggedAt,
+          operator_id:        submitOperatorId,
+        }
+      })
 
-    const { data: insertedIssues, error: issuesErr } = await supabase
-      .from('ticket_issues')
-      .insert(issues)
-      .select('id, issue_type, final_edits, suggested_response')
-    if (issuesErr) {
-      setSubmitError(issuesErr.message)
-      setSubmitting(false)
-      return
+      const { data: insertedIssues, error: issuesErr } = await supabase
+        .from('ticket_issues')
+        .insert(issues)
+        .select('id, issue_type, final_edits, suggested_response')
+      if (issuesErr) {
+        setSubmitError(issuesErr.message)
+        setSubmitting(false)
+        return
+      }
+
+      // Fire-and-forget: run edit validity eval on Majority/Partial edits with final_edits
+      const evalIds = (insertedIssues ?? [])
+        .filter((r: any) => (r.issue_type === 'Majority edit' || r.issue_type === 'Partial edit') && r.final_edits)
+        .map((r: any) => r.id)
+      if (evalIds.length > 0) {
+        supabase.functions.invoke('eval-issue-v2', {
+          body: { ids: evalIds },
+        }).catch(() => {})
+      }
+
+      // Fire-and-forget: run accuracy + quality evals on all issues that have a suggested response
+      // (Perfect, Majority edit, Partial edit — excludes "No response")
+      const accuracyQualityIds = (insertedIssues ?? [])
+        .filter((r: any) => r.issue_type !== 'No response' && r.suggested_response)
+        .map((r: any) => r.id)
+      if (accuracyQualityIds.length > 0) {
+        supabase.functions.invoke('eval-accuracy', {
+          body: { ids: accuracyQualityIds },
+        }).catch(() => {})
+        supabase.functions.invoke('eval-quality', {
+          body: { ids: accuracyQualityIds },
+        }).catch(() => {})
+      }
     }
 
     setSubmitting(false)
@@ -302,30 +346,6 @@ export default function LogTicket() {
     supabase.functions.invoke('zd-ticket-details', {
       body: { tickets: [{ supabase_id: ticket.id, ticket_number: active.ticketNumber.trim() }] },
     }).catch(() => {}) // intentionally swallow — non-critical enrichment
-
-    // Fire-and-forget: run edit validity eval on Majority/Partial edits with final_edits
-    const evalIds = (insertedIssues ?? [])
-      .filter((r: any) => (r.issue_type === 'Majority edit' || r.issue_type === 'Partial edit') && r.final_edits)
-      .map((r: any) => r.id)
-    if (evalIds.length > 0) {
-      supabase.functions.invoke('eval-issue-v2', {
-        body: { ids: evalIds },
-      }).catch(() => {})
-    }
-
-    // Fire-and-forget: run accuracy + quality evals on all issues that have a suggested response
-    // (Perfect, Majority edit, Partial edit — excludes "No response")
-    const accuracyQualityIds = (insertedIssues ?? [])
-      .filter((r: any) => r.issue_type !== 'No response' && r.suggested_response)
-      .map((r: any) => r.id)
-    if (accuracyQualityIds.length > 0) {
-      supabase.functions.invoke('eval-accuracy', {
-        body: { ids: accuracyQualityIds },
-      }).catch(() => {})
-      supabase.functions.invoke('eval-quality', {
-        body: { ids: accuracyQualityIds },
-      }).catch(() => {})
-    }
 
     // Remove the submitted tab; if it was this operator's last one, replace
     // with a fresh tab for the SAME operator — other operators' tabs are
@@ -350,7 +370,7 @@ export default function LogTicket() {
   const otherDetailRequired = active.category === 'Other'
   const canSubmit      = ticketValid && active.category &&
     (!otherDetailRequired || active.otherDetail.trim().length > 0) &&
-    active.responses.length > 0 &&
+    (active.mode === 'full_auto' || active.responses.length > 0) &&
     !!active.operatorId && !operatorLoading
   const operatorMismatch = !!active.operatorId && !!selectedOperator && active.operatorId !== selectedOperator.id
 
@@ -428,7 +448,26 @@ export default function LogTicket() {
           Ticket details
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>Mode</label>
+            <div style={{ display: 'flex', gap: 8, maxWidth: 320 }}>
+              {(['copilot', 'full_auto'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => updateActive({ mode: m })}
+                  style={{
+                    flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    padding: '9px 12px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
+                    border: active.mode === m ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
+                    background: active.mode === m ? 'rgba(155,89,208,0.06)' : '#fff',
+                    color: active.mode === m ? '#9B59D0' : '#58595B',
+                  }}
+                >{m === 'copilot' ? 'CoPilot' : 'Full Auto'}</button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: active.mode === 'full_auto' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
                 Ticket number <span style={{ color: '#e53e3e' }}>*</span>
@@ -494,6 +533,22 @@ export default function LogTicket() {
                 <option value="Other">Other</option>
               </select>
             </div>
+            {active.mode === 'full_auto' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>Unique ID</label>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
+                </div>
+                <input
+                  value={active.fullAutoExternalId}
+                  onChange={e => updateActive({ fullAutoExternalId: e.target.value })}
+                  placeholder="gameLM conversation / ticket ID…"
+                  style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                />
+              </div>
+            )}
           </div>
 
           {/* "Other" detail — required when Other is selected */}
@@ -518,7 +573,9 @@ export default function LogTicket() {
         </div>
       </div>
 
-      {/* Add gameLM response */}
+      {/* Add gameLM response — CoPilot only; Full Auto has no draft-to-edit
+          step, so there's nothing here to grade (see the Mode toggle above). */}
+      {active.mode === 'copilot' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #CEA4FF', padding: 24 }}>
         <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
           Add gameLM response
@@ -666,8 +723,10 @@ export default function LogTicket() {
           </button>
         </div>
       </div>
+      )}
 
-      {/* Responses logged */}
+      {/* Responses logged — CoPilot only, see above */}
+      {active.mode === 'copilot' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <button
           onClick={() => setResponsesExpanded(x => !x)}
@@ -752,6 +811,7 @@ export default function LogTicket() {
           </div>
         )}
       </div>
+      )}
 
       {/* Supporting detail */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
