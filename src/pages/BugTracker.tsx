@@ -27,6 +27,11 @@ interface BugReport {
   reported_by: string | null
   created_at: string
   evidence: EvidenceFile[]
+  // Full Auto only -- there's no "suggested response a human reviews" step
+  // in that mode, so this is the actual engagement/outcome signal instead.
+  // Same four-value taxonomy as the real Zendesk resolution tier (see
+  // zendesk-snapshot-metrics) so a logged bug is comparable to the KPI data.
+  resolution_outcome: 'non_automated' | 'assisted_escalation' | 'contained_resolution' | 'core_resolution' | null
   // Triage assistant — set by classify-bug-report, confirmed/overridden by a reviewer
   canonical_bug_id: string | null
   linear_issue_id: string | null
@@ -119,6 +124,7 @@ interface FormState {
   actualOutcome: string
   failingComponent: string
   additionalContext: string
+  resolutionOutcome: string
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -132,6 +138,19 @@ const FAILING_COMPONENTS = [
   { value: 'verification_kyc',    label: 'Verification / KYC' },
   { value: 'other',               label: 'Other' },
 ]
+
+// Full Auto's engagement/outcome signal -- matches the real Zendesk
+// resolution-tier values (zendesk-snapshot-metrics' RESOLUTION_TIER_VALUES,
+// prefix dropped since this isn't the raw ZD tag, just the same taxonomy).
+const RESOLUTION_OUTCOMES = [
+  { value: 'non_automated',        label: 'Non-automated (routed to human)' },
+  { value: 'assisted_escalation',  label: 'Assisted escalation' },
+  { value: 'contained_resolution', label: 'Contained resolution' },
+  { value: 'core_resolution',      label: 'Core resolution (fully automated)' },
+]
+function resolutionOutcomeLabel(val: string | null) {
+  return RESOLUTION_OUTCOMES.find(r => r.value === val)?.label ?? val ?? '—'
+}
 
 const MAX_EVIDENCE_FILES = 5
 const MAX_EVIDENCE_SIZE  = 25 * 1024 * 1024 // 25MB per file
@@ -166,7 +185,7 @@ const TRIAGE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: s
 const EMPTY_FORM: FormState = {
   mode: '', severity: '', ticketId: '', ticketNumber: '', playerInput: '',
   suggestedResponse: '', expectedOutcome: '', actualOutcome: '',
-  failingComponent: '', additionalContext: '',
+  failingComponent: '', additionalContext: '', resolutionOutcome: '',
 }
 
 // ── Small helpers ────────────────────────────────────────────────────────────
@@ -286,7 +305,8 @@ function buildCopyText(bug: BugReport): string {
     '',
   ]
   if (bug.player_input)       lines.push('Player Input:', bug.player_input, '')
-  if (bug.suggested_response) lines.push('gameLM Suggested:', bug.suggested_response, '')
+  if (bug.suggested_response) lines.push(bug.mode === 'full_auto' ? "gameLM's Response/Action:" : 'gameLM Suggested:', bug.suggested_response, '')
+  if (bug.resolution_outcome) lines.push(`Resolution Outcome: ${resolutionOutcomeLabel(bug.resolution_outcome)}`, '')
   lines.push('Expected Outcome:', bug.expected_outcome, '')
   lines.push('Actual Outcome:', bug.actual_outcome, '')
   if (bug.failing_component)  lines.push(`Failing Component: ${failLabel(bug.failing_component)}`, '')
@@ -552,7 +572,7 @@ export default function BugTracker() {
   async function submitBug() {
     if (!form.mode || !form.severity || !form.expectedOutcome.trim() || !form.actualOutcome.trim()) return
     setSubmitting(true)
-    await supabase.from('bug_reports').insert({
+    const payload: Record<string, unknown> = {
       operator_id:        selectedOperator?.id ?? null,
       ticket_id:          form.ticketId.trim()          || null,
       ticket_number:      form.ticketNumber.trim()      || null,
@@ -567,7 +587,16 @@ export default function BugTracker() {
       status:             'open',
       reported_by:        user?.email ?? null,
       evidence,
-    })
+      resolution_outcome: form.resolutionOutcome || null,
+    }
+    // resolution_outcome is a newer column -- if its migration hasn't run
+    // yet, retry without it rather than losing the whole submission over one
+    // field (same lesson as Learn's content_preview outage).
+    const first = await supabase.from('bug_reports').insert(payload)
+    if (first.error) {
+      const { resolution_outcome, ...withoutResolutionOutcome } = payload
+      await supabase.from('bug_reports').insert(withoutResolutionOutcome)
+    }
     await fetchBugs()
     setForm(EMPTY_FORM)
     setEvidence([])
@@ -662,12 +691,12 @@ export default function BugTracker() {
 
   // Export CSV (admin)
   function exportCSV() {
-    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket ID', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Additional Context', 'Evidence', 'Reported By', 'Date']
+    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket ID', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Resolution Outcome', 'Additional Context', 'Evidence', 'Reported By', 'Date']
     const rows = filteredBugs.map(b => [
       shortId(b.id), MODE_CONFIG[b.mode]?.label ?? b.mode, b.severity, b.status,
       b.ticket_id ?? '', b.ticket_number ?? '', failLabel(b.failing_component),
       b.expected_outcome, b.actual_outcome,
-      b.player_input ?? '', b.suggested_response ?? '',
+      b.player_input ?? '', b.suggested_response ?? '', resolutionOutcomeLabel(b.resolution_outcome),
       b.additional_context ?? '', (b.evidence ?? []).map(e => e.url).join(' '), b.reported_by ?? '', fmtDate(b.created_at),
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
     const csv = [headers.join(','), ...rows].join('\n')
@@ -820,16 +849,35 @@ export default function BugTracker() {
               />
             </div>
             <div>
-              <label style={labelStyle}>gameLM suggested response</label>
+              <label style={labelStyle}>{form.mode === 'full_auto' ? "gameLM's actual response/action" : 'gameLM suggested response'}</label>
               <textarea
                 value={form.suggestedResponse}
                 onChange={e => setForm(f => ({ ...f, suggestedResponse: e.target.value }))}
-                placeholder="What did gameLM suggest?"
+                placeholder={form.mode === 'full_auto' ? 'What did gameLM actually say or do?' : 'What did gameLM suggest?'}
                 rows={4}
                 style={inputStyle}
               />
             </div>
           </div>
+
+          {/* Full Auto only -- there's no "suggested response a human reviews"
+              step in that mode, so this is the real engagement/outcome signal,
+              same taxonomy as the automated Zendesk KPI data. */}
+          {form.mode === 'full_auto' && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Resolution outcome</label>
+              <select
+                value={form.resolutionOutcome}
+                onChange={e => setForm(f => ({ ...f, resolutionOutcome: e.target.value }))}
+                style={{ ...inputStyle, height: 40, resize: 'none', cursor: 'pointer', maxWidth: 360 }}
+              >
+                <option value="">— select if known —</option>
+                {RESOLUTION_OUTCOMES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Expected + Actual */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -1402,11 +1450,17 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                     <DetailBox label="Player Input" value={bug.player_input} />
                   )}
                   {bug.suggested_response && (
-                    <DetailBox label="gameLM Suggested" value={bug.suggested_response} />
+                    <DetailBox label={bug.mode === 'full_auto' ? "gameLM's Response/Action" : 'gameLM Suggested'} value={bug.suggested_response} />
                   )}
                   <DetailBox label="Expected Outcome" value={bug.expected_outcome} />
                   <DetailBox label="Actual Outcome" value={bug.actual_outcome} highlight />
                 </div>
+
+                {bug.mode === 'full_auto' && bug.resolution_outcome && (
+                  <div style={{ marginBottom: 12 }}>
+                    <Badge label={`Resolution: ${resolutionOutcomeLabel(bug.resolution_outcome)}`} color="#9B59D0" bg="rgba(155,89,208,0.09)" />
+                  </div>
+                )}
 
                 <BugTriagePanel
                   bug={bug}

@@ -57,6 +57,7 @@ function bugFieldsText(bug: any): string {
     `Failing component (as tagged by reporter): ${bug.failing_component ?? 'not specified'}`,
     bug.player_input ? `Player conversation input: ${bug.player_input}` : null,
     bug.suggested_response ? `gameLM's suggested/actual response in the conversation: ${bug.suggested_response}` : null,
+    bug.mode === 'full_auto' && bug.resolution_outcome ? `Resolution outcome (Full Auto engagement signal, no human review step in this mode): ${bug.resolution_outcome}` : null,
     bug.expected_outcome ? `Expected outcome (as reported by CS agent): ${bug.expected_outcome}` : `Expected outcome: not filled out by the reporter`,
     bug.actual_outcome ? `Actual outcome (as reported by CS agent): ${bug.actual_outcome}` : `Actual outcome: not filled out by the reporter`,
     bug.additional_context ? `Additional context from reporter: ${bug.additional_context}` : null,
