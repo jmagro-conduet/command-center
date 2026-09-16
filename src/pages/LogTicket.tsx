@@ -398,7 +398,7 @@ export default function LogTicket() {
   const otherDetailRequired = active.category === 'Other'
   const canSubmit      = ticketValid && active.category &&
     (!otherDetailRequired || active.otherDetail.trim().length > 0) &&
-    (active.mode === 'full_auto' || active.responses.length > 0) &&
+    (active.mode === 'full_auto' ? active.notes.trim().length > 0 : active.responses.length > 0) &&
     !!active.operatorId && !operatorLoading
   const operatorMismatch = !!active.operatorId && !!selectedOperator && active.operatorId !== selectedOperator.id
 
@@ -846,7 +846,33 @@ export default function LogTicket() {
       </div>
       )}
 
-      {/* Supporting detail */}
+      {/* Scenario — Full Auto's equivalent of CoPilot's Issue Type: there's no
+          draft to grade, so instead of a fixed edit-distance taxonomy, the
+          agent describes in their own words what happened. Reuses the same
+          `notes` field CoPilot's Supporting detail card writes to (below),
+          just surfaced here as the primary, required field for this mode. */}
+      {active.mode === 'full_auto' && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #CEA4FF', padding: 24 }}>
+          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
+            Scenario
+          </h2>
+          <Field label="What happened" required>
+            <textarea
+              value={active.notes}
+              onChange={e => updateActive({ notes: e.target.value })}
+              placeholder="Describe the scenario you're logging — what did the player ask, and what did gameLM do?"
+              rows={4}
+              style={textareaStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+            />
+          </Field>
+        </div>
+      )}
+
+      {/* Supporting detail — CoPilot only; Full Auto's Scenario card above
+          already collects `notes` as its primary field. */}
+      {active.mode === 'copilot' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
         <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 16 }}>
           Supporting detail
@@ -863,6 +889,7 @@ export default function LogTicket() {
           />
         </Field>
       </div>
+      )}
 
       {/* Submit */}
       {submitError && (

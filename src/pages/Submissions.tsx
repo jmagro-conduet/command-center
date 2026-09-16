@@ -1213,6 +1213,9 @@ interface FullAutoRow {
   agent: string
   agentEmail: string
   createdAt: string
+  // The agent's free-text description of what happened -- Full Auto's
+  // equivalent of CoPilot's Issue Type, since there's no draft to grade.
+  scenario: string
 }
 
 function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: string | null; onBackToCopilot: () => void }) {
@@ -1230,7 +1233,7 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
       setLoading(true)
       let q = supabase
         .from('tickets')
-        .select('id, ticket_number, ticket_category, other_category_detail, external_ticket_id, agent_name, agent_email, created_at', { count: 'exact' })
+        .select('id, ticket_number, ticket_category, other_category_detail, external_ticket_id, agent_name, agent_email, created_at, notes', { count: 'exact' })
         .eq('mode', 'full_auto')
         .order('created_at', { ascending: false })
       if (operatorId) q = q.eq('operator_id', operatorId)
@@ -1248,6 +1251,7 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
         agent: t.agent_name ?? '',
         agentEmail: t.agent_email ?? '',
         createdAt: t.created_at,
+        scenario: t.notes ?? '',
       })))
       setTotal(count ?? 0)
       setLoading(false)
@@ -1259,8 +1263,8 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
   useEffect(() => { setPage(1) }, [search, dateFrom, dateTo])
 
   function exportCSV() {
-    const headers = ['Ticket #', 'Category', 'Unique ID', 'Agent', 'Agent Email', 'Date']
-    const csvRows = rows.map(r => [r.ticketNumber, r.category, r.externalTicketId, r.agent, r.agentEmail, formatDate(r.createdAt)].map(csvField).join(','))
+    const headers = ['Ticket #', 'Category', 'Unique ID', 'Agent', 'Agent Email', 'Date', 'Scenario']
+    const csvRows = rows.map(r => [r.ticketNumber, r.category, r.externalTicketId, r.agent, r.agentEmail, formatDate(r.createdAt), r.scenario].map(csvField).join(','))
     const csv = [headers.join(','), ...csvRows].join('\n')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -1356,16 +1360,20 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
           </div>
         ) : (
           rows.map(r => (
-            <div key={r.id} style={{
-              display: 'grid', gridTemplateColumns: '110px 1fr 160px 160px 1fr 180px',
-              padding: '11px 20px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.05)',
-            }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
-              <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.externalTicketId || '—'}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agentEmail || '—'}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{formatDate(r.createdAt)}</span>
+            <div key={r.id} style={{ padding: '11px 20px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 160px 160px 1fr 180px', alignItems: 'center' }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.externalTicketId || '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agentEmail || '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{formatDate(r.createdAt)}</span>
+              </div>
+              {r.scenario && (
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 6, lineHeight: 1.5 }}>
+                  <span style={{ fontWeight: 600, color: '#9B59D0' }}>Scenario: </span>{r.scenario}
+                </p>
+              )}
             </div>
           ))
         )}
