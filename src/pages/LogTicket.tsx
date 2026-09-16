@@ -4,6 +4,10 @@ import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
 
 const TICKET_MAX = 20
+// Short by design -- a scannable tag for checking test variety/volume across
+// many rows in Submissions, not a description. A textarea invites a
+// paragraph that reads fine one at a time but doesn't scan or export well.
+const SCENARIO_MAX = 60
 const draftKey = (email: string) => `logticket_draft_v2_${email}`
 
 function validateTicketNumber(t: string): string | null {
@@ -847,25 +851,40 @@ export default function LogTicket() {
       )}
 
       {/* Scenario — Full Auto's equivalent of CoPilot's Issue Type: there's no
-          draft to grade, so instead of a fixed edit-distance taxonomy, the
-          agent describes in their own words what happened. Reuses the same
-          `notes` field CoPilot's Supporting detail card writes to (below),
-          just surfaced here as the primary, required field for this mode. */}
+          draft to grade, so instead of a fixed edit-distance taxonomy, this
+          is a short tag for what happened. Deliberately a single-line,
+          capped input rather than a textarea -- a paragraph doesn't scan
+          across many rows in Submissions or group meaningfully once
+          exported, which is the actual point of this field (checking test
+          variety/volume, not documenting one ticket in depth). Reuses the
+          same `notes` field CoPilot's Supporting detail card writes to
+          (below), just surfaced here as the primary, required field. */}
       {active.mode === 'full_auto' && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #CEA4FF', padding: 24 }}>
           <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
             Scenario
           </h2>
-          <Field label="What happened" required>
-            <textarea
-              value={active.notes}
-              onChange={e => updateActive({ notes: e.target.value })}
-              placeholder="Describe the scenario you're logging — what did the player ask, and what did gameLM do?"
-              rows={4}
-              style={textareaStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-            />
+          <Field label="What happened — a short tag, not a description" required>
+            <div style={{ position: 'relative' }}>
+              <input
+                value={active.notes}
+                onChange={e => updateActive({ notes: e.target.value.slice(0, SCENARIO_MAX) })}
+                placeholder="e.g. Trustly redemption error, AMOE question…"
+                maxLength={SCENARIO_MAX}
+                style={inputStyle}
+                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+              />
+              {active.notes.length > 0 && (
+                <span style={{
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
+                  pointerEvents: 'none',
+                }}>
+                  {active.notes.length}/{SCENARIO_MAX}
+                </span>
+              )}
+            </div>
           </Field>
         </div>
       )}

@@ -1343,10 +1343,10 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
       {/* Table */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '110px 1fr 160px 160px 1fr 180px',
+          display: 'grid', gridTemplateColumns: '110px 130px 1fr 130px 120px 130px',
           padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)',
         }}>
-          {['Ticket #', 'Category', 'Unique ID', 'Agent', 'Agent Email', 'Date'].map(h => (
+          {['Ticket #', 'Category', 'Scenario', 'Agent', 'Unique ID', 'Date'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -1360,20 +1360,16 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
           </div>
         ) : (
           rows.map(r => (
-            <div key={r.id} style={{ padding: '11px 20px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 160px 160px 1fr 180px', alignItems: 'center' }}>
+            <div key={r.id} style={{
+              display: 'grid', gridTemplateColumns: '110px 130px 1fr 130px 120px 130px',
+              padding: '11px 20px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.05)',
+            }}>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.externalTicketId || '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.scenario}>{r.scenario || '—'}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agentEmail || '—'}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.externalTicketId || '—'}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{formatDate(r.createdAt)}</span>
-              </div>
-              {r.scenario && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 6, lineHeight: 1.5 }}>
-                  <span style={{ fontWeight: 600, color: '#9B59D0' }}>Scenario: </span>{r.scenario}
-                </p>
-              )}
             </div>
           ))
         )}
