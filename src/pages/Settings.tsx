@@ -11,6 +11,7 @@ type SettingsTab = 'general' | 'users' | 'evals' | 'config'
 
 interface Team {
   id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean; fullAutoEnabled: boolean
+  copilotEnabled: boolean
   linearProjects: { id: string; name: string }[]
 }
 
@@ -583,21 +584,27 @@ export default function Settings({ initialTab }: SettingsProps) {
     // (migration not run) — otherwise an unknown column would fail this
     // query and no operators would load in Admin Settings at all.
     let data: any[] | null
-    const first = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled, linear_projects').order('name')
+    const first = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled, copilot_enabled, linear_projects').order('name')
     if (!first.error) {
       data = first.data
     } else {
-      const second = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled').order('name')
+      const second = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled, linear_projects').order('name')
       if (!second.error) {
         data = second.data
       } else {
-        const fallback = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode').order('name')
-        data = fallback.data
+        const third = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode, full_auto_enabled').order('name')
+        if (!third.error) {
+          data = third.data
+        } else {
+          const fallback = await supabase.from('operators').select('id, name, zendesk_brand_id, is_qa_mode').order('name')
+          data = fallback.data
+        }
       }
     }
     setTeams((data ?? []).map((o: any) => ({
       id: o.id, name: o.name, zendeskBrandId: o.zendesk_brand_id ?? null, isQaMode: !!o.is_qa_mode,
       fullAutoEnabled: !!o.full_auto_enabled,
+      copilotEnabled: o.copilot_enabled ?? true,
       linearProjects: Array.isArray(o.linear_projects) ? o.linear_projects : [],
     })))
     setTeamsLoading(false)
@@ -673,9 +680,23 @@ export default function Settings({ initialTab }: SettingsProps) {
   async function toggleFullAuto() {
     if (!configTarget) return
     const next = !configTarget.fullAutoEnabled
+    // Blocked from turning both off at once -- see toggleCopilotEnabled.
+    if (!next && !configTarget.copilotEnabled) return
     await supabase.from('operators').update({ full_auto_enabled: next }).eq('id', configTarget.id)
     setConfigTarget(t => t && { ...t, fullAutoEnabled: next })
     setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, fullAutoEnabled: next } : t))
+  }
+
+  // Together with fullAutoEnabled, decides which mode(s) LogTicket shows for
+  // this operator. Blocked from turning both off at once -- an operator with
+  // neither enabled would have no way to log a ticket at all.
+  async function toggleCopilotEnabled() {
+    if (!configTarget) return
+    const next = !configTarget.copilotEnabled
+    if (!next && !configTarget.fullAutoEnabled) return
+    await supabase.from('operators').update({ copilot_enabled: next }).eq('id', configTarget.id)
+    setConfigTarget(t => t && { ...t, copilotEnabled: next })
+    setTeams(ts => ts.map(t => t.id === configTarget.id ? { ...t, copilotEnabled: next } : t))
   }
 
   async function deleteTeam(id: string, name: string) {
@@ -2173,6 +2194,33 @@ export default function Settings({ initialTab }: SettingsProps) {
                       Adds a "Full Auto" tab next to CoPilot on {configTarget.name}'s Executive Summary, showing the
                       manually entered snapshots below. Use for operators being migrated toward the production Full
                       Auto dashboard — turn off (or leave off) for everyone else.
+                    </p>
+                  </div>
+                </div>
+
+                {/* CoPilot ticket logging */}
+                <div
+                  onClick={toggleCopilotEnabled}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                    padding: '10px 14px', borderRadius: 10, marginTop: 10,
+                    background: configTarget.copilotEnabled ? 'rgba(155,89,208,0.07)' : 'rgba(0,0,0,0.03)',
+                    border: `1.5px solid ${configTarget.copilotEnabled ? 'rgba(155,89,208,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={configTarget.copilotEnabled}
+                    onChange={() => {}}
+                    style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+                  />
+                  <div>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                      CoPilot ticket logging
+                    </p>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                      Together with Full Auto preview above, decides what {configTarget.name}'s agents see on Log Ticket: both on shows a Mode toggle, exactly one on skips the toggle and locks to that mode — e.g. turn this off for a Full Auto-only operator so agents never see CoPilot's edit-grading flow. Can't turn both off at once.
                     </p>
                   </div>
                 </div>

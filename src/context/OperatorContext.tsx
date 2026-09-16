@@ -19,6 +19,12 @@ export interface Operator {
   // dashboard — shows a second "Full Auto" tab on Executive Summary with
   // manually-entered preview data. False (default) hides it entirely.
   fullAutoEnabled: boolean
+  // Together with fullAutoEnabled, decides which mode(s) LogTicket shows for
+  // this operator -- both true shows a Mode toggle, exactly one true skips
+  // the toggle and locks to that mode (e.g. Modo is Full Auto-only, so its
+  // agents never see CoPilot's edit-grading flow at all). Defaults true --
+  // CoPilot has always been the unconditional default for every operator.
+  copilotEnabled: boolean
 }
 
 interface OperatorContextValue {
@@ -37,18 +43,24 @@ function mapOperator(o: any): Operator {
     id: o.id, name: o.name, slug: o.slug, logoUrl: o.logo_url ?? null,
     zendeskBrandId: o.zendesk_brand_id ?? null, isQaMode: !!o.is_qa_mode,
     fullAutoEnabled: !!o.full_auto_enabled,
+    // ?? true, not !!, so a row from the pre-migration fallback below (which
+    // doesn't select this column at all) still defaults to enabled.
+    copilotEnabled: o.copilot_enabled ?? true,
   }
 }
 
-const OPERATOR_COLS = 'id, name, slug, logo_url, zendesk_brand_id, is_qa_mode, full_auto_enabled'
+const OPERATOR_COLS = 'id, name, slug, logo_url, zendesk_brand_id, is_qa_mode, full_auto_enabled, copilot_enabled'
+const OPERATOR_COLS_FULL_AUTO_ONLY = 'id, name, slug, logo_url, zendesk_brand_id, is_qa_mode, full_auto_enabled'
 const OPERATOR_COLS_PRE_MIGRATION = 'id, name, slug, logo_url, zendesk_brand_id, is_qa_mode'
 
-// Falls back to the pre-migration column list if `full_auto_enabled` doesn't
-// exist yet on `operators` -- otherwise a single unknown-column error would
-// fail this query entirely and no operator would ever load app-wide.
+// Falls back progressively if a newer column doesn't exist yet on
+// `operators` -- otherwise a single unknown-column error would fail this
+// query entirely and no operator would ever load app-wide.
 async function selectOperators(applyFilter: (q: any) => any): Promise<any[]> {
   const first = await applyFilter(supabase.from('operators').select(OPERATOR_COLS))
   if (!first.error) return first.data ?? []
+  const second = await applyFilter(supabase.from('operators').select(OPERATOR_COLS_FULL_AUTO_ONLY))
+  if (!second.error) return second.data ?? []
   const fallback = await applyFilter(supabase.from('operators').select(OPERATOR_COLS_PRE_MIGRATION))
   return fallback.data ?? []
 }

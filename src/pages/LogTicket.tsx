@@ -70,12 +70,18 @@ interface TabState {
   draftEnhancementNote: string
 }
 
-function newTab(id: number, operator?: { id: string; name: string } | null): TabState {
+// Full Auto-only if that's the ONLY mode this operator has enabled;
+// CoPilot in every other case (both enabled, or — defensively — neither).
+function defaultModeFor(operator?: { copilotEnabled: boolean; fullAutoEnabled: boolean } | null): 'copilot' | 'full_auto' {
+  return operator?.fullAutoEnabled && !operator.copilotEnabled ? 'full_auto' : 'copilot'
+}
+
+function newTab(id: number, operator?: { id: string; name: string; copilotEnabled: boolean; fullAutoEnabled: boolean } | null): TabState {
   return {
     id,
     operatorId: operator?.id ?? null,
     operatorName: operator?.name ?? null,
-    mode: 'copilot', fullAutoExternalId: '',
+    mode: defaultModeFor(operator), fullAutoExternalId: '',
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
@@ -115,6 +121,28 @@ export default function LogTicket() {
       t.operatorId ? t : { ...t, operatorId: selectedOperator.id, operatorName: selectedOperator.name }
     ))
   }, [selectedOperator?.id, allTabs])
+
+  // Corrects any tab whose mode isn't actually allowed for its own pinned
+  // operator -- covers a draft restored from localStorage set under a
+  // different operator's config, and an operator whose CoPilot/Full Auto
+  // toggles changed after the tab was created. Compares each tab against
+  // selectedOperator only when it's actually that tab's own operator (an
+  // inactive background tab for a DIFFERENT operator is left alone, same
+  // principle as the operator-scoping elsewhere on this page).
+  useEffect(() => {
+    if (!selectedOperator) return
+    setAllTabs(tabs => {
+      let changed = false
+      const next = tabs.map(t => {
+        if (t.operatorId !== selectedOperator.id) return t
+        const allowed = t.mode === 'full_auto' ? selectedOperator.fullAutoEnabled : selectedOperator.copilotEnabled
+        if (allowed) return t
+        changed = true
+        return { ...t, mode: defaultModeFor(selectedOperator) }
+      })
+      return changed ? next : tabs
+    })
+  }, [selectedOperator?.id, selectedOperator?.copilotEnabled, selectedOperator?.fullAutoEnabled, allTabs])
 
   // Tabs for other operators stay open in the background, not visible or
   // reachable while you're on a different one — switching operators is
@@ -448,24 +476,29 @@ export default function LogTicket() {
           Ticket details
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>Mode</label>
-            <div style={{ display: 'flex', gap: 8, maxWidth: 320 }}>
-              {(['copilot', 'full_auto'] as const).map(m => (
-                <button
-                  key={m}
-                  onClick={() => updateActive({ mode: m })}
-                  style={{
-                    flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                    padding: '9px 12px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
-                    border: active.mode === m ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
-                    background: active.mode === m ? 'rgba(155,89,208,0.06)' : '#fff',
-                    color: active.mode === m ? '#9B59D0' : '#58595B',
-                  }}
-                >{m === 'copilot' ? 'CoPilot' : 'Full Auto'}</button>
-              ))}
+          {/* Only shown when this operator actually has both modes enabled
+              (Settings -> operator config) -- an operator scoped to just one
+              mode goes straight to that mode's fields, no choice to make. */}
+          {!!selectedOperator?.copilotEnabled && !!selectedOperator?.fullAutoEnabled && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>Mode</label>
+              <div style={{ display: 'flex', gap: 8, maxWidth: 320 }}>
+                {(['copilot', 'full_auto'] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => updateActive({ mode: m })}
+                    style={{
+                      flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      padding: '9px 12px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
+                      border: active.mode === m ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
+                      background: active.mode === m ? 'rgba(155,89,208,0.06)' : '#fff',
+                      color: active.mode === m ? '#9B59D0' : '#58595B',
+                    }}
+                  >{m === 'copilot' ? 'CoPilot' : 'Full Auto'}</button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: active.mode === 'full_auto' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
