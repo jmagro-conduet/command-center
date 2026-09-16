@@ -8,6 +8,12 @@ const TICKET_MAX = 20
 // many rows in Submissions, not a description. A textarea invites a
 // paragraph that reads fine one at a time but doesn't scan or export well.
 const SCENARIO_MAX = 60
+const SCENARIO_TYPES = [
+  { value: 'happy_path',    label: 'Happy path' },
+  { value: 'edge_case',     label: 'Edge case' },
+  { value: 'out_of_scope',  label: 'Out of Scope' },
+  { value: 'cross_cutting', label: 'Cross-cutting' },
+]
 const draftKey = (email: string) => `logticket_draft_v2_${email}`
 
 function validateTicketNumber(t: string): string | null {
@@ -60,6 +66,9 @@ interface TabState {
   // just a submission record (ticket number, category, optional unique id).
   mode: 'copilot' | 'full_auto'
   fullAutoExternalId: string
+  // What kind of test case this represents -- alongside the Scenario tag,
+  // the other half of checking variety/volume across submissions.
+  scenarioType: string
   ticketNumber: string
   category: string
   otherDetail: string
@@ -85,7 +94,7 @@ function newTab(id: number, operator?: { id: string; name: string; copilotEnable
     id,
     operatorId: operator?.id ?? null,
     operatorName: operator?.name ?? null,
-    mode: defaultModeFor(operator), fullAutoExternalId: '',
+    mode: defaultModeFor(operator), fullAutoExternalId: '', scenarioType: '',
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
@@ -200,7 +209,7 @@ export default function LogTicket() {
         if (Array.isArray(d.allTabs) && d.allTabs.length > 0) {
           // Backfill fields that didn't exist in older saved drafts.
           const restored: TabState[] = d.allTabs.map((t: any) => ({
-            mode: 'copilot', fullAutoExternalId: '', ...t,
+            mode: 'copilot', fullAutoExternalId: '', scenarioType: '', ...t,
           }))
           setAllTabs(restored)
           setActiveTabId(d.activeTabId ?? d.allTabs[0].id)
@@ -291,22 +300,29 @@ export default function LogTicket() {
     // the agent has since switched operators to work a different tab.
     const submitOperatorId = active.operatorId ?? selectedOperator?.id ?? user?.operatorId ?? null
 
-    const { data: ticket, error: ticketErr } = await supabase
-      .from('tickets')
-      .insert({
-        ticket_number:          active.ticketNumber.trim(),
-        ticket_category:        active.category,
-        other_category_detail:  active.category === 'Other' ? active.otherDetail.trim() : null,
-        agent_name:             user?.name ?? '',
-        agent_email:            user?.email ?? '',
-        agent_team:             user?.operatorTeam ?? null,
-        notes:                  active.notes.trim(),
-        operator_id:            submitOperatorId,
-        mode:                   active.mode,
-        external_ticket_id:     isFullAuto ? (active.fullAutoExternalId.trim() || null) : null,
-      })
-      .select('id')
-      .single()
+    const ticketPayload: Record<string, unknown> = {
+      ticket_number:          active.ticketNumber.trim(),
+      ticket_category:        active.category,
+      other_category_detail:  active.category === 'Other' ? active.otherDetail.trim() : null,
+      agent_name:             user?.name ?? '',
+      agent_email:            user?.email ?? '',
+      agent_team:             user?.operatorTeam ?? null,
+      notes:                  active.notes.trim(),
+      operator_id:            submitOperatorId,
+      mode:                   active.mode,
+      external_ticket_id:     isFullAuto ? (active.fullAutoExternalId.trim() || null) : null,
+      scenario_type:          isFullAuto ? (active.scenarioType || null) : null,
+    }
+    let { data: ticket, error: ticketErr } = await supabase.from('tickets').insert(ticketPayload).select('id').single()
+    // scenario_type is a newer column -- if its migration hasn't run yet,
+    // retry without it rather than losing the whole submission over one
+    // field (same lesson as Learn's content_preview outage).
+    if (ticketErr) {
+      const { scenario_type, ...withoutScenarioType } = ticketPayload
+      const retry = await supabase.from('tickets').insert(withoutScenarioType).select('id').single()
+      ticket = retry.data
+      ticketErr = retry.error
+    }
 
     if (ticketErr || !ticket) {
       setSubmitError(ticketErr?.message ?? 'Failed to save ticket.')
@@ -402,7 +418,7 @@ export default function LogTicket() {
   const otherDetailRequired = active.category === 'Other'
   const canSubmit      = ticketValid && active.category &&
     (!otherDetailRequired || active.otherDetail.trim().length > 0) &&
-    (active.mode === 'full_auto' ? active.notes.trim().length > 0 : active.responses.length > 0) &&
+    (active.mode === 'full_auto' ? active.notes.trim().length > 0 && !!active.scenarioType : active.responses.length > 0) &&
     !!active.operatorId && !operatorLoading
   const operatorMismatch = !!active.operatorId && !!selectedOperator && active.operatorId !== selectedOperator.id
 
@@ -864,28 +880,44 @@ export default function LogTicket() {
           <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
             Scenario
           </h2>
-          <Field label="What happened — a short tag, not a description" required>
-            <div style={{ position: 'relative' }}>
-              <input
-                value={active.notes}
-                onChange={e => updateActive({ notes: e.target.value.slice(0, SCENARIO_MAX) })}
-                placeholder="e.g. Trustly redemption error, AMOE question…"
-                maxLength={SCENARIO_MAX}
-                style={inputStyle}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: 16 }}>
+            <Field label="What happened — a short tag, not a description" required>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={active.notes}
+                  onChange={e => updateActive({ notes: e.target.value.slice(0, SCENARIO_MAX) })}
+                  placeholder="e.g. Trustly redemption error, AMOE question…"
+                  maxLength={SCENARIO_MAX}
+                  style={inputStyle}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                />
+                {active.notes.length > 0 && (
+                  <span style={{
+                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                    fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
+                    pointerEvents: 'none',
+                  }}>
+                    {active.notes.length}/{SCENARIO_MAX}
+                  </span>
+                )}
+              </div>
+            </Field>
+            <Field label="Scenario type" required>
+              <select
+                value={active.scenarioType}
+                onChange={e => updateActive({ scenarioType: e.target.value })}
+                style={{ ...inputStyle, color: active.scenarioType ? '#000' : '#aaa', cursor: 'pointer' }}
                 onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-              />
-              {active.notes.length > 0 && (
-                <span style={{
-                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
-                  pointerEvents: 'none',
-                }}>
-                  {active.notes.length}/{SCENARIO_MAX}
-                </span>
-              )}
-            </div>
-          </Field>
+              >
+                <option value="">Select type</option>
+                {SCENARIO_TYPES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
         </div>
       )}
 

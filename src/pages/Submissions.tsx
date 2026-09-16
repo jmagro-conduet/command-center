@@ -1205,6 +1205,10 @@ function paginationRange(current: number, total: number): (number | '…')[] {
 // CoPilot view uses. Much lighter than the CoPilot table by design — no issue
 // type, no edit detail, just the submission reference (ticket number,
 // category, optional unique id, who logged it, when).
+const SCENARIO_TYPE_LABELS: Record<string, string> = {
+  happy_path: 'Happy path', edge_case: 'Edge case', out_of_scope: 'Out of Scope', cross_cutting: 'Cross-cutting',
+}
+
 interface FullAutoRow {
   id: string
   ticketNumber: string
@@ -1216,6 +1220,9 @@ interface FullAutoRow {
   // The agent's free-text description of what happened -- Full Auto's
   // equivalent of CoPilot's Issue Type, since there's no draft to grade.
   scenario: string
+  // What kind of test case this represents -- alongside scenario, the other
+  // half of checking variety/volume across submissions.
+  scenarioType: string
 }
 
 function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: string | null; onBackToCopilot: () => void }) {
@@ -1231,17 +1238,22 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
     let cancelled = false
     async function load() {
       setLoading(true)
-      let q = supabase
-        .from('tickets')
-        .select('id, ticket_number, ticket_category, other_category_detail, external_ticket_id, agent_name, agent_email, created_at, notes', { count: 'exact' })
-        .eq('mode', 'full_auto')
-        .order('created_at', { ascending: false })
-      if (operatorId) q = q.eq('operator_id', operatorId)
-      if (search.trim()) q = q.ilike('ticket_number', `%${search.trim()}%`)
-      if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00`)
-      if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`)
-      q = q.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
-      const { data, count } = await q
+      const baseCols = 'id, ticket_number, ticket_category, other_category_detail, external_ticket_id, agent_name, agent_email, created_at, notes'
+      function buildQuery(cols: string) {
+        let q = supabase.from('tickets').select(cols, { count: 'exact' }).eq('mode', 'full_auto').order('created_at', { ascending: false })
+        if (operatorId) q = q.eq('operator_id', operatorId)
+        if (search.trim()) q = q.ilike('ticket_number', `%${search.trim()}%`)
+        if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00`)
+        if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`)
+        return q.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+      }
+      // scenario_type is a newer column -- fall back to the list without it
+      // instead of failing the whole query if its migration hasn't run yet.
+      let { data, count, error } = await buildQuery(`${baseCols}, scenario_type`)
+      if (error) {
+        const fallback = await buildQuery(baseCols)
+        data = fallback.data; count = fallback.count
+      }
       if (cancelled) return
       setRows((data ?? []).map((t: any) => ({
         id: t.id,
@@ -1252,6 +1264,7 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
         agentEmail: t.agent_email ?? '',
         createdAt: t.created_at,
         scenario: t.notes ?? '',
+        scenarioType: t.scenario_type ? (SCENARIO_TYPE_LABELS[t.scenario_type] ?? t.scenario_type) : '',
       })))
       setTotal(count ?? 0)
       setLoading(false)
@@ -1263,8 +1276,8 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
   useEffect(() => { setPage(1) }, [search, dateFrom, dateTo])
 
   function exportCSV() {
-    const headers = ['Ticket #', 'Category', 'Unique ID', 'Agent', 'Agent Email', 'Date', 'Scenario']
-    const csvRows = rows.map(r => [r.ticketNumber, r.category, r.externalTicketId, r.agent, r.agentEmail, formatDate(r.createdAt), r.scenario].map(csvField).join(','))
+    const headers = ['Ticket #', 'Category', 'Scenario', 'Scenario Type', 'Unique ID', 'Agent', 'Agent Email', 'Date']
+    const csvRows = rows.map(r => [r.ticketNumber, r.category, r.scenario, r.scenarioType, r.externalTicketId, r.agent, r.agentEmail, formatDate(r.createdAt)].map(csvField).join(','))
     const csv = [headers.join(','), ...csvRows].join('\n')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -1343,10 +1356,10 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
       {/* Table */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '110px 130px 1fr 130px 120px 130px',
+          display: 'grid', gridTemplateColumns: '100px 120px 1fr 130px 120px 120px',
           padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)',
         }}>
-          {['Ticket #', 'Category', 'Scenario', 'Agent', 'Unique ID', 'Date'].map(h => (
+          {['Ticket #', 'Category', 'Scenario', 'Scenario Type', 'Agent', 'Date'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -1361,14 +1374,14 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
         ) : (
           rows.map(r => (
             <div key={r.id} style={{
-              display: 'grid', gridTemplateColumns: '110px 130px 1fr 130px 120px 130px',
+              display: 'grid', gridTemplateColumns: '100px 120px 1fr 130px 120px 120px',
               padding: '11px 20px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.05)',
             }}>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.scenario}>{r.scenario || '—'}</span>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.scenarioType || '—'}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.externalTicketId || '—'}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{formatDate(r.createdAt)}</span>
             </div>
           ))

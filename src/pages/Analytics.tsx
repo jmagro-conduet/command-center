@@ -1424,7 +1424,11 @@ function TimeRangeFilter({ value, onChange, customRange, onCustomChange }: {
 // day-over-day submission volume and category mix -- activity tracking, not
 // quality grading. Reads `tickets` directly (mode='full_auto'), not
 // ticket_issues, so it can't be affected by (or affect) the CoPilot tabs.
-interface FullAutoTicketRow { createdAt: string; category: string }
+const SCENARIO_TYPE_LABELS: Record<string, string> = {
+  happy_path: 'Happy path', edge_case: 'Edge case', out_of_scope: 'Out of Scope', cross_cutting: 'Cross-cutting',
+}
+
+interface FullAutoTicketRow { createdAt: string; category: string; scenarioType: string | null }
 
 function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
   const [rows, setRows] = useState<FullAutoTicketRow[]>([])
@@ -1434,11 +1438,20 @@ function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
     let cancelled = false
     async function load() {
       setLoading(true)
-      let q = supabase.from('tickets').select('created_at, ticket_category').eq('mode', 'full_auto').order('created_at', { ascending: true })
-      if (operatorId) q = q.eq('operator_id', operatorId)
-      const { data } = await q
+      function buildQuery(cols: string) {
+        let q = supabase.from('tickets').select(cols).eq('mode', 'full_auto').order('created_at', { ascending: true })
+        if (operatorId) q = q.eq('operator_id', operatorId)
+        return q
+      }
+      // scenario_type is a newer column -- fall back to the list without it
+      // instead of failing the whole query if its migration hasn't run yet.
+      let { data, error } = await buildQuery('created_at, ticket_category, scenario_type')
+      if (error) {
+        const fallback = await buildQuery('created_at, ticket_category')
+        data = fallback.data
+      }
       if (cancelled) return
-      setRows((data ?? []).map((t: any) => ({ createdAt: t.created_at, category: t.ticket_category || 'Uncategorized' })))
+      setRows((data ?? []).map((t: any) => ({ createdAt: t.created_at, category: t.ticket_category || 'Uncategorized', scenarioType: t.scenario_type ?? null })))
       setLoading(false)
     }
     load()
@@ -1462,6 +1475,19 @@ function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
   const byCategory = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const r of rows) counts[r.category] = (counts[r.category] ?? 0) + 1
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])
+  }, [rows])
+
+  // The other half of the variety/volume check -- not just what topics got
+  // tested, but whether coverage is just happy paths repeated, or actually
+  // spans edge cases, out-of-scope handling, and cross-cutting scenarios too.
+  const byScenarioType = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const r of rows) {
+      if (!r.scenarioType) continue
+      const label = SCENARIO_TYPE_LABELS[r.scenarioType] ?? r.scenarioType
+      counts[label] = (counts[label] ?? 0) + 1
+    }
     return Object.entries(counts).sort((a, b) => b[1] - a[1])
   }, [rows])
 
@@ -1515,6 +1541,26 @@ function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
           ))}
         </div>
       </div>
+
+      {byScenarioType.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
+          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 2 }}>By Scenario Type</p>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+            Whether coverage spans happy paths, edge cases, out-of-scope handling, and cross-cutting scenarios, not just one repeated
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {byScenarioType.map(([type, count], i) => (
+              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 190, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
+                <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
+                  <div style={{ width: `${(count / byScenarioType[0][1]) * 100}%`, height: '100%', borderRadius: 100, background: BAR_COLORS[i % BAR_COLORS.length] }} />
+                </div>
+                <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 30, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
