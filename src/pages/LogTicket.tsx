@@ -14,6 +14,10 @@ const SCENARIO_TYPES = [
   { value: 'out_of_scope',  label: 'Out of Scope' },
   { value: 'cross_cutting', label: 'Cross-cutting' },
 ]
+const SUCCESS_OPTIONS = [
+  { value: 'fully_automated',       label: 'Fully Automated' },
+  { value: 'escalated_successfully', label: 'Escalated Successfully' },
+]
 const draftKey = (email: string) => `logticket_draft_v2_${email}`
 
 function validateTicketNumber(t: string): string | null {
@@ -69,6 +73,9 @@ interface TabState {
   // What kind of test case this represents -- alongside the Scenario tag,
   // the other half of checking variety/volume across submissions.
   scenarioType: string
+  // Optional -- did this go well either way (gameLM handled it fully on its
+  // own, or correctly escalated)? Left blank when that's not a clean yes.
+  success: string
   ticketNumber: string
   category: string
   otherDetail: string
@@ -94,7 +101,7 @@ function newTab(id: number, operator?: { id: string; name: string; copilotEnable
     id,
     operatorId: operator?.id ?? null,
     operatorName: operator?.name ?? null,
-    mode: defaultModeFor(operator), fullAutoExternalId: '', scenarioType: '',
+    mode: defaultModeFor(operator), fullAutoExternalId: '', scenarioType: '', success: '',
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
@@ -209,7 +216,7 @@ export default function LogTicket() {
         if (Array.isArray(d.allTabs) && d.allTabs.length > 0) {
           // Backfill fields that didn't exist in older saved drafts.
           const restored: TabState[] = d.allTabs.map((t: any) => ({
-            mode: 'copilot', fullAutoExternalId: '', scenarioType: '', ...t,
+            mode: 'copilot', fullAutoExternalId: '', scenarioType: '', success: '', ...t,
           }))
           setAllTabs(restored)
           setActiveTabId(d.activeTabId ?? d.allTabs[0].id)
@@ -235,6 +242,18 @@ export default function LogTicket() {
     // Strip non-digits and enforce max length
     const val = raw.replace(/\D/g, '').slice(0, TICKET_MAX)
     updateActive({ ticketNumber: val })
+  }
+
+  // Full Auto operators without a real backing ticket system (e.g. no
+  // Kustomer/Zendesk instance, like Furlong) have no source of truth for
+  // ticket numbers -- agents typing their own risk collisions. Millisecond
+  // epoch time plus a random 3-digit suffix is unique enough in practice
+  // (16 digits, comfortably under TICKET_MAX) without needing a DB
+  // round-trip or a uniqueness constraint. Purely numeric so it passes
+  // straight through the digit-only stripping above.
+  function generateTicketNumber() {
+    const generated = `${Date.now()}${Math.floor(100 + Math.random() * 900)}`.slice(0, TICKET_MAX)
+    updateActive({ ticketNumber: generated })
   }
 
   function addResponse() {
@@ -312,14 +331,15 @@ export default function LogTicket() {
       mode:                   active.mode,
       external_ticket_id:     isFullAuto ? (active.fullAutoExternalId.trim() || null) : null,
       scenario_type:          isFullAuto ? (active.scenarioType || null) : null,
+      success:                isFullAuto ? (active.success || null) : null,
     }
     let { data: ticket, error: ticketErr } = await supabase.from('tickets').insert(ticketPayload).select('id').single()
-    // scenario_type is a newer column -- if its migration hasn't run yet,
-    // retry without it rather than losing the whole submission over one
-    // field (same lesson as Learn's content_preview outage).
+    // scenario_type/success are newer columns -- if either migration hasn't
+    // run yet, retry without them rather than losing the whole submission
+    // over one field (same lesson as Learn's content_preview outage).
     if (ticketErr) {
-      const { scenario_type, ...withoutScenarioType } = ticketPayload
-      const retry = await supabase.from('tickets').insert(withoutScenarioType).select('id').single()
+      const { scenario_type, success, ...withoutNewerFields } = ticketPayload
+      const retry = await supabase.from('tickets').insert(withoutNewerFields).select('id').single()
       ticket = retry.data
       ticketErr = retry.error
     }
@@ -418,7 +438,9 @@ export default function LogTicket() {
   const otherDetailRequired = active.category === 'Other'
   const canSubmit      = ticketValid && active.category &&
     (!otherDetailRequired || active.otherDetail.trim().length > 0) &&
-    (active.mode === 'full_auto' ? active.notes.trim().length > 0 && !!active.scenarioType : active.responses.length > 0) &&
+    (active.mode === 'full_auto'
+      ? active.notes.trim().length > 0 && !!active.scenarioType && active.fullAutoExternalId.trim().length > 0
+      : active.responses.length > 0) &&
     !!active.operatorId && !operatorLoading
   const operatorMismatch = !!active.operatorId && !!selectedOperator && active.operatorId !== selectedOperator.id
 
@@ -525,25 +547,46 @@ export default function LogTicket() {
               <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
                 Ticket number <span style={{ color: '#e53e3e' }}>*</span>
               </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  value={active.ticketNumber}
-                  onChange={e => handleTicketNumberChange(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="e.g. 10482"
-                  maxLength={TICKET_MAX}
-                  style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
-                />
-                {active.ticketNumber.length > 0 && (
-                  <span style={{
-                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                    fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
-                    pointerEvents: 'none',
-                  }}>
-                    {active.ticketNumber.length}/{TICKET_MAX}
-                  </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    value={active.ticketNumber}
+                    onChange={e => handleTicketNumberChange(e.target.value)}
+                    inputMode="numeric"
+                    placeholder="e.g. 10482"
+                    maxLength={TICKET_MAX}
+                    style={inputStyle}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+                  />
+                  {active.ticketNumber.length > 0 && (
+                    <span style={{
+                      position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                      fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
+                      pointerEvents: 'none',
+                    }}>
+                      {active.ticketNumber.length}/{TICKET_MAX}
+                    </span>
+                  )}
+                </div>
+                {/* Full Auto only -- operators with no real backing ticket
+                    system (no Kustomer/Zendesk) have nothing to type here
+                    that's guaranteed unique otherwise. */}
+                {active.mode === 'full_auto' && (
+                  <button
+                    type="button"
+                    onClick={generateTicketNumber}
+                    title="Generate a guaranteed-unique placeholder number"
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap',
+                      padding: '0 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)',
+                      background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                  >
+                    Auto-generate
+                  </button>
                 )}
               </div>
             </div>
@@ -588,10 +631,9 @@ export default function LogTicket() {
             </div>
             {active.mode === 'full_auto' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>Unique ID</label>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
-                </div>
+                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+                  Ticket ID <span style={{ color: '#e53e3e' }}>*</span>
+                </label>
                 <input
                   value={active.fullAutoExternalId}
                   onChange={e => updateActive({ fullAutoExternalId: e.target.value })}
@@ -880,7 +922,7 @@ export default function LogTicket() {
           <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
             Scenario
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 180px', gap: 16 }}>
             <Field label="What happened — a short tag, not a description" required>
               <div style={{ position: 'relative' }}>
                 <input
@@ -913,6 +955,20 @@ export default function LogTicket() {
               >
                 <option value="">Select type</option>
                 {SCENARIO_TYPES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Success">
+              <select
+                value={active.success}
+                onChange={e => updateActive({ success: e.target.value })}
+                style={{ ...inputStyle, color: active.success ? '#000' : '#aaa', cursor: 'pointer' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
+              >
+                <option value="">— optional —</option>
+                {SUCCESS_OPTIONS.map(s => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>

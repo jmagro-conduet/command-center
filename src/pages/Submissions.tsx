@@ -1204,16 +1204,21 @@ function paginationRange(current: number, total: number): (number | '…')[] {
 // this reads `tickets` directly instead of the ticket_issues!inner query the
 // CoPilot view uses. Much lighter than the CoPilot table by design — no issue
 // type, no edit detail, just the submission reference (ticket number,
-// category, optional unique id, who logged it, when).
+// ticket ID, category, scenario + scenario type, who logged it, when).
 const SCENARIO_TYPE_LABELS: Record<string, string> = {
   happy_path: 'Happy path', edge_case: 'Edge case', out_of_scope: 'Out of Scope', cross_cutting: 'Cross-cutting',
+}
+const SUCCESS_LABELS: Record<string, string> = {
+  fully_automated: 'Fully Automated', escalated_successfully: 'Escalated Successfully',
 }
 
 interface FullAutoRow {
   id: string
   ticketNumber: string
   category: string
-  externalTicketId: string
+  // Required -- the real ticket/conversation id, since operators without a
+  // backing Kustomer/Zendesk instance have no other reliable reference.
+  ticketId: string
   agent: string
   agentEmail: string
   createdAt: string
@@ -1223,6 +1228,9 @@ interface FullAutoRow {
   // What kind of test case this represents -- alongside scenario, the other
   // half of checking variety/volume across submissions.
   scenarioType: string
+  // Optional -- did this go well either way (fully automated, or a clean
+  // escalation)? Blank when that's not a clear yes.
+  success: string
 }
 
 function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: string | null; onBackToCopilot: () => void }) {
@@ -1247,24 +1255,30 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
         if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`)
         return q.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
       }
-      // scenario_type is a newer column -- fall back to the list without it
-      // instead of failing the whole query if its migration hasn't run yet.
-      let { data, count, error } = await buildQuery(`${baseCols}, scenario_type`)
+      // scenario_type/success are newer columns -- fall back progressively
+      // instead of failing the whole query if a migration hasn't run yet.
+      let { data, count, error } = await buildQuery(`${baseCols}, scenario_type, success`)
       if (error) {
-        const fallback = await buildQuery(baseCols)
-        data = fallback.data; count = fallback.count
+        const second = await buildQuery(`${baseCols}, scenario_type`)
+        if (!second.error) {
+          data = second.data; count = second.count
+        } else {
+          const fallback = await buildQuery(baseCols)
+          data = fallback.data; count = fallback.count
+        }
       }
       if (cancelled) return
       setRows((data ?? []).map((t: any) => ({
         id: t.id,
         ticketNumber: t.ticket_number ?? '',
         category: t.ticket_category === 'Other' ? (t.other_category_detail || 'Other') : (t.ticket_category ?? ''),
-        externalTicketId: t.external_ticket_id ?? '',
+        ticketId: t.external_ticket_id ?? '',
         agent: t.agent_name ?? '',
         agentEmail: t.agent_email ?? '',
         createdAt: t.created_at,
         scenario: t.notes ?? '',
         scenarioType: t.scenario_type ? (SCENARIO_TYPE_LABELS[t.scenario_type] ?? t.scenario_type) : '',
+        success: t.success ? (SUCCESS_LABELS[t.success] ?? t.success) : '',
       })))
       setTotal(count ?? 0)
       setLoading(false)
@@ -1276,8 +1290,8 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
   useEffect(() => { setPage(1) }, [search, dateFrom, dateTo])
 
   function exportCSV() {
-    const headers = ['Ticket #', 'Category', 'Scenario', 'Scenario Type', 'Unique ID', 'Agent', 'Agent Email', 'Date']
-    const csvRows = rows.map(r => [r.ticketNumber, r.category, r.scenario, r.scenarioType, r.externalTicketId, r.agent, r.agentEmail, formatDate(r.createdAt)].map(csvField).join(','))
+    const headers = ['Ticket #', 'Ticket ID', 'Category', 'Scenario', 'Scenario Type', 'Success', 'Agent', 'Agent Email', 'Date']
+    const csvRows = rows.map(r => [r.ticketNumber, r.ticketId, r.category, r.scenario, r.scenarioType, r.success, r.agent, r.agentEmail, formatDate(r.createdAt)].map(csvField).join(','))
     const csv = [headers.join(','), ...csvRows].join('\n')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -1356,10 +1370,10 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
       {/* Table */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{
-          display: 'grid', gridTemplateColumns: '100px 120px 1fr 130px 120px 120px',
+          display: 'grid', gridTemplateColumns: '90px 110px 110px 1fr 130px 110px 110px',
           padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)',
         }}>
-          {['Ticket #', 'Category', 'Scenario', 'Scenario Type', 'Agent', 'Date'].map(h => (
+          {['Ticket #', 'Ticket ID', 'Category', 'Scenario', 'Scenario Type', 'Agent', 'Date'].map(h => (
             <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
@@ -1374,13 +1388,22 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
         ) : (
           rows.map(r => (
             <div key={r.id} style={{
-              display: 'grid', gridTemplateColumns: '100px 120px 1fr 130px 120px 120px',
+              display: 'grid', gridTemplateColumns: '90px 110px 110px 1fr 130px 110px 110px',
               padding: '11px 20px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.05)',
             }}>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.ticketId || '—'}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.scenario}>{r.scenario || '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.scenarioType || '—'}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.scenarioType || '—'}</span>
+                  {r.success && (
+                    <span title={r.success} style={{
+                      width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                      background: r.success === 'Fully Automated' ? '#166534' : '#b45309',
+                    }} />
+                  )}
+                </span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{formatDate(r.createdAt)}</span>
             </div>
