@@ -579,11 +579,11 @@ export default function LogTicket() {
                     title="Generate a guaranteed-unique placeholder number"
                     style={{
                       fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap',
-                      padding: '0 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)',
-                      background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                      padding: '0 14px', borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.35)',
+                      background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer', transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.06)')}
                   >
                     Auto-generate
                   </button>
