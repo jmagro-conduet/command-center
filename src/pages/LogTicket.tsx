@@ -14,7 +14,7 @@ const SCENARIO_TYPES = [
   { value: 'out_of_scope',  label: 'Out of Scope' },
   { value: 'cross_cutting', label: 'Cross-cutting' },
 ]
-const END_RESULT_OPTIONS = [
+const OUTCOME_OPTIONS = [
   { value: 'fully_automated',        label: 'Fully Automated' },
   { value: 'escalated_successfully', label: 'Escalated Successfully' },
   { value: 'failed',                 label: 'Failed' },
@@ -74,9 +74,9 @@ interface TabState {
   // What kind of test case this represents -- alongside the Scenario tag,
   // the other half of checking variety/volume across submissions.
   scenarioType: string
-  // Optional -- how did this end: gameLM handled it fully on its own,
+  // Optional -- how this turned out: gameLM handled it fully on its own,
   // correctly escalated, or failed. Left blank when that's not a clean call.
-  endResult: string
+  outcome: string
   ticketNumber: string
   category: string
   otherDetail: string
@@ -102,7 +102,7 @@ function newTab(id: number, operator?: { id: string; name: string; copilotEnable
     id,
     operatorId: operator?.id ?? null,
     operatorName: operator?.name ?? null,
-    mode: defaultModeFor(operator), fullAutoExternalId: '', scenarioType: '', endResult: '',
+    mode: defaultModeFor(operator), fullAutoExternalId: '', scenarioType: '', outcome: '',
     ticketNumber: '', category: '', otherDetail: '', notes: '', responses: [],
     draftTicketId: '', draftCustomer: '', draftSuggested: '', draftIssueType: '',
     draftReasoning: '', draftFinalEdits: '', draftEnhancementNote: '',
@@ -217,7 +217,7 @@ export default function LogTicket() {
         if (Array.isArray(d.allTabs) && d.allTabs.length > 0) {
           // Backfill fields that didn't exist in older saved drafts.
           const restored: TabState[] = d.allTabs.map((t: any) => ({
-            mode: 'copilot', fullAutoExternalId: '', scenarioType: '', endResult: '', ...t,
+            mode: 'copilot', fullAutoExternalId: '', scenarioType: '', outcome: '', ...t,
           }))
           setAllTabs(restored)
           setActiveTabId(d.activeTabId ?? d.allTabs[0].id)
@@ -332,14 +332,14 @@ export default function LogTicket() {
       mode:                   active.mode,
       external_ticket_id:     isFullAuto ? (active.fullAutoExternalId.trim() || null) : null,
       scenario_type:          isFullAuto ? (active.scenarioType || null) : null,
-      end_result:             isFullAuto ? (active.endResult || null) : null,
+      outcome:                isFullAuto ? (active.outcome || null) : null,
     }
     let { data: ticket, error: ticketErr } = await supabase.from('tickets').insert(ticketPayload).select('id').single()
-    // scenario_type/end_result are newer columns -- if either migration
+    // scenario_type/outcome are newer columns -- if either migration
     // hasn't run yet, retry without them rather than losing the whole
     // submission over one field (same lesson as Learn's content_preview outage).
     if (ticketErr) {
-      const { scenario_type, end_result, ...withoutNewerFields } = ticketPayload
+      const { scenario_type, outcome, ...withoutNewerFields } = ticketPayload
       const retry = await supabase.from('tickets').insert(withoutNewerFields).select('id').single()
       ticket = retry.data
       ticketErr = retry.error
@@ -960,16 +960,16 @@ export default function LogTicket() {
                 ))}
               </select>
             </Field>
-            <Field label="End result">
+            <Field label="Outcome">
               <select
-                value={active.endResult}
-                onChange={e => updateActive({ endResult: e.target.value })}
-                style={{ ...inputStyle, color: active.endResult ? '#000' : '#aaa', cursor: 'pointer' }}
+                value={active.outcome}
+                onChange={e => updateActive({ outcome: e.target.value })}
+                style={{ ...inputStyle, color: active.outcome ? '#000' : '#aaa', cursor: 'pointer' }}
                 onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               >
                 <option value="">— optional —</option>
-                {END_RESULT_OPTIONS.map(s => (
+                {OUTCOME_OPTIONS.map(s => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>

@@ -1208,7 +1208,7 @@ function paginationRange(current: number, total: number): (number | '…')[] {
 const SCENARIO_TYPE_LABELS: Record<string, string> = {
   happy_path: 'Happy path', edge_case: 'Edge case', out_of_scope: 'Out of Scope', cross_cutting: 'Cross-cutting',
 }
-const END_RESULT_LABELS: Record<string, string> = {
+const OUTCOME_LABELS: Record<string, string> = {
   fully_automated: 'Fully Automated', escalated_successfully: 'Escalated Successfully', failed: 'Failed',
 }
 
@@ -1228,9 +1228,9 @@ interface FullAutoRow {
   // What kind of test case this represents -- alongside scenario, the other
   // half of checking variety/volume across submissions.
   scenarioType: string
-  // Optional -- how this ended: fully automated, a clean escalation, or
-  // failed. Blank when that's not a clear call.
-  endResult: string
+  // Optional -- how this turned out: fully automated, a clean escalation,
+  // or failed. Blank when that's not a clear call.
+  outcome: string
 }
 
 function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: string | null; onBackToCopilot: () => void }) {
@@ -1255,9 +1255,9 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
         if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`)
         return q.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
       }
-      // scenario_type/end_result are newer columns -- fall back progressively
+      // scenario_type/outcome are newer columns -- fall back progressively
       // instead of failing the whole query if a migration hasn't run yet.
-      let { data, count, error } = await buildQuery(`${baseCols}, scenario_type, end_result`)
+      let { data, count, error } = await buildQuery(`${baseCols}, scenario_type, outcome`)
       if (error) {
         const second = await buildQuery(`${baseCols}, scenario_type`)
         if (!second.error) {
@@ -1278,7 +1278,7 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
         createdAt: t.created_at,
         scenario: t.notes ?? '',
         scenarioType: t.scenario_type ? (SCENARIO_TYPE_LABELS[t.scenario_type] ?? t.scenario_type) : '',
-        endResult: t.end_result ? (END_RESULT_LABELS[t.end_result] ?? t.end_result) : '',
+        outcome: t.outcome ? (OUTCOME_LABELS[t.outcome] ?? t.outcome) : '',
       })))
       setTotal(count ?? 0)
       setLoading(false)
@@ -1290,8 +1290,8 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
   useEffect(() => { setPage(1) }, [search, dateFrom, dateTo])
 
   function exportCSV() {
-    const headers = ['Ticket #', 'Ticket ID', 'Category', 'Scenario', 'Scenario Type', 'End Result', 'Agent', 'Agent Email', 'Date']
-    const csvRows = rows.map(r => [r.ticketNumber, r.ticketId, r.category, r.scenario, r.scenarioType, r.endResult, r.agent, r.agentEmail, formatDate(r.createdAt)].map(csvField).join(','))
+    const headers = ['Ticket #', 'Ticket ID', 'Category', 'Scenario', 'Scenario Type', 'Outcome', 'Agent', 'Agent Email', 'Date']
+    const csvRows = rows.map(r => [r.ticketNumber, r.ticketId, r.category, r.scenario, r.scenarioType, r.outcome, r.agent, r.agentEmail, formatDate(r.createdAt)].map(csvField).join(','))
     const csv = [headers.join(','), ...csvRows].join('\n')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -1397,10 +1397,10 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.scenario}>{r.scenario || '—'}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
                   <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.scenarioType || '—'}</span>
-                  {r.endResult && (
-                    <span title={r.endResult} style={{
+                  {r.outcome && (
+                    <span title={r.outcome} style={{
                       width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                      background: r.endResult === 'Fully Automated' ? '#166534' : r.endResult === 'Failed' ? '#e53e3e' : '#b45309',
+                      background: r.outcome === 'Fully Automated' ? '#166534' : r.outcome === 'Failed' ? '#e53e3e' : '#b45309',
                     }} />
                   )}
                 </span>
