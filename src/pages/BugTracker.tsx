@@ -23,7 +23,7 @@ interface BugReport {
   additional_context: string | null
   mode: 'copilot' | 'full_auto'
   severity: 'low' | 'medium' | 'high' | 'critical'
-  status: 'open' | 'investigating' | 'resolved' | 'wont_fix'
+  status: 'open' | 'investigating' | 'resolved' | 'wont_fix' | 'duplicate' | 'related'
   reported_by: string | null
   created_at: string
   evidence: EvidenceFile[]
@@ -168,6 +168,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   investigating: { label: 'Investigating', color: '#b45309', bg: 'rgba(180,83,9,0.08)' },
   resolved:      { label: 'Resolved',      color: '#166534', bg: 'rgba(22,101,52,0.08)' },
   wont_fix:      { label: "Won't Fix",     color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
+  // Being addressed via another ticket, not sitting open on its own --
+  // duplicate matches the purple already used for the "Linked as duplicate"
+  // badge; related gets its own color (not investigating's amber) so the
+  // two don't read as the same thing in the Status column.
+  duplicate:     { label: 'Duplicate',     color: '#9B59D0', bg: 'rgba(155,89,208,0.09)' },
+  related:       { label: 'Related',       color: '#0e7490', bg: 'rgba(8,145,178,0.1)' },
 }
 
 const MODE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -632,20 +638,27 @@ export default function BugTracker() {
     setTriaging(prev => { const n = new Set(prev); n.delete(bugId); return n })
   }
 
-  // Reviewer confirms a "duplicate" classification -- links this bug to
-  // whatever it matched (a Command Center canonical bug, or an existing
-  // Linear issue) so it reads as a supporting example rather than a
-  // standalone ticket.
+  // Reviewer confirms a triage match. "Duplicate" links this bug to whatever
+  // it matched (a Command Center canonical bug, or an existing Linear issue)
+  // so it reads as a supporting example rather than a standalone ticket --
+  // and either way, sets status so the Bug Tracker list shows at a glance
+  // that this is being addressed via another ticket. "Related" doesn't merge
+  // anything (it's still its own ticket), just marks the status.
   async function confirmMatch(bug: BugReport) {
     if (!bug.triage_matched_id || !bug.triage_matched_source) return
+    if (bug.triage_status === 'related') {
+      await supabase.from('bug_reports').update({ status: 'related' }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, status: 'related' } : b))
+      return
+    }
     if (bug.triage_matched_source === 'command_center') {
-      await supabase.from('bug_reports').update({ canonical_bug_id: bug.triage_matched_id }).eq('id', bug.id)
-      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, canonical_bug_id: bug.triage_matched_id } : b))
+      await supabase.from('bug_reports').update({ canonical_bug_id: bug.triage_matched_id, status: 'duplicate' }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, canonical_bug_id: bug.triage_matched_id, status: 'duplicate' } : b))
     } else {
       const title = matchedTitles[bug.id] ?? ''
       const identifier = title.includes(':') ? title.split(':')[0].trim() : null
-      await supabase.from('bug_reports').update({ linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id }).eq('id', bug.id)
-      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id } : b))
+      await supabase.from('bug_reports').update({ linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id, status: 'duplicate' }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id, status: 'duplicate' } : b))
     }
   }
 
@@ -1636,7 +1649,7 @@ function BugTriagePanel({
         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginTop: 8 }}>{bug.triage_reasoning}</p>
       )}
 
-      {hasMatch && !alreadyLinked && (
+      {hasMatch && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
             Matched:{' '}
@@ -1646,13 +1659,19 @@ function BugTriagePanel({
               <span style={{ color: '#000' }}>{matchedTitle ?? `Bug ${shortId(bug.triage_matched_id!)}`}</span>
             )}
           </span>
-          {isAdmin && bug.triage_status === 'duplicate' && (
+          {isAdmin && bug.triage_status === 'duplicate' && !alreadyLinked && (
             <button onClick={onConfirmMatch} style={{
               fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
               border: '1.5px solid rgba(155,89,208,0.4)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer',
             }}>{bug.triage_matched_source === 'linear' ? 'Link to this Linear ticket' : 'Confirm as duplicate'}</button>
           )}
-          {isAdmin && (
+          {isAdmin && bug.triage_status === 'related' && bug.status !== 'related' && (
+            <button onClick={onConfirmMatch} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+              border: '1.5px solid rgba(8,145,178,0.4)', background: 'rgba(8,145,178,0.08)', color: '#0e7490', cursor: 'pointer',
+            }}>Mark as related</button>
+          )}
+          {isAdmin && !(alreadyLinked || bug.status === 'related') && (
             <button onClick={onDismiss} style={{
               fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
               border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',

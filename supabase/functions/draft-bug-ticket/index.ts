@@ -30,7 +30,7 @@ const DRAFT_SCHEMA = {
   properties: {
     title: { type: 'string', description: 'short, specific ticket title (under ~100 chars) describing the concrete failure -- not a generic label like "gameLM bug"' },
     description: { type: 'string', description: 'narrative paragraph(s) framing the bug for someone with zero prior context: what happened, in what mode/scenario, who is affected. Ground strictly in the reported fields and evidence -- never invent specifics not present in the input. May reference the ticket_number/ticket_id if one was given. If there are multiple distinct observations (e.g. more than one thing went wrong), use a "- " bulleted list instead of run-on prose.' },
-    steps_to_recreate: { type: 'string', description: 'ALWAYS a numbered list ("1. ", "2. ", ...) reconstructing how to reproduce the issue from the reported conversation/context. If a ticket_number or ticket_id was provided, end with a final line "Ticket ID: <that id>"; otherwise omit that line entirely rather than inventing one.' },
+    steps_to_recreate: { type: 'string', description: 'ALWAYS a numbered list ("1. ", "2. ", ...) reconstructing how to reproduce the issue from the reported conversation/context. After the numbered steps, end with reference lines pulled verbatim from the input fields (never invent an id): if a ticket_number or ticket_id was provided for THIS bug, add a line "Ticket ID: <that id>"; if a related/duplicate ticket reference was provided, add a further line "Related Ticket ID: <that reference>" so the draft cross-references it. Omit either line entirely rather than inventing one.' },
     expected_behavior: { type: 'string', description: 'what gameLM should have done -- from the reporter\'s expected_outcome field, cleaned up into a clear statement. Use a "- " bulleted list instead of one run-on sentence if there\'s more than one distinct expected behavior (e.g. different handling per scenario).' },
     actual_behavior: { type: 'string', description: 'what gameLM actually did -- from the reporter\'s actual_outcome field, cleaned up into a clear statement. Use a "- " bulleted list instead of one run-on sentence if there\'s more than one distinct observed behavior.' },
     low_confidence_sections: {
@@ -49,8 +49,9 @@ const DRAFT_SCHEMA = {
   },
 }
 
-function bugFieldsText(bug: any): string {
+function bugFieldsText(bug: any, relatedRef: string | null): string {
   return [
+    `Ticket ID: ${bug.ticket_id ?? 'not provided'}`,
     `Ticket #: ${bug.ticket_number ?? 'not provided'}`,
     `Mode: ${bug.mode}`,
     `Severity (as tagged by reporter): ${bug.severity ?? 'not specified'}`,
@@ -61,11 +62,37 @@ function bugFieldsText(bug: any): string {
     bug.expected_outcome ? `Expected outcome (as reported by CS agent): ${bug.expected_outcome}` : `Expected outcome: not filled out by the reporter`,
     bug.actual_outcome ? `Actual outcome (as reported by CS agent): ${bug.actual_outcome}` : `Actual outcome: not filled out by the reporter`,
     bug.additional_context ? `Additional context from reporter: ${bug.additional_context}` : null,
+    relatedRef ? `Related/duplicate ticket identified by QA triage (${bug.triage_status}): ${relatedRef} -- cite this as "Related Ticket ID" in steps_to_recreate so the draft cross-references it.` : null,
   ].filter(Boolean).join('\n')
 }
 
-function buildBugContent(bug: any): any[] {
-  const content: any[] = [{ type: 'text', text: bugFieldsText(bug) }]
+// The triage step (classify-bug-report) only persists an id -- a bug_reports
+// uuid for a Command Center match, or a Linear issue URL for a Linear match
+// -- not a human-readable label, so drafting has to resolve one itself.
+// Command Center: look up the matched row's own ticket_id/ticket_number.
+// Linear: the identifier (e.g. CON-1934) is embedded in the issue URL path,
+// so it can be read off directly without a second Linear API round trip.
+async function resolveRelatedTicketRef(bug: any): Promise<string | null> {
+  if (!bug.triage_matched_id || !bug.triage_matched_source) return null
+  if (bug.triage_status !== 'related' && bug.triage_status !== 'duplicate') return null
+
+  if (bug.triage_matched_source === 'command_center') {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/bug_reports?id=eq.${bug.triage_matched_id}&select=ticket_id,ticket_number`, { headers: sb })
+    if (!res.ok) return null
+    const matched = (await res.json())[0]
+    if (!matched) return null
+    if (matched.ticket_id) return `Ticket ID ${matched.ticket_id}`
+    if (matched.ticket_number) return `Ticket #${matched.ticket_number}`
+    return null
+  }
+
+  const url = String(bug.triage_matched_id)
+  const m = url.match(/issue\/([A-Za-z0-9]+-\d+)/)
+  return m ? `${m[1]} (${url})` : url
+}
+
+function buildBugContent(bug: any, relatedRef: string | null): any[] {
+  const content: any[] = [{ type: 'text', text: bugFieldsText(bug, relatedRef) }]
   const evidence = Array.isArray(bug.evidence) ? bug.evidence : []
   for (const ev of evidence) {
     if (typeof ev?.url !== 'string') continue
@@ -95,6 +122,8 @@ Deno.serve(async (req: Request) => {
     const bug = (await bugRes.json())[0]
     if (!bug) return json({ error: 'Bug report not found' }, 404)
 
+    const relatedRef = await resolveRelatedTicketRef(bug)
+
     const system = `You are helping a QA reviewer turn a support agent's raw bug submission into a properly-shaped Linear bug ticket for gameLM engineering. ${SHARED_CONTEXT}
 
 Match this exact real ticket template used by this team:
@@ -114,7 +143,7 @@ Favor scannability: use plain-text "- " bullets or "1. " numbered lists inside a
         model: 'claude-opus-4-8',
         max_tokens: 1800,
         system,
-        messages: [{ role: 'user', content: buildBugContent(bug) }],
+        messages: [{ role: 'user', content: buildBugContent(bug, relatedRef) }],
         output_config: { format: { type: 'json_schema', schema: DRAFT_SCHEMA } },
       }),
     })
