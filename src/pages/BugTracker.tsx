@@ -741,6 +741,20 @@ export default function BugTracker() {
     updateStatus(bugId, 'wont_fix')
   }
 
+  // Theme correctly clustered a real shared cause, but it's an area not
+  // being supported (e.g. an FAQ scenario out of scope for this POC) --
+  // wont_fix already permanently excludes a bug from every future report
+  // run and classify candidate pool (see bug-triage-report/classify-bug-
+  // report), so marking the whole group at once here means it won't keep
+  // resurfacing on every regeneration.
+  async function markThemeOutOfScope(themeIdx: number, theme: TriageTheme) {
+    const selected = themeSelectedIds(themeIdx, theme)
+    const ids = theme.bugs.map(b => b.bug_id).filter(id => selected.has(id))
+    if (ids.length === 0) return
+    await supabase.from('bug_reports').update({ status: 'wont_fix', updated_at: new Date().toISOString() }).in('id', ids)
+    setBugs(prev => prev.map(b => ids.includes(b.id) ? { ...b, status: 'wont_fix' } : b))
+  }
+
   async function draftTicket(bugId: string) {
     setDraftingTicket(bugId)
     setDraftErrors(prev => { const n = { ...prev }; delete n[bugId]; return n })
@@ -1433,6 +1447,18 @@ export default function BugTracker() {
                                   cursor: selected.size === 0 ? 'not-allowed' : 'pointer', opacity: selected.size === 0 ? 0.5 : 1,
                                 }}
                               >{`Log filed ticket for ${selected.size} selected`}</button>
+                            )}
+                            {editingFiledTheme !== i && (
+                              <button
+                                onClick={() => markThemeOutOfScope(i, t)}
+                                disabled={selected.size === 0}
+                                title="Mark selected bugs Won't Fix -- excludes them from every future report and classify run"
+                                style={{
+                                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                                  cursor: selected.size === 0 ? 'not-allowed' : 'pointer', opacity: selected.size === 0 ? 0.5 : 1,
+                                }}
+                              >{`Mark ${selected.size} out of scope`}</button>
                             )}
                             {editingFiledTheme === i && (
                               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
