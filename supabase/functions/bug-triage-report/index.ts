@@ -1,6 +1,10 @@
 // bug-triage-report
-// AI analysis over every open/investigating bug report for an operator. Produces two
-// things in one run:
+// AI analysis over every bug report for an operator that isn't dismissed as
+// Won't Fix -- open, investigating, resolved, duplicate, and related are all
+// included, since a resolved or duplicate-linked bug is still a real
+// occurrence worth counting toward a root-cause theme (and toward a batched
+// Linear draft covering everything in that theme). Produces two things in
+// one run:
 //   1. A per-bug "resolution brief" (description / steps to reproduce / suggested fix /
 //      expected behavior / actual behavior / impact) an engineer can pick up cold —
 //      grounded in the reported fields AND any attached evidence (screenshots/PDFs),
@@ -143,7 +147,7 @@ Deno.serve(async (req: Request) => {
     const generatedBy: string | null = body.generated_by ?? null
     if (!operatorId) return json({ error: 'operator_id is required' }, 400)
 
-    const statuses = ['open', 'investigating']
+    const statuses = ['open', 'investigating', 'resolved', 'duplicate', 'related']
     const statusFilter = statuses.map(s => `"${s}"`).join(',')
     const listRes = await fetch(
       `${SUPABASE_URL}/rest/v1/bug_reports?operator_id=eq.${operatorId}&status=in.(${statusFilter})&select=*&order=created_at.desc`,
@@ -151,7 +155,7 @@ Deno.serve(async (req: Request) => {
     )
     if (!listRes.ok) return json({ error: 'Failed to load bug reports' }, 500)
     const allOpen: any[] = await listRes.json()
-    if (allOpen.length === 0) return json({ error: 'No open or investigating bugs for this operator.' }, 404)
+    if (allOpen.length === 0) return json({ error: 'No bugs to analyze for this operator (all are marked Won\'t Fix, or there are none yet).' }, 404)
 
     const totalOpen = allOpen.length
     const sorted = [...allOpen].sort((a, b) => {

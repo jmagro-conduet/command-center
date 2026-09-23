@@ -381,7 +381,7 @@ export default function BugTracker() {
   const [triageErrors, setTriageErrors] = useState<Record<string, string>>({})
   const [draftingTicket, setDraftingTicket] = useState<string | null>(null)
   const [draftErrors, setDraftErrors]   = useState<Record<string, string>>({})
-  const [draftPreview, setDraftPreview] = useState<{ bugId: string; text: string; lowConfidence: DraftTicket['low_confidence_sections'] } | null>(null)
+  const [draftPreview, setDraftPreview] = useState<{ title: string; text: string; lowConfidence: DraftTicket['low_confidence_sections'] } | null>(null)
   const [draftCopied, setDraftCopied]   = useState(false)
 
   // Evidence upload (Report a Bug tab)
@@ -409,6 +409,13 @@ export default function BugTracker() {
   const [reportHistoryOpen, setReportHistoryOpen] = useState(false)
   const [reportHistoryLoading, setReportHistoryLoading] = useState(false)
   const [reportCopied, setReportCopied]           = useState<string | null>(null)
+  // Per-theme bug selection for "Draft ticket from this theme" -- lets a
+  // reviewer deselect a bug the AI grouped in that doesn't actually belong,
+  // instead of blindly trusting the clustering. Keyed by theme index; a
+  // theme with no entry here defaults to "everything in it is selected."
+  const [themeSelections, setThemeSelections]     = useState<Record<number, Set<string>>>({})
+  const [draftingTheme, setDraftingTheme]         = useState<number | null>(null)
+  const [draftThemeErrors, setDraftThemeErrors]   = useState<Record<number, string>>({})
 
   useEffect(() => { fetchBugs() }, [selectedOperator?.id, user?.email])
 
@@ -703,7 +710,40 @@ export default function BugTracker() {
       setDraftErrors(prev => ({ ...prev, [bugId]: data?.error ?? error?.message ?? 'Draft generation failed.' }))
       return
     }
-    setDraftPreview({ bugId, text: buildCombinedDraftText(data), lowConfidence: data.low_confidence_sections ?? [] })
+    const bug = bugs.find(b => b.id === bugId)
+    setDraftPreview({ title: bug?.ticket_number ? `#${bug.ticket_number}` : '', text: buildCombinedDraftText(data), lowConfidence: data.low_confidence_sections ?? [] })
+  }
+
+  // "Draft ticket from this theme" -- one draft covering every bug still
+  // selected in that theme's grouping, rather than drafting each bug in it
+  // one at a time.
+  function themeSelectedIds(themeIdx: number, theme: TriageTheme): Set<string> {
+    return themeSelections[themeIdx] ?? new Set(theme.bugs.map(b => b.bug_id))
+  }
+
+  function toggleThemeBug(themeIdx: number, theme: TriageTheme, bugId: string) {
+    setThemeSelections(prev => {
+      const current = new Set(prev[themeIdx] ?? theme.bugs.map(b => b.bug_id))
+      if (current.has(bugId)) current.delete(bugId); else current.add(bugId)
+      return { ...prev, [themeIdx]: current }
+    })
+  }
+
+  async function draftTicketFromTheme(themeIdx: number, theme: TriageTheme) {
+    const selected = themeSelectedIds(themeIdx, theme)
+    const ids = theme.bugs.map(b => b.bug_id).filter(id => selected.has(id))
+    if (ids.length === 0) return
+    setDraftingTheme(themeIdx)
+    setDraftThemeErrors(prev => { const n = { ...prev }; delete n[themeIdx]; return n })
+    const { data, error } = await supabase.functions.invoke('draft-bug-ticket', {
+      body: { bug_report_ids: ids, theme_title: theme.title, theme_explanation: theme.explanation },
+    })
+    setDraftingTheme(null)
+    if (error || data?.error) {
+      setDraftThemeErrors(prev => ({ ...prev, [themeIdx]: data?.error ?? error?.message ?? 'Draft generation failed.' }))
+      return
+    }
+    setDraftPreview({ title: theme.title, text: buildCombinedDraftText(data), lowConfidence: data.low_confidence_sections ?? [] })
   }
 
   function updateDraftText(value: string) {
@@ -1141,7 +1181,7 @@ export default function BugTracker() {
               <div>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>Engineering Report</p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6, maxWidth: 620 }}>
-                  AI-drafted resolution briefs for every open bug — description, steps to reproduce, suggested fix, expected/actual behavior, and impact —
+                  AI-drafted resolution briefs for every bug not marked Won't Fix — description, steps to reproduce, suggested fix, expected/actual behavior, and impact —
                   plus a cross-cutting pass looking for shared root causes across bugs tagged under different components.
                 </p>
               </div>
@@ -1250,7 +1290,7 @@ export default function BugTracker() {
           {reportLoading && (
             <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
-                Reading every open bug (and any attached evidence) and drafting resolution briefs — this can take a minute for a large backlog…
+                Reading every bug not marked Won't Fix (and any attached evidence) and drafting resolution briefs — this can take a minute for a large backlog…
               </p>
             </div>
           )}
@@ -1264,20 +1304,52 @@ export default function BugTracker() {
                     Bugs that likely share one deeper cause, even where they were tagged under different components
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {triageReport.themes.map((t, i) => (
-                      <div key={i} style={{ borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)', padding: '12px 14px' }}>
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>{t.title}</p>
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {t.bugs.map(b => (
-                            <span key={b.bug_id} style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.1)', padding: '2px 8px', borderRadius: 100 }}>
-                              {b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
-                              {b.ticket_id && <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />}
-                            </span>
-                          ))}
+                    {triageReport.themes.map((t, i) => {
+                      const selected = themeSelectedIds(i, t)
+                      return (
+                        <div key={i} style={{ borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)', padding: '12px 14px' }}>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>{t.title}</p>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
+                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 6 }}>Click a bug to deselect it before drafting</p>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                            {t.bugs.map(b => {
+                              const isSelected = selected.has(b.bug_id)
+                              return (
+                                <span
+                                  key={b.bug_id}
+                                  onClick={() => toggleThemeBug(i, t, b.bug_id)}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
+                                    color: isSelected ? '#9B59D0' : 'rgba(0,0,0,0.35)',
+                                    background: isSelected ? 'rgba(155,89,208,0.1)' : 'rgba(0,0,0,0.04)',
+                                    padding: '2px 8px', borderRadius: 100, cursor: 'pointer',
+                                    textDecoration: isSelected ? 'none' : 'line-through',
+                                  }}
+                                >
+                                  {b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
+                                  {b.ticket_id && <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />}
+                                </span>
+                              )
+                            })}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => draftTicketFromTheme(i, t)}
+                              disabled={draftingTheme === i || selected.size === 0}
+                              style={{
+                                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                border: 'none', background: '#000', color: '#fff', transition: 'opacity 0.15s',
+                                cursor: draftingTheme === i || selected.size === 0 ? 'not-allowed' : 'pointer',
+                                opacity: draftingTheme === i || selected.size === 0 ? 0.5 : 1,
+                              }}
+                            >{draftingTheme === i ? 'Drafting…' : `Draft ticket from theme (${selected.size} selected)`}</button>
+                            {draftThemeErrors[i] && (
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{draftThemeErrors[i]}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -1336,7 +1408,7 @@ export default function BugTracker() {
 
       {draftPreview && (
         <DraftTicketModal
-          bug={bugs.find(b => b.id === draftPreview.bugId) ?? null}
+          title={draftPreview.title}
           text={draftPreview.text}
           lowConfidence={draftPreview.lowConfidence}
           onChange={updateDraftText}
@@ -1798,8 +1870,8 @@ function BugTriagePanel({
 // One combined, editable field so the whole elaborated ticket can be
 // reviewed and copy/pasted in a single step, rather than grabbing each
 // section separately.
-function DraftTicketModal({ bug, text, lowConfidence, onChange, onClose, onCopy, copied }: {
-  bug: BugReport | null
+function DraftTicketModal({ title, text, lowConfidence, onChange, onClose, onCopy, copied }: {
+  title: string
   text: string
   lowConfidence: DraftTicket['low_confidence_sections']
   onChange: (value: string) => void
@@ -1818,7 +1890,7 @@ function DraftTicketModal({ bug, text, lowConfidence, onChange, onClose, onCopy,
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
           <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>
-            Draft Ticket{bug?.ticket_number ? ` — #${bug.ticket_number}` : ''}
+            Draft Ticket{title ? ` — ${title}` : ''}
           </p>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#58595B', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
         </div>

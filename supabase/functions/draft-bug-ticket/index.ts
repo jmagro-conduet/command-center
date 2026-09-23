@@ -30,7 +30,7 @@ const DRAFT_SCHEMA = {
   properties: {
     title: { type: 'string', description: 'short, specific ticket title (under ~100 chars) describing the concrete failure -- not a generic label like "gameLM bug"' },
     description: { type: 'string', description: 'narrative paragraph(s) framing the bug for someone with zero prior context: what happened, in what mode/scenario, who is affected. Ground strictly in the reported fields and evidence -- never invent specifics not present in the input. May reference the ticket_number/ticket_id if one was given. If there are multiple distinct observations (e.g. more than one thing went wrong), use a "- " bulleted list instead of run-on prose.' },
-    steps_to_recreate: { type: 'string', description: 'ALWAYS a numbered list ("1. ", "2. ", ...) reconstructing how to reproduce the issue from the reported conversation/context. After the numbered steps, end with reference lines pulled verbatim from the input fields (never invent an id): if a ticket_number or ticket_id was provided for THIS bug, add a line "Ticket ID: <that id>"; if one or more related/duplicate ticket references were provided, add one further "Related Ticket ID: <that reference>" line per reference so the draft cross-references all of them. Omit any of these lines entirely rather than inventing one.' },
+    steps_to_recreate: { type: 'string', description: 'ALWAYS a numbered list ("1. ", "2. ", ...) reconstructing how to reproduce the issue from the reported conversation/context. After the numbered steps, end with reference lines pulled verbatim from the input fields (never invent an id): one "Ticket ID: <id>" line per contributing bug that has a ticket_number/ticket_id -- there is usually just one, but there may be several when this draft covers a themed group of bugs; if a related/duplicate ticket reference was separately identified via QA triage, add one further "Related Ticket ID: <reference>" line per reference too. Omit any of these lines entirely rather than inventing one.' },
     expected_behavior: { type: 'string', description: 'what gameLM should have done -- from the reporter\'s expected_outcome field, cleaned up into a clear statement. Use a "- " bulleted list instead of one run-on sentence if there\'s more than one distinct expected behavior (e.g. different handling per scenario).' },
     actual_behavior: { type: 'string', description: 'what gameLM actually did -- from the reporter\'s actual_outcome field, cleaned up into a clear statement. Use a "- " bulleted list instead of one run-on sentence if there\'s more than one distinct observed behavior.' },
     low_confidence_sections: {
@@ -92,8 +92,7 @@ async function resolveRelatedTicketRefs(bug: any): Promise<string[]> {
   return refs
 }
 
-function buildBugContent(bug: any, relatedRefs: string[]): any[] {
-  const content: any[] = [{ type: 'text', text: bugFieldsText(bug, relatedRefs) }]
+function pushEvidence(content: any[], bug: any): void {
   const evidence = Array.isArray(bug.evidence) ? bug.evidence : []
   for (const ev of evidence) {
     if (typeof ev?.url !== 'string') continue
@@ -105,6 +104,29 @@ function buildBugContent(bug: any, relatedRefs: string[]): any[] {
       content.push({ type: 'text', text: `[Attached file not directly readable by the model: ${ev.name}]` })
     }
   }
+}
+
+function buildBugContent(bug: any, relatedRefs: string[]): any[] {
+  const content: any[] = [{ type: 'text', text: bugFieldsText(bug, relatedRefs) }]
+  pushEvidence(content, bug)
+  return content
+}
+
+// Drafting one ticket from a themed GROUP of bugs (Engineering Report's
+// Root Cause Themes -> "Draft ticket from this theme") rather than a single
+// bug -- no triage-match resolution here, since the whole point is that
+// these bugs ARE the group, not a link to something else.
+function buildMultiBugContent(bugs: any[], theme?: { title: string; explanation?: string }): any[] {
+  const content: any[] = [{
+    type: 'text',
+    text: theme
+      ? `These ${bugs.length} bug reports were grouped by an engineering triage pass as sharing one root cause -- draft ONE ticket that covers all of them together, not one per bug.\nTheme: ${theme.title}${theme.explanation ? `\nWhy grouped together: ${theme.explanation}` : ''}`
+      : `These ${bugs.length} bug reports were selected together -- draft ONE ticket that covers all of them.`,
+  }]
+  bugs.forEach((bug, i) => {
+    content.push({ type: 'text', text: `--- Bug ${i + 1} of ${bugs.length} ---\n${bugFieldsText(bug, [])}` })
+    pushEvidence(content, bug)
+  })
   return content
 }
 
@@ -115,15 +137,31 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}))
-    const bugReportId: string = body.bug_report_id
-    if (!bugReportId) return json({ error: 'bug_report_id is required' }, 400)
+    const bugReportId: string | undefined = body.bug_report_id
+    const bugReportIds: string[] | undefined = Array.isArray(body.bug_report_ids) ? body.bug_report_ids.filter((id: unknown) => typeof id === 'string') : undefined
+    const themeTitle: string | undefined = typeof body.theme_title === 'string' ? body.theme_title : undefined
+    const themeExplanation: string | undefined = typeof body.theme_explanation === 'string' ? body.theme_explanation : undefined
+    if (!bugReportId && (!bugReportIds || bugReportIds.length === 0)) return json({ error: 'bug_report_id or bug_report_ids is required' }, 400)
 
-    const bugRes = await fetch(`${SUPABASE_URL}/rest/v1/bug_reports?id=eq.${bugReportId}&select=*`, { headers: sb })
-    if (!bugRes.ok) return json({ error: 'Failed to load bug report' }, 500)
-    const bug = (await bugRes.json())[0]
-    if (!bug) return json({ error: 'Bug report not found' }, 404)
+    let content: any[]
+    if (bugReportIds && bugReportIds.length > 0) {
+      const idFilter = bugReportIds.map(id => `"${id}"`).join(',')
+      const bugsRes = await fetch(`${SUPABASE_URL}/rest/v1/bug_reports?id=in.(${idFilter})&select=*`, { headers: sb })
+      if (!bugsRes.ok) return json({ error: 'Failed to load bug reports' }, 500)
+      const bugs: any[] = await bugsRes.json()
+      if (bugs.length === 0) return json({ error: 'No matching bug reports found' }, 404)
+      content = bugReportIds.length === 1
+        ? buildBugContent(bugs[0], await resolveRelatedTicketRefs(bugs[0]))
+        : buildMultiBugContent(bugs, themeTitle ? { title: themeTitle, explanation: themeExplanation } : undefined)
+    } else {
+      const bugRes = await fetch(`${SUPABASE_URL}/rest/v1/bug_reports?id=eq.${bugReportId}&select=*`, { headers: sb })
+      if (!bugRes.ok) return json({ error: 'Failed to load bug report' }, 500)
+      const bug = (await bugRes.json())[0]
+      if (!bug) return json({ error: 'Bug report not found' }, 404)
+      content = buildBugContent(bug, await resolveRelatedTicketRefs(bug))
+    }
 
-    const relatedRefs = await resolveRelatedTicketRefs(bug)
+    const isMulti = !!bugReportIds && bugReportIds.length > 1
 
     const system = `You are helping a QA reviewer turn a support agent's raw bug submission into a properly-shaped Linear bug ticket for gameLM engineering. ${SHARED_CONTEXT}
 
@@ -135,16 +173,18 @@ Match this exact real ticket template used by this team:
 
 Do NOT write a "Suggestions" section -- that's added later by a dev or PM during triage, not generated here. Ground every field strictly in the reported fields, the conversation, and any attached evidence (screenshots/PDFs) -- never invent player words, steps, or facts you weren't given. Where the agent's submission is too thin to write a section with confidence, still produce your best-effort draft from what's there, but flag it via low_confidence_sections rather than silently presenting an inference as fact.
 
-Favor scannability: use plain-text "- " bullets or "1. " numbered lists inside a field whenever it holds more than one distinct item (steps are always numbered; description/expected/actual behavior become bullets only when there's genuinely more than one point, not for a single-sentence answer).`
+Favor scannability: use plain-text "- " bullets or "1. " numbered lists inside a field whenever it holds more than one distinct item (steps are always numbered; description/expected/actual behavior become bullets only when there's genuinely more than one point, not for a single-sentence answer).${
+      isMulti ? ` This draft covers ${bugReportIds!.length} bug reports grouped together as sharing one root cause -- synthesize them into ONE cohesive ticket rather than concatenating each bug's own description in turn, and call out any place they genuinely differ (e.g. different failing components or severities) rather than glossing over it.` : ''
+    }`
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-opus-4-8',
-        max_tokens: 1800,
+        max_tokens: isMulti ? 2600 : 1800,
         system,
-        messages: [{ role: 'user', content: buildBugContent(bug, relatedRefs) }],
+        messages: [{ role: 'user', content }],
         output_config: { format: { type: 'json_schema', schema: DRAFT_SCHEMA } },
       }),
     })
