@@ -1383,7 +1383,20 @@ export default function BugTracker() {
                             color: reportCopied === b.bug_id ? '#166534' : '#58595B', cursor: 'pointer', transition: 'all 0.15s',
                           }}
                         >{reportCopied === b.bug_id ? '✓ Copied' : 'Copy for Engineering'}</button>
+                        <button
+                          onClick={() => draftTicket(b.bug_id)}
+                          disabled={draftingTicket === b.bug_id}
+                          style={{
+                            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                            padding: '5px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff',
+                            cursor: draftingTicket === b.bug_id ? 'not-allowed' : 'pointer',
+                            opacity: draftingTicket === b.bug_id ? 0.5 : 1, transition: 'opacity 0.15s',
+                          }}
+                        >{draftingTicket === b.bug_id ? 'Drafting…' : 'Draft full ticket'}</button>
                       </div>
+                      {draftErrors[b.bug_id] && (
+                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginBottom: 10 }}>{draftErrors[b.bug_id]}</p>
+                      )}
 
                       {b.error ? (
                         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>Brief generation failed: {b.error}</p>
