@@ -444,6 +444,8 @@ export default function BugTracker() {
   const [draftThemeErrors, setDraftThemeErrors]   = useState<Record<number, string>>({})
   const [editingFiledTheme, setEditingFiledTheme] = useState<number | null>(null)
   const [filedThemeInput, setFiledThemeInput]     = useState('')
+  const [markingOutOfScope, setMarkingOutOfScope] = useState<number | null>(null)
+  const [outOfScopeErrors, setOutOfScopeErrors]   = useState<Record<number, string>>({})
 
   useEffect(() => { fetchBugs() }, [selectedOperator?.id, user?.email])
 
@@ -751,8 +753,22 @@ export default function BugTracker() {
     const selected = themeSelectedIds(themeIdx, theme)
     const ids = theme.bugs.map(b => b.bug_id).filter(id => selected.has(id))
     if (ids.length === 0) return
-    await supabase.from('bug_reports').update({ status: 'wont_fix', updated_at: new Date().toISOString() }).in('id', ids)
+    setMarkingOutOfScope(themeIdx)
+    setOutOfScopeErrors(prev => { const n = { ...prev }; delete n[themeIdx]; return n })
+    const { error } = await supabase.from('bug_reports').update({ status: 'wont_fix', updated_at: new Date().toISOString() }).in('id', ids)
+    setMarkingOutOfScope(null)
+    if (error) {
+      setOutOfScopeErrors(prev => ({ ...prev, [themeIdx]: error.message || 'Failed to mark out of scope.' }))
+      return
+    }
     setBugs(prev => prev.map(b => ids.includes(b.id) ? { ...b, status: 'wont_fix' } : b))
+    // Deselect them so the Draft/Log-filed counts on this theme reflect only
+    // what's still actually actionable, and the button visibly does something.
+    setThemeSelections(prev => {
+      const current = new Set(prev[themeIdx] ?? theme.bugs.map(b => b.bug_id))
+      for (const id of ids) current.delete(id)
+      return { ...prev, [themeIdx]: current }
+    })
   }
 
   async function draftTicket(bugId: string) {
@@ -1405,22 +1421,24 @@ export default function BugTracker() {
                           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 6 }}>Click a bug to deselect it before drafting</p>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                             {t.bugs.map(b => {
+                              const liveBug = bugs.find(bb => bb.id === b.bug_id)
                               const isSelected = selected.has(b.bug_id)
-                              const isFiled = !!bugs.find(bb => bb.id === b.bug_id)?.filed_ticket_id
+                              const isFiled = !!liveBug?.filed_ticket_id
+                              const isOutOfScope = liveBug?.status === 'wont_fix'
                               return (
                                 <span
                                   key={b.bug_id}
                                   onClick={() => toggleThemeBug(i, t, b.bug_id)}
-                                  title={isFiled ? 'Already logged as filed' : undefined}
+                                  title={isOutOfScope ? 'Marked out of scope (Won\'t Fix)' : isFiled ? 'Already logged as filed' : undefined}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
-                                    color: !isSelected ? 'rgba(0,0,0,0.35)' : isFiled ? '#166534' : '#9B59D0',
-                                    background: !isSelected ? 'rgba(0,0,0,0.04)' : isFiled ? 'rgba(22,101,52,0.1)' : 'rgba(155,89,208,0.1)',
+                                    color: isOutOfScope ? 'rgba(0,0,0,0.3)' : !isSelected ? 'rgba(0,0,0,0.35)' : isFiled ? '#166534' : '#9B59D0',
+                                    background: isOutOfScope ? 'rgba(0,0,0,0.05)' : !isSelected ? 'rgba(0,0,0,0.04)' : isFiled ? 'rgba(22,101,52,0.1)' : 'rgba(155,89,208,0.1)',
                                     padding: '2px 8px', borderRadius: 100, cursor: 'pointer',
-                                    textDecoration: isSelected ? 'none' : 'line-through',
+                                    textDecoration: isOutOfScope || !isSelected ? 'line-through' : 'none',
                                   }}
                                 >
-                                  {isFiled ? '✓ ' : ''}{b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
+                                  {isOutOfScope ? '✕ ' : isFiled ? '✓ ' : ''}{b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
                                   {b.ticket_id && <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />}
                                 </span>
                               )
@@ -1451,14 +1469,18 @@ export default function BugTracker() {
                             {editingFiledTheme !== i && (
                               <button
                                 onClick={() => markThemeOutOfScope(i, t)}
-                                disabled={selected.size === 0}
+                                disabled={markingOutOfScope === i || selected.size === 0}
                                 title="Mark selected bugs Won't Fix -- excludes them from every future report and classify run"
                                 style={{
                                   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
-                                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
-                                  cursor: selected.size === 0 ? 'not-allowed' : 'pointer', opacity: selected.size === 0 ? 0.5 : 1,
+                                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', transition: 'opacity 0.15s',
+                                  cursor: markingOutOfScope === i || selected.size === 0 ? 'not-allowed' : 'pointer',
+                                  opacity: markingOutOfScope === i || selected.size === 0 ? 0.5 : 1,
                                 }}
-                              >{`Mark ${selected.size} out of scope`}</button>
+                              >{markingOutOfScope === i ? 'Marking…' : `Mark ${selected.size} out of scope`}</button>
+                            )}
+                            {outOfScopeErrors[i] && (
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{outOfScopeErrors[i]}</p>
                             )}
                             {editingFiledTheme === i && (
                               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
