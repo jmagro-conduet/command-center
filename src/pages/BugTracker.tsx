@@ -304,6 +304,20 @@ function fmtDate(ts: string) {
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// yyyy-mm-dd in the browser's local timezone (not toISOString, which is UTC
+// and can land on the wrong day depending on the reviewer's offset).
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Friendly display for a yyyy-mm-dd string -- parsed by component rather
+// than `new Date(str)`, which treats a bare date as UTC midnight and can
+// display a day off depending on the reviewer's own timezone offset.
+function fmtDateStr(s: string) {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 function failLabel(val: string | null) {
   return FAILING_COMPONENTS.find(f => f.value === val)?.label ?? val ?? '—'
 }
@@ -457,8 +471,12 @@ export default function BugTracker() {
   const [reportCopied, setReportCopied]           = useState<string | null>(null)
   // Filters by created_at, not status -- status is easy to forget to update
   // in the moment (see bug-triage-report), so a date window is the more
-  // reliable way to make sure recent bugs actually get analyzed.
-  const [reportDays, setReportDays]               = useState('30')
+  // reliable way to make sure recent bugs actually get analyzed. Defaults to
+  // today only, not a rolling "last N days" -- a wider window just re-pulls
+  // bugs already reviewed in a prior day's pass. Custom range for anything
+  // else (yesterday, a specific weekend).
+  const [reportFrom, setReportFrom]               = useState(() => toDateStr(new Date()))
+  const [reportTo, setReportTo]                   = useState(() => toDateStr(new Date()))
   // Per-theme bug selection for "Draft ticket from this theme" -- lets a
   // reviewer deselect a bug the AI grouped in that doesn't actually belong,
   // instead of blindly trusting the clustering. Keyed by theme index; a
@@ -496,12 +514,27 @@ export default function BugTracker() {
     setTriageReport(row ? { ...(row as any), isHistorical: false } : null)
   }
 
+  // Quick presets for the common cases; the date inputs stay directly
+  // editable for anything else (e.g. Friday through Monday over a weekend).
+  function setReportRange(preset: 'today' | 'yesterday' | 'last7' | 'last30') {
+    const today = new Date()
+    if (preset === 'today') { setReportFrom(toDateStr(today)); setReportTo(toDateStr(today)); return }
+    if (preset === 'yesterday') {
+      const d = new Date(today); d.setDate(d.getDate() - 1)
+      setReportFrom(toDateStr(d)); setReportTo(toDateStr(d))
+      return
+    }
+    const back = preset === 'last7' ? 6 : 29
+    const from = new Date(today); from.setDate(from.getDate() - back)
+    setReportFrom(toDateStr(from)); setReportTo(toDateStr(today))
+  }
+
   async function generateReport() {
     if (!selectedOperator?.id) return
     setReportLoading(true)
     setReportError('')
     const { data, error } = await supabase.functions.invoke('bug-triage-report', {
-      body: { operator_id: selectedOperator.id, generated_by: user?.name ?? user?.email ?? null, days: Number(reportDays) },
+      body: { operator_id: selectedOperator.id, generated_by: user?.name ?? user?.email ?? null, from: reportFrom, to: reportTo },
     })
     if (error || data?.error) {
       setReportError(data?.error ?? error?.message ?? 'Report generation failed.')
@@ -1330,22 +1363,11 @@ export default function BugTracker() {
               <div>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>Engineering Report</p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6, maxWidth: 620 }}>
-                  AI-drafted resolution briefs for every bug from the last {reportDays} days not marked Won't Fix — description, steps to reproduce, suggested fix, expected/actual behavior, and impact —
+                  AI-drafted resolution briefs for every bug {reportFrom === reportTo ? `from ${fmtDateStr(reportFrom)}` : `from ${fmtDateStr(reportFrom)} to ${fmtDateStr(reportTo)}`} not marked Won't Fix — description, steps to reproduce, suggested fix, expected/actual behavior, and impact —
                   plus a cross-cutting pass looking for shared root causes across bugs tagged under different components. Filtered by date, not status, so nothing recent falls through if a status wasn't kept up to date.
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                <FilterSelect
-                  value={reportDays}
-                  onChange={setReportDays}
-                  options={[
-                    { value: '7', label: 'Last 7 days' },
-                    { value: '14', label: 'Last 14 days' },
-                    { value: '30', label: 'Last 30 days' },
-                    { value: '60', label: 'Last 60 days' },
-                    { value: '90', label: 'Last 90 days' },
-                  ]}
-                />
                 {triageReport?.generated_at && (
                   <button
                     onClick={toggleReportHistory}
@@ -1367,6 +1389,37 @@ export default function BugTracker() {
                   onMouseEnter={e => { if (!reportLoading) e.currentTarget.style.opacity = '0.8' }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
                 >{reportLoading ? 'Analyzing…' : triageReport ? 'Regenerate' : 'Generate Report'}</button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#58595B' }}>Range</span>
+              <input
+                type="date"
+                value={reportFrom}
+                max={reportTo}
+                onChange={e => setReportFrom(e.target.value)}
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none' }}
+              />
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>to</span>
+              <input
+                type="date"
+                value={reportTo}
+                min={reportFrom}
+                onChange={e => setReportTo(e.target.value)}
+                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none' }}
+              />
+              <div style={{ display: 'flex', gap: 6, marginLeft: 4 }}>
+                {([['today', 'Today'], ['yesterday', 'Yesterday'], ['last7', 'Last 7 days'], ['last30', 'Last 30 days']] as const).map(([preset, label]) => (
+                  <button
+                    key={preset}
+                    onClick={() => setReportRange(preset)}
+                    style={{
+                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 10px', borderRadius: 8,
+                      border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >{label}</button>
+                ))}
               </div>
             </div>
 
@@ -1451,7 +1504,7 @@ export default function BugTracker() {
           {reportLoading && (
             <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
-                Reading every bug from the last {reportDays} days not marked Won't Fix (and any attached evidence) and drafting resolution briefs — this can take a minute for a large backlog…
+                Reading every bug from {reportFrom === reportTo ? fmtDateStr(reportFrom) : `${fmtDateStr(reportFrom)} to ${fmtDateStr(reportTo)}`} not marked Won't Fix (and any attached evidence) and drafting resolution briefs — this can take a minute for a large backlog…
               </p>
             </div>
           )}

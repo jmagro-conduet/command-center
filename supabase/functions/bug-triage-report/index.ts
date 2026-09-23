@@ -1,7 +1,10 @@
 // bug-triage-report
 // AI analysis over every bug report for an operator that isn't dismissed as
-// Won't Fix, filed within a lookback window (default 30 days, caller-
-// configurable via `days`) -- NOT filtered by status. Statuses like
+// Won't Fix, filed within a date window -- an explicit `from`/`to` range
+// (yyyy-mm-dd, `to` inclusive, defaults to `from` for a single day) when the
+// caller wants precise control (today, yesterday, a specific weekend), or a
+// caller-configurable rolling `days` lookback (default 30) otherwise -- NOT
+// filtered by status. Statuses like
 // resolved/duplicate/related are easy to forget to set in the moment, so
 // filtering by them would silently drop real, recent bugs that are still
 // worth a theme or a resolution brief; a date window doesn't have that
@@ -153,12 +156,29 @@ Deno.serve(async (req: Request) => {
     const generatedBy: string | null = body.generated_by ?? null
     if (!operatorId) return json({ error: 'operator_id is required' }, 400)
 
-    const days = Number.isFinite(body.days) && body.days > 0 ? Math.floor(body.days) : 30
-    const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
-    const listRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/bug_reports?operator_id=eq.${operatorId}&status=neq.wont_fix&created_at=gte.${sinceIso}&select=*&order=created_at.desc`,
-      { headers: sb },
-    )
+    const fromDate: string | undefined = typeof body.from === 'string' && body.from ? body.from : undefined
+    const toDate: string | undefined = typeof body.to === 'string' && body.to ? body.to : undefined
+
+    let sinceIso: string
+    let untilIso: string | null = null
+    let rangeLabel: string
+    if (fromDate) {
+      // Date-only strings from an <input type="date"> -- day-bounded, `to`
+      // inclusive of its whole day, mirroring the same T00:00:00/T23:59:59
+      // convention Submissions.tsx's own date filters already use.
+      sinceIso = `${fromDate}T00:00:00`
+      const to = toDate ?? fromDate
+      untilIso = `${to}T23:59:59`
+      rangeLabel = fromDate === to ? fromDate : `${fromDate} to ${to}`
+    } else {
+      const days = Number.isFinite(body.days) && body.days > 0 ? Math.floor(body.days) : 30
+      sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+      rangeLabel = `last ${days} days`
+    }
+
+    const listUrl = `${SUPABASE_URL}/rest/v1/bug_reports?operator_id=eq.${operatorId}&status=neq.wont_fix&created_at=gte.${sinceIso}`
+      + (untilIso ? `&created_at=lte.${untilIso}` : '') + `&select=*&order=created_at.desc`
+    const listRes = await fetch(listUrl, { headers: sb })
     if (!listRes.ok) return json({ error: 'Failed to load bug reports' }, 500)
     const inWindow: any[] = await listRes.json()
 
@@ -175,8 +195,8 @@ Deno.serve(async (req: Request) => {
     if (allOpen.length === 0) {
       return json({
         error: excludedHandled > 0
-          ? `All ${excludedHandled} bugs from the last ${days} days are already linked or filed -- nothing new to analyze.`
-          : `No bugs from the last ${days} days for this operator (excluding Won't Fix).`,
+          ? `All ${excludedHandled} bugs from ${rangeLabel} are already linked or filed -- nothing new to analyze.`
+          : `No bugs from ${rangeLabel} for this operator (excluding Won't Fix).`,
       }, 404)
     }
 
@@ -245,12 +265,12 @@ These theme groupings become real, filed Linear tickets covering multiple bugs a
       : null
 
     const generated_at = new Date().toISOString()
-    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated, themes_error: themesError, days, excluded_handled: excludedHandled }
+    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated, themes_error: themesError, range_label: rangeLabel, excluded_handled: excludedHandled }
     const usage = { input_tokens: totalInput, output_tokens: totalOutput, calls }
     // `statuses` predates the date-window filter (it used to BE the filter) --
     // kept as a text[] column for the legacy not-null constraint, now just a
     // human-readable note of what actually ran, not something re-parsed.
-    const statuses = [`last ${days} days (excl. wont_fix)`]
+    const statuses = [`${rangeLabel} (excl. wont_fix)`]
 
     // Best-effort persistence — a save failure shouldn't lose the report the admin
     // is looking at right now, just mean it won't show up in History later.
