@@ -276,6 +276,30 @@ function CopyIconButton({ value, title = 'Copy' }: { value: string; title?: stri
   )
 }
 
+// Lets a reviewer inspect a theme chip's actual bug detail (its resolution
+// brief) without leaving the report and without it toggling the chip's
+// selection -- so a grouping can be verified before trusting it rather than
+// taken on faith.
+function PeekIconButton({ onClick, title = 'View details' }: { onClick: () => void; title?: string }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={e => { e.stopPropagation(); onClick() }}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 18, height: 18, flexShrink: 0, padding: 0, marginLeft: 4,
+        border: 'none', background: 'none', cursor: 'pointer', borderRadius: 4,
+        color: 'rgba(0,0,0,0.35)', transition: 'color 0.15s',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+      </svg>
+    </button>
+  )
+}
+
 function fmtDate(ts: string) {
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
@@ -446,6 +470,9 @@ export default function BugTracker() {
   const [filedThemeInput, setFiledThemeInput]     = useState('')
   const [markingOutOfScope, setMarkingOutOfScope] = useState<number | null>(null)
   const [outOfScopeErrors, setOutOfScopeErrors]   = useState<Record<number, string>>({})
+  // Shared detail modal -- opened from a compact Resolution Briefs row or
+  // from a theme chip's peek icon, both showing the same underlying brief.
+  const [detailBugId, setDetailBugId]             = useState<string | null>(null)
 
   useEffect(() => { fetchBugs() }, [selectedOperator?.id, user?.email])
 
@@ -1440,6 +1467,7 @@ export default function BugTracker() {
                                 >
                                   {isOutOfScope ? '✕ ' : isFiled ? '✓ ' : ''}{b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
                                   {b.ticket_id && <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />}
+                                  <PeekIconButton onClick={() => setDetailBugId(b.bug_id)} title="View this bug's full detail" />
                                 </span>
                               )
                             })}
@@ -1516,68 +1544,62 @@ export default function BugTracker() {
               )}
 
               <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 14 }}>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>
                   Resolution Briefs ({triageReport.briefs.length})
                 </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {triageReport.briefs.map(b => (
-                    <div key={b.bug_id} style={{ borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 600 }}>{shortId(b.bug_id)}</span>
-                        {b.ticket_number && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>#{b.ticket_number}</span>}
-                        {b.ticket_id && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, color: '#58595B' }}>
-                            {b.ticket_id}
-                            <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />
-                          </span>
-                        )}
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+                  Click a bug to view its full brief and draft a ticket -- covers every bug, including ones not grouped into a theme above
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {triageReport.briefs.map(b => {
+                    const isFiled = !!bugs.find(bb => bb.id === b.bug_id)?.filed_ticket_id
+                    return (
+                      <div
+                        key={b.bug_id}
+                        onClick={() => setDetailBugId(b.bug_id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', cursor: 'pointer',
+                          padding: '9px 12px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                      >
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 600 }}>
+                          {b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
+                        </span>
                         <SeverityBadge s={b.severity} />
                         <ModeBadge m={b.mode} />
                         {b.failing_component && (
                           <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{failLabel(b.failing_component)}</span>
                         )}
-                        <button
-                          onClick={() => copyBrief(b)}
-                          style={{
-                            marginLeft: 'auto', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                            padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
-                            color: reportCopied === b.bug_id ? '#166534' : '#58595B', cursor: 'pointer', transition: 'all 0.15s',
-                          }}
-                        >{reportCopied === b.bug_id ? '✓ Copied' : 'Copy for Engineering'}</button>
-                        <button
-                          onClick={() => draftTicket(b.bug_id)}
-                          disabled={draftingTicket === b.bug_id}
-                          style={{
-                            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                            padding: '5px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff',
-                            cursor: draftingTicket === b.bug_id ? 'not-allowed' : 'pointer',
-                            opacity: draftingTicket === b.bug_id ? 0.5 : 1, transition: 'opacity 0.15s',
-                          }}
-                        >{draftingTicket === b.bug_id ? 'Drafting…' : 'Draft full ticket'}</button>
+                        {isFiled && <Badge label="Filed" color="#166534" bg="rgba(22,101,52,0.08)" />}
+                        <span style={{
+                          fontFamily: 'Inter, sans-serif', fontSize: 12, color: b.error ? '#e53e3e' : '#000',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 140,
+                        }}>
+                          {b.error ? `Brief generation failed: ${b.error}` : (b.description ?? '—')}
+                        </span>
+                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 500, flexShrink: 0 }}>View & Draft →</span>
                       </div>
-                      {draftErrors[b.bug_id] && (
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginBottom: 10 }}>{draftErrors[b.bug_id]}</p>
-                      )}
-
-                      {b.error ? (
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>Brief generation failed: {b.error}</p>
-                      ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          <DetailBox label="Description" value={b.description ?? '—'} />
-                          <DetailBox label="Steps to Reproduce" value={b.steps_to_reproduce ?? '—'} />
-                          <DetailBox label="Expected Behavior" value={b.expected_behavior ?? '—'} />
-                          <DetailBox label="Actual Behavior" value={b.actual_behavior ?? '—'} highlight />
-                          <DetailBox label="Suggested Fix" value={b.suggested_fix ?? '—'} />
-                          <DetailBox label="Impact" value={b.impact ?? '—'} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </>
           )}
         </div>
+      )}
+
+      {detailBugId && triageReport && (
+        <BugDetailModal
+          brief={triageReport.briefs.find(b => b.bug_id === detailBugId)}
+          drafting={draftingTicket === detailBugId}
+          draftError={draftErrors[detailBugId]}
+          copied={reportCopied === detailBugId}
+          onClose={() => setDetailBugId(null)}
+          onCopy={() => { const b = triageReport.briefs.find(x => x.bug_id === detailBugId); if (b) copyBrief(b) }}
+          onDraftTicket={() => { draftTicket(detailBugId); setDetailBugId(null) }}
+        />
       )}
 
       {draftPreview && (
@@ -2116,6 +2138,97 @@ function DraftTicketModal({ title, text, lowConfidence, onChange, onClose, onCop
             }}
           >Close</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Shared detail view for a single bug's resolution brief -- opened from the
+// compact Resolution Briefs list or from a theme chip's peek icon, so
+// there's one place that shows full detail instead of two.
+function BugDetailModal({ brief, drafting, draftError, copied, onClose, onCopy, onDraftTicket }: {
+  brief: TriageBrief | undefined
+  drafting: boolean
+  draftError?: string
+  copied: boolean
+  onClose: () => void
+  onCopy: () => void
+  onDraftTicket: () => void
+}) {
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28, width: '100%', maxWidth: 680, maxHeight: '85vh', overflow: 'auto', display: 'flex', flexDirection: 'column' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {!brief ? (
+          <>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 16 }}>
+              No brief available for this bug in the current report.
+            </p>
+            <button onClick={onClose} style={{
+              alignSelf: 'flex-start', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+            }}>Close</button>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>
+                  {brief.ticket_number ? `#${brief.ticket_number}` : shortId(brief.bug_id)}
+                </p>
+                <SeverityBadge s={brief.severity as BugReport['severity']} />
+                <ModeBadge m={brief.mode as BugReport['mode']} />
+              </div>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#58595B', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            {brief.ticket_id && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, color: '#58595B', marginBottom: 16 }}>
+                {brief.ticket_id}
+                <CopyIconButton value={brief.ticket_id} title="Copy ticket ID" />
+              </span>
+            )}
+
+            {draftError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginBottom: 12 }}>{draftError}</p>}
+
+            {brief.error ? (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginBottom: 16 }}>Brief generation failed: {brief.error}</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <DetailBox label="Description" value={brief.description ?? '—'} />
+                <DetailBox label="Steps to Reproduce" value={brief.steps_to_reproduce ?? '—'} />
+                <DetailBox label="Expected Behavior" value={brief.expected_behavior ?? '—'} />
+                <DetailBox label="Actual Behavior" value={brief.actual_behavior ?? '—'} highlight />
+                <DetailBox label="Suggested Fix" value={brief.suggested_fix ?? '—'} />
+                <DetailBox label="Impact" value={brief.impact ?? '—'} />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={onCopy} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: copied ? '#166534' : '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+              }}>{copied ? '✓ Copied' : 'Copy for Engineering'}</button>
+              <button
+                onClick={onDraftTicket}
+                disabled={drafting}
+                style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+                  border: 'none', background: '#000', color: '#fff', cursor: drafting ? 'not-allowed' : 'pointer',
+                  opacity: drafting ? 0.5 : 1, transition: 'opacity 0.15s',
+                }}
+              >{drafting ? 'Drafting…' : 'Draft full ticket'}</button>
+              <button onClick={onClose} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+              }}>Close</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
