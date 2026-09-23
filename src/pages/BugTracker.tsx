@@ -40,6 +40,13 @@ interface BugReport {
   triage_reasoning: string | null
   triage_matches: TriageMatch[] | null
   triaged_at: string | null
+  // The ticket a reviewer actually FILED for this bug -- independent of
+  // status/triage, which only ever describe a link to someone ELSE's ticket
+  // (a duplicate/related match). Logged manually (paste after filing in
+  // Linear); see BugTracker's logFiledTicket.
+  filed_ticket_id: string | null
+  filed_ticket_url: string | null
+  filed_at: string | null
 }
 
 interface TriageMatch {
@@ -72,6 +79,7 @@ interface TriageBundle {
   onDismiss: (bugId: string) => void
   onMarkNotABug: (bugId: string) => void
   onDraftTicket: (bugId: string) => void
+  onLogFiledTicket: (bugId: string, raw: string) => void
 }
 
 interface TriageBrief {
@@ -666,6 +674,22 @@ export default function BugTracker() {
     setBugs(prev => prev.map(b => b.id === bugId ? { ...b, triage_status: null, triage_reasoning: null, triage_matches: null, triaged_at: null } : b))
   }
 
+  // Reviewer manually logs the ticket THEY created for this bug -- distinct
+  // from a duplicate/related link to someone else's ticket, and settable
+  // regardless of triage/status. Linear write access isn't wired up (see
+  // draft-bug-ticket), so this is a paste-after-filing step. Accepts a full
+  // Linear URL or just an identifier (e.g. "CON-1935"); empty input clears it.
+  async function logFiledTicket(bugId: string, raw: string) {
+    const trimmed = raw.trim()
+    const isUrl = /^https?:\/\//.test(trimmed)
+    const idMatch = trimmed.match(/([A-Za-z]+-\d+)/)
+    const filed_ticket_id = !trimmed ? null : idMatch ? idMatch[1] : isUrl ? null : trimmed
+    const filed_ticket_url = isUrl ? trimmed : null
+    const filed_at = trimmed ? new Date().toISOString() : null
+    await supabase.from('bug_reports').update({ filed_ticket_id, filed_ticket_url, filed_at }).eq('id', bugId)
+    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, filed_ticket_id, filed_ticket_url, filed_at } : b))
+  }
+
   function markNotABug(bugId: string) {
     updateStatus(bugId, 'wont_fix')
   }
@@ -701,13 +725,14 @@ export default function BugTracker() {
 
   // Export CSV (admin)
   function exportCSV() {
-    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket ID', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Resolution Outcome', 'Additional Context', 'Evidence', 'Reported By', 'Date']
+    const headers = ['ID', 'Mode', 'Severity', 'Status', 'Ticket ID', 'Ticket #', 'Failing Component', 'Expected Outcome', 'Actual Outcome', 'Player Input', 'gameLM Suggested', 'Resolution Outcome', 'Additional Context', 'Evidence', 'Reported By', 'Filed Ticket ID', 'Filed Ticket URL', 'Date']
     const rows = filteredBugs.map(b => [
       shortId(b.id), MODE_CONFIG[b.mode]?.label ?? b.mode, b.severity, b.status,
       b.ticket_id ?? '', b.ticket_number ?? '', failLabel(b.failing_component),
       b.expected_outcome, b.actual_outcome,
       b.player_input ?? '', b.suggested_response ?? '', resolutionOutcomeLabel(b.resolution_outcome),
-      b.additional_context ?? '', (b.evidence ?? []).map(e => e.url).join(' '), b.reported_by ?? '', fmtDate(b.created_at),
+      b.additional_context ?? '', (b.evidence ?? []).map(e => e.url).join(' '), b.reported_by ?? '',
+      b.filed_ticket_id ?? '', b.filed_ticket_url ?? '', fmtDate(b.created_at),
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
     const csv = [headers.join(','), ...rows].join('\n')
     const a = document.createElement('a')
@@ -741,7 +766,7 @@ export default function BugTracker() {
   const triageBundle: TriageBundle = {
     isAdmin, triaging, triageErrors, draftingTicket, draftErrors,
     onClassify: classifyBug, onConfirmMatch: confirmMatch, onDismiss: dismissClassification,
-    onMarkNotABug: markNotABug, onDraftTicket: draftTicket,
+    onMarkNotABug: markNotABug, onDraftTicket: draftTicket, onLogFiledTicket: logFiledTicket,
   }
 
   return (
@@ -1396,7 +1421,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
   triage: TriageBundle
 }) {
   // Table header
-  const cols = '80px 100px 90px 100px 1fr 130px 140px 100px 90px'
+  const cols = '80px 100px 90px 100px 1fr 130px 140px 100px 120px 90px'
 
   return (
     <>
@@ -1405,7 +1430,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
         padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)',
         background: 'rgba(0,0,0,0.01)',
       }}>
-        {['ID', 'Mode', 'Severity', 'Status', 'Failing Component', 'Reported By', 'Ticket ID', 'Ticket #', 'Date'].map(h => (
+        {['ID', 'Mode', 'Severity', 'Status', 'Failing Component', 'Reported By', 'Ticket ID', 'Ticket #', 'Filed Ticket', 'Date'].map(h => (
           <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
         ))}
       </div>
@@ -1446,6 +1471,22 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
                 {bug.ticket_number ? `#${bug.ticket_number}` : '—'}
               </span>
+              <span style={{ display: 'flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, overflow: 'hidden' }}>
+                {bug.filed_ticket_id || bug.filed_ticket_url ? (
+                  <>
+                    {bug.filed_ticket_url ? (
+                      <a href={bug.filed_ticket_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#166534', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {bug.filed_ticket_id ?? 'View'} ↗
+                      </a>
+                    ) : (
+                      <span style={{ color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bug.filed_ticket_id}</span>
+                    )}
+                    {bug.filed_ticket_id && <CopyIconButton value={bug.filed_ticket_id} title="Copy filed ticket ID" />}
+                  </>
+                ) : (
+                  <span style={{ color: 'rgba(0,0,0,0.35)' }}>—</span>
+                )}
+              </span>
               <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
                 {fmtDate(bug.created_at)}
               </span>
@@ -1484,6 +1525,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                   onDismiss={() => triage.onDismiss(bug.id)}
                   onMarkNotABug={() => triage.onMarkNotABug(bug.id)}
                   onDraftTicket={() => triage.onDraftTicket(bug.id)}
+                  onLogFiledTicket={(raw) => triage.onLogFiledTicket(bug.id, raw)}
                 />
 
                 {bug.additional_context && (
@@ -1584,7 +1626,7 @@ function DetailBox({ label, value, highlight = false }: { label: string; value: 
 // changes and the Engineering Report tab.
 function BugTriagePanel({
   bug, isAdmin, triaging, triageError, drafting, draftError,
-  onClassify, onConfirmMatch, onDismiss, onMarkNotABug, onDraftTicket,
+  onClassify, onConfirmMatch, onDismiss, onMarkNotABug, onDraftTicket, onLogFiledTicket,
 }: {
   bug: BugReport
   isAdmin: boolean
@@ -1597,11 +1639,15 @@ function BugTriagePanel({
   onDismiss: () => void
   onMarkNotABug: () => void
   onDraftTicket: () => void
+  onLogFiledTicket: (raw: string) => void
 }) {
   const cfg = bug.triage_status ? TRIAGE_STATUS_CONFIG[bug.triage_status] : null
   const matches = bug.triage_matches ?? []
   const hasMatch = matches.length > 0
   const alreadyLinked = !!(bug.canonical_bug_id || bug.linear_issue_url)
+  const isFiled = !!(bug.filed_ticket_id || bug.filed_ticket_url)
+  const [editingFiled, setEditingFiled] = useState(false)
+  const [filedInput, setFiledInput] = useState('')
 
   return (
     <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff' }} onClick={e => e.stopPropagation()}>
@@ -1614,6 +1660,54 @@ function BugTriagePanel({
             {bug.linear_issue_id ?? 'View in Linear'} ↗
           </a>
         )}
+
+        {/* Filed ticket -- the ticket a reviewer actually created for this bug,
+            independent of the duplicate/related badges above (those describe a
+            link to someone ELSE's ticket). */}
+        {isFiled && !editingFiled && (
+          bug.filed_ticket_url ? (
+            <a href={bug.filed_ticket_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#166534', textDecoration: 'none' }}>
+              Filed: {bug.filed_ticket_id ?? 'View'} ↗
+            </a>
+          ) : (
+            <Badge label={`Filed: ${bug.filed_ticket_id}`} color="#166534" bg="rgba(22,101,52,0.08)" />
+          )
+        )}
+        {isAdmin && !editingFiled && (
+          <button onClick={() => { setFiledInput(bug.filed_ticket_url ?? bug.filed_ticket_id ?? ''); setEditingFiled(true) }} style={{
+            fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+            border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+          }}>{isFiled ? 'Edit filed ticket' : 'Log filed ticket'}</button>
+        )}
+        {editingFiled && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+            <input
+              autoFocus
+              value={filedInput}
+              onChange={e => setFiledInput(e.target.value)}
+              placeholder="Linear URL or CON-1234"
+              style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '4px 8px', borderRadius: 8,
+                border: '1.5px solid rgba(0,0,0,0.12)', width: 190,
+              }}
+            />
+            <button onClick={() => { onLogFiledTicket(filedInput); setEditingFiled(false) }} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+              border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+            }}>Save</button>
+            <button onClick={() => setEditingFiled(false)} style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+              border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+            }}>Cancel</button>
+            {isFiled && (
+              <button onClick={() => { onLogFiledTicket(''); setEditingFiled(false) }} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                border: 'none', background: 'none', color: '#e53e3e', cursor: 'pointer',
+              }}>Clear</button>
+            )}
+          </span>
+        )}
+
         {isAdmin && (
           <>
             <button
