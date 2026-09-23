@@ -52,6 +52,12 @@ interface BugReport {
 interface TriageMatch {
   source: 'linear' | 'command_center'
   id: string
+  // A Linear match is inherently already filed (it's a real existing
+  // issue). A command_center match is only already filed if that bug's own
+  // filed_ticket_id/url has been logged. Drives "Add example to existing
+  // ticket" vs "Draft full ticket" in the triage panel.
+  filed_ticket_id: string | null
+  filed_ticket_url: string | null
   title: string
 }
 
@@ -80,6 +86,7 @@ interface TriageBundle {
   onMarkNotABug: (bugId: string) => void
   onDraftTicket: (bugId: string) => void
   onLogFiledTicket: (bugId: string, raw: string) => void
+  onAddExample: (bug: BugReport, match: TriageMatch) => void
 }
 
 interface TriageBrief {
@@ -113,7 +120,7 @@ interface TriageReport {
   briefs: TriageBrief[]
   themes: TriageTheme[]
   usage: { input_tokens: number; output_tokens: number; calls: number } | null
-  meta: { total_open: number; analyzed: number; truncated: boolean }
+  meta: { total_open: number; analyzed: number; truncated: boolean; excluded_handled?: number }
   isHistorical?: boolean
 }
 
@@ -122,7 +129,7 @@ interface TriageHistoryEntry {
   generated_at: string
   generated_by: string | null
   bug_count: number
-  meta: { total_open: number; analyzed: number; truncated: boolean } | null
+  meta: { total_open: number; analyzed: number; truncated: boolean; excluded_handled?: number } | null
 }
 
 interface FormState {
@@ -345,6 +352,21 @@ function buildCombinedDraftText(d: DraftTicket): string {
   ].join('\n')
 }
 
+// Accepts either a full Linear URL or a bare identifier (e.g. "CON-1935");
+// empty input clears a previously-logged filed ticket. Shared by the
+// single-bug and theme-bulk "Log filed ticket" actions so both parse the
+// same way.
+function parseFiledTicketInput(raw: string): { filed_ticket_id: string | null; filed_ticket_url: string | null; filed_at: string | null } {
+  const trimmed = raw.trim()
+  const isUrl = /^https?:\/\//.test(trimmed)
+  const idMatch = trimmed.match(/([A-Za-z]+-\d+)/)
+  return {
+    filed_ticket_id: !trimmed ? null : idMatch ? idMatch[1] : isUrl ? null : trimmed,
+    filed_ticket_url: isUrl ? trimmed : null,
+    filed_at: trimmed ? new Date().toISOString() : null,
+  }
+}
+
 // ── Input styles ─────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 13,
@@ -420,6 +442,8 @@ export default function BugTracker() {
   const [themeSelections, setThemeSelections]     = useState<Record<number, Set<string>>>({})
   const [draftingTheme, setDraftingTheme]         = useState<number | null>(null)
   const [draftThemeErrors, setDraftThemeErrors]   = useState<Record<number, string>>({})
+  const [editingFiledTheme, setEditingFiledTheme] = useState<number | null>(null)
+  const [filedThemeInput, setFiledThemeInput]     = useState('')
 
   useEffect(() => { fetchBugs() }, [selectedOperator?.id, user?.email])
 
@@ -662,12 +686,7 @@ export default function BugTracker() {
   // shows at a glance that this is being addressed via another ticket.
   // "Related" doesn't merge anything (it's still its own ticket), just marks
   // the status -- which candidate triggered it doesn't matter.
-  async function confirmMatch(bug: BugReport, match: TriageMatch) {
-    if (bug.triage_status === 'related') {
-      await supabase.from('bug_reports').update({ status: 'related' }).eq('id', bug.id)
-      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, status: 'related' } : b))
-      return
-    }
+  async function linkAsDuplicate(bug: BugReport, match: TriageMatch) {
     if (match.source === 'command_center') {
       await supabase.from('bug_reports').update({ canonical_bug_id: match.id, status: 'duplicate' }).eq('id', bug.id)
       setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, canonical_bug_id: match.id, status: 'duplicate' } : b))
@@ -676,6 +695,15 @@ export default function BugTracker() {
       await supabase.from('bug_reports').update({ linear_issue_id: identifier, linear_issue_url: match.id, status: 'duplicate' }).eq('id', bug.id)
       setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, linear_issue_id: identifier, linear_issue_url: match.id, status: 'duplicate' } : b))
     }
+  }
+
+  async function confirmMatch(bug: BugReport, match: TriageMatch) {
+    if (bug.triage_status === 'related') {
+      await supabase.from('bug_reports').update({ status: 'related' }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, status: 'related' } : b))
+      return
+    }
+    await linkAsDuplicate(bug, match)
   }
 
   // Reviewer disagrees with the classification -- clears it back to
@@ -691,14 +719,22 @@ export default function BugTracker() {
   // draft-bug-ticket), so this is a paste-after-filing step. Accepts a full
   // Linear URL or just an identifier (e.g. "CON-1935"); empty input clears it.
   async function logFiledTicket(bugId: string, raw: string) {
-    const trimmed = raw.trim()
-    const isUrl = /^https?:\/\//.test(trimmed)
-    const idMatch = trimmed.match(/([A-Za-z]+-\d+)/)
-    const filed_ticket_id = !trimmed ? null : idMatch ? idMatch[1] : isUrl ? null : trimmed
-    const filed_ticket_url = isUrl ? trimmed : null
-    const filed_at = trimmed ? new Date().toISOString() : null
-    await supabase.from('bug_reports').update({ filed_ticket_id, filed_ticket_url, filed_at }).eq('id', bugId)
-    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, filed_ticket_id, filed_ticket_url, filed_at } : b))
+    const parsed = parseFiledTicketInput(raw)
+    await supabase.from('bug_reports').update(parsed).eq('id', bugId)
+    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, ...parsed } : b))
+  }
+
+  // Filing a theme's batched ticket needs to mark EVERY bug in that group as
+  // filed, not just one -- otherwise the others still look "unhandled" to
+  // the Engineering Report's exclusion logic and classify-bug-report's
+  // match resolution, and could resurface as if nothing had been done.
+  async function logFiledTicketForTheme(themeIdx: number, theme: TriageTheme, raw: string) {
+    const selected = themeSelectedIds(themeIdx, theme)
+    const ids = theme.bugs.map(b => b.bug_id).filter(id => selected.has(id))
+    if (ids.length === 0) return
+    const parsed = parseFiledTicketInput(raw)
+    await supabase.from('bug_reports').update(parsed).in('id', ids)
+    setBugs(prev => prev.map(b => ids.includes(b.id) ? { ...b, ...parsed } : b))
   }
 
   function markNotABug(bugId: string) {
@@ -716,6 +752,31 @@ export default function BugTracker() {
     }
     const bug = bugs.find(b => b.id === bugId)
     setDraftPreview({ title: bug?.ticket_number ? `#${bug.ticket_number}` : '', text: buildCombinedDraftText(data), lowConfidence: data.low_confidence_sections ?? [] })
+  }
+
+  // Match already points at a real, filed ticket (a Linear match always
+  // does; a Command Center match does if that bug's own filed_ticket_id is
+  // set) -- so instead of drafting a competing new ticket, link this bug the
+  // same way a normal duplicate confirmation would, then generate a short
+  // comment-shaped note to paste onto the existing ticket.
+  async function addExampleToTicket(bug: BugReport, match: TriageMatch) {
+    // Always link -- unlike a plain "related" classification (which
+    // deliberately doesn't merge), adding an example to an existing ticket
+    // IS asserting this is the same underlying issue, regardless of what
+    // triage_status happened to land on.
+    await linkAsDuplicate(bug, match)
+    setDraftingTicket(bug.id)
+    setDraftErrors(prev => { const n = { ...prev }; delete n[bug.id]; return n })
+    const ref = match.filed_ticket_id ?? match.filed_ticket_url ?? match.title
+    const { data, error } = await supabase.functions.invoke('draft-bug-ticket', {
+      body: { bug_report_id: bug.id, existing_ticket_ref: ref },
+    })
+    setDraftingTicket(null)
+    if (error || data?.error) {
+      setDraftErrors(prev => ({ ...prev, [bug.id]: data?.error ?? error?.message ?? 'Example generation failed.' }))
+      return
+    }
+    setDraftPreview({ title: `Add to ${ref}`, text: data.comment, lowConfidence: [] })
   }
 
   // "Draft ticket from this theme" -- one draft covering every bug still
@@ -811,6 +872,7 @@ export default function BugTracker() {
     isAdmin, triaging, triageErrors, draftingTicket, draftErrors,
     onClassify: classifyBug, onConfirmMatch: confirmMatch, onDismiss: dismissClassification,
     onMarkNotABug: markNotABug, onDraftTicket: draftTicket, onLogFiledTicket: logFiledTicket,
+    onAddExample: addExampleToTicket,
   }
 
   return (
@@ -1274,8 +1336,9 @@ export default function BugTracker() {
                       {triageReport.generated_by ? ` · by ${triageReport.generated_by}` : ''}
                     </p>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
-                      Analyzed {triageReport.meta?.analyzed ?? triageReport.bug_count} open/investigating bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'}
-                      {triageReport.meta?.truncated ? ` (of ${triageReport.meta.total_open} total — highest severity + most recent kept)` : ''}
+                      Analyzed {triageReport.meta?.analyzed ?? triageReport.bug_count} bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'}
+                      {triageReport.meta?.truncated ? ` (of ${triageReport.meta.total_open} eligible — highest severity + most recent kept)` : ''}
+                      {!!triageReport.meta?.excluded_handled && ` · ${triageReport.meta.excluded_handled} excluded — already linked or filed`}
                     </p>
                   </div>
                   {triageReport.briefs.length > 0 && (
@@ -1329,19 +1392,21 @@ export default function BugTracker() {
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                             {t.bugs.map(b => {
                               const isSelected = selected.has(b.bug_id)
+                              const isFiled = !!bugs.find(bb => bb.id === b.bug_id)?.filed_ticket_id
                               return (
                                 <span
                                   key={b.bug_id}
                                   onClick={() => toggleThemeBug(i, t, b.bug_id)}
+                                  title={isFiled ? 'Already logged as filed' : undefined}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
-                                    color: isSelected ? '#9B59D0' : 'rgba(0,0,0,0.35)',
-                                    background: isSelected ? 'rgba(155,89,208,0.1)' : 'rgba(0,0,0,0.04)',
+                                    color: !isSelected ? 'rgba(0,0,0,0.35)' : isFiled ? '#166534' : '#9B59D0',
+                                    background: !isSelected ? 'rgba(0,0,0,0.04)' : isFiled ? 'rgba(22,101,52,0.1)' : 'rgba(155,89,208,0.1)',
                                     padding: '2px 8px', borderRadius: 100, cursor: 'pointer',
                                     textDecoration: isSelected ? 'none' : 'line-through',
                                   }}
                                 >
-                                  {b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
+                                  {isFiled ? '✓ ' : ''}{b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
                                   {b.ticket_id && <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />}
                                 </span>
                               )
@@ -1358,6 +1423,39 @@ export default function BugTracker() {
                                 opacity: draftingTheme === i || selected.size === 0 ? 0.5 : 1,
                               }}
                             >{draftingTheme === i ? 'Drafting…' : `Draft ticket from theme (${selected.size} selected)`}</button>
+                            {editingFiledTheme !== i && (
+                              <button
+                                onClick={() => { setFiledThemeInput(''); setEditingFiledTheme(i) }}
+                                disabled={selected.size === 0}
+                                style={{
+                                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534',
+                                  cursor: selected.size === 0 ? 'not-allowed' : 'pointer', opacity: selected.size === 0 ? 0.5 : 1,
+                                }}
+                              >{`Log filed ticket for ${selected.size} selected`}</button>
+                            )}
+                            {editingFiledTheme === i && (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <input
+                                  autoFocus
+                                  value={filedThemeInput}
+                                  onChange={e => setFiledThemeInput(e.target.value)}
+                                  placeholder="Linear URL or CON-1234"
+                                  style={{
+                                    fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '4px 8px', borderRadius: 8,
+                                    border: '1.5px solid rgba(0,0,0,0.12)', width: 190,
+                                  }}
+                                />
+                                <button onClick={() => { logFiledTicketForTheme(i, t, filedThemeInput); setEditingFiledTheme(null) }} style={{
+                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+                                }}>Save</button>
+                                <button onClick={() => setEditingFiledTheme(null)} style={{
+                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                                  border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                                }}>Cancel</button>
+                              </span>
+                            )}
                             {draftThemeErrors[i] && (
                               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{draftThemeErrors[i]}</p>
                             )}
@@ -1626,6 +1724,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                   onMarkNotABug={() => triage.onMarkNotABug(bug.id)}
                   onDraftTicket={() => triage.onDraftTicket(bug.id)}
                   onLogFiledTicket={(raw) => triage.onLogFiledTicket(bug.id, raw)}
+                  onAddExample={(match) => triage.onAddExample(bug, match)}
                 />
 
                 {bug.additional_context && (
@@ -1726,7 +1825,7 @@ function DetailBox({ label, value, highlight = false }: { label: string; value: 
 // changes and the Engineering Report tab.
 function BugTriagePanel({
   bug, isAdmin, triaging, triageError, drafting, draftError,
-  onClassify, onConfirmMatch, onDismiss, onMarkNotABug, onDraftTicket, onLogFiledTicket,
+  onClassify, onConfirmMatch, onDismiss, onMarkNotABug, onDraftTicket, onLogFiledTicket, onAddExample,
 }: {
   bug: BugReport
   isAdmin: boolean
@@ -1740,6 +1839,7 @@ function BugTriagePanel({
   onMarkNotABug: () => void
   onDraftTicket: () => void
   onLogFiledTicket: (raw: string) => void
+  onAddExample: (match: TriageMatch) => void
 }) {
   const cfg = bug.triage_status ? TRIAGE_STATUS_CONFIG[bug.triage_status] : null
   const matches = bug.triage_matches ?? []
@@ -1851,11 +1951,17 @@ function BugTriagePanel({
                   <span style={{ color: '#000' }}>{m.title || `Bug ${shortId(m.id)}`}</span>
                 )}
               </span>
-              {isAdmin && bug.triage_status === 'duplicate' && !alreadyLinked && (
+              {isAdmin && (m.filed_ticket_id || m.filed_ticket_url) && !alreadyLinked && (
+                <button onClick={() => onAddExample(m)} style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+                }}>{`Add example to ${m.filed_ticket_id ?? 'existing ticket'}`}</button>
+              )}
+              {isAdmin && bug.triage_status === 'duplicate' && !alreadyLinked && !(m.filed_ticket_id || m.filed_ticket_url) && (
                 <button onClick={() => onConfirmMatch(m)} style={{
                   fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
                   border: '1.5px solid rgba(155,89,208,0.4)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer',
-                }}>{m.source === 'linear' ? 'Link to this Linear ticket' : 'Confirm as duplicate'}</button>
+                }}>Confirm as duplicate</button>
               )}
             </div>
           ))}

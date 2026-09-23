@@ -161,24 +161,40 @@ Deno.serve(async (req: Request) => {
 
     // Only compare against canonical/original bugs -- rows already filed as a
     // duplicate (canonical_bug_id set) point at another candidate that's
-    // already in this list, so including them would just be noise.
+    // already in this list, so including them would just be noise. Filtered
+    // by status=neq.wont_fix rather than an allow-list of statuses -- status
+    // gets repurposed for other bucketing (see BugTracker's Engineering
+    // Report), so it's not a reliable "is this still a real issue" signal;
+    // wont_fix is the one status that's an explicit, deliberate dismissal.
     const ccRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/bug_reports?operator_id=eq.${bug.operator_id}&id=neq.${bugReportId}&status=in.(open,investigating)&canonical_bug_id=is.null&select=id,ticket_number,mode,severity,failing_component,expected_outcome,actual_outcome,additional_context&order=created_at.desc&limit=${MAX_CC_CANDIDATES}`,
+      `${SUPABASE_URL}/rest/v1/bug_reports?operator_id=eq.${bug.operator_id}&id=neq.${bugReportId}&status=neq.wont_fix&canonical_bug_id=is.null&select=id,ticket_number,mode,severity,failing_component,expected_outcome,actual_outcome,additional_context,filed_ticket_id,filed_ticket_url&order=created_at.desc&limit=${MAX_CC_CANDIDATES}`,
       { headers: sb },
     )
     const ccCandidates: any[] = ccRes.ok ? await ccRes.json() : []
 
     const linearIssues = linearProjects.length > 0 ? await fetchLinearIssues(linearProjects.map(p => p.id)) : []
 
-    const resolveMatches = (refs: string[]): { source: 'command_center' | 'linear'; id: string; title: string }[] => {
-      const out: { source: 'command_center' | 'linear'; id: string; title: string }[] = []
+    // A Linear match is inherently "already filed" -- it points at a real,
+    // existing issue by definition. A Command Center match is only "already
+    // filed" if THAT bug's own filed_ticket_id/url has been logged; two
+    // bugs can be related/duplicate without either having been filed yet.
+    // The frontend uses this to offer "add example to existing ticket"
+    // instead of "draft new" when there's somewhere real to add it to.
+    const resolveMatches = (refs: string[]): { source: 'command_center' | 'linear'; id: string; title: string; filed_ticket_id: string | null; filed_ticket_url: string | null }[] => {
+      const out: { source: 'command_center' | 'linear'; id: string; title: string; filed_ticket_id: string | null; filed_ticket_url: string | null }[] = []
       for (const ref of refs.slice(0, MAX_MATCHES)) {
         if (ref.startsWith('cc:')) {
           const c = ccCandidates[parseInt(ref.slice(3), 10)]
-          if (c) out.push({ source: 'command_center', id: c.id, title: c.ticket_number ? `Ticket #${c.ticket_number}` : `Bug ${String(c.id).slice(0, 8)}` })
+          if (c) out.push({
+            source: 'command_center', id: c.id, title: c.ticket_number ? `Ticket #${c.ticket_number}` : `Bug ${String(c.id).slice(0, 8)}`,
+            filed_ticket_id: c.filed_ticket_id ?? null, filed_ticket_url: c.filed_ticket_url ?? null,
+          })
         } else if (ref.startsWith('linear:')) {
           const iss = linearIssues[parseInt(ref.slice(7), 10)]
-          if (iss) out.push({ source: 'linear', id: iss.url, title: `${iss.identifier}: ${iss.title}${iss.project?.name ? ` (${iss.project.name})` : ''}` })
+          if (iss) out.push({
+            source: 'linear', id: iss.url, title: `${iss.identifier}: ${iss.title}${iss.project?.name ? ` (${iss.project.name})` : ''}`,
+            filed_ticket_id: iss.identifier, filed_ticket_url: iss.url,
+          })
         }
       }
       return out
@@ -197,7 +213,7 @@ Deno.serve(async (req: Request) => {
         reasoning: linearProjects.length > 0
           ? 'No other open Command Center bugs or Linear issues found to compare against for this operator.'
           : 'No other open Command Center bugs found to compare against, and this operator has no Linear project linked (Settings -> Linear projects) for cross-checking.',
-        matches: [] as { source: 'command_center' | 'linear'; id: string; title: string }[],
+        matches: [] as { source: 'command_center' | 'linear'; id: string; title: string; filed_ticket_id: string | null; filed_ticket_url: string | null }[],
       }
       const triaged_at = new Date().toISOString()
       await persist({ triage_status: result.status, triage_reasoning: result.reasoning, triage_matches: [], triaged_at })

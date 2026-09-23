@@ -5,7 +5,12 @@
 // resolved/duplicate/related are easy to forget to set in the moment, so
 // filtering by them would silently drop real, recent bugs that are still
 // worth a theme or a resolution brief; a date window doesn't have that
-// failure mode. Produces two things in one run:
+// failure mode. On top of that, bugs already carrying a real link (a filed
+// ticket, a confirmed duplicate, a confirmed Linear match) are excluded
+// entirely -- those are context fields set only by a deliberate action, so
+// unlike status they're a trustworthy "already handled" signal, and
+// re-analyzing them risks producing a second, competing ticket for
+// something already tracked. Produces two things in one run:
 //   1. A per-bug "resolution brief" (description / steps to reproduce / suggested fix /
 //      expected behavior / actual behavior / impact) an engineer can pick up cold —
 //      grounded in the reported fields AND any attached evidence (screenshots/PDFs),
@@ -155,8 +160,25 @@ Deno.serve(async (req: Request) => {
       { headers: sb },
     )
     if (!listRes.ok) return json({ error: 'Failed to load bug reports' }, 500)
-    const allOpen: any[] = await listRes.json()
-    if (allOpen.length === 0) return json({ error: `No bugs from the last ${days} days for this operator (excluding Won't Fix).` }, 404)
+    const inWindow: any[] = await listRes.json()
+
+    // Exclude bugs that already have a real, confirmed link -- a filed
+    // ticket, a confirmed duplicate, or a confirmed Linear match. These are
+    // context fields set only by a deliberate reviewer action, unlike status
+    // (which gets repurposed for other bucketing), so they're the reliable
+    // signal for "this bug no longer needs a new brief/theme; it's already
+    // handled." Regenerating a brief/theme for it would just risk producing
+    // a second, competing ticket for something already tracked.
+    const isAlreadyHandled = (b: any) => !!(b.filed_ticket_id || b.filed_ticket_url || b.canonical_bug_id || b.linear_issue_id || b.linear_issue_url)
+    const allOpen: any[] = inWindow.filter(b => !isAlreadyHandled(b))
+    const excludedHandled = inWindow.length - allOpen.length
+    if (allOpen.length === 0) {
+      return json({
+        error: excludedHandled > 0
+          ? `All ${excludedHandled} bugs from the last ${days} days are already linked or filed -- nothing new to analyze.`
+          : `No bugs from the last ${days} days for this operator (excluding Won't Fix).`,
+      }, 404)
+    }
 
     const totalOpen = allOpen.length
     const sorted = [...allOpen].sort((a, b) => {
@@ -223,7 +245,7 @@ These theme groupings become real, filed Linear tickets covering multiple bugs a
       : null
 
     const generated_at = new Date().toISOString()
-    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated, themes_error: themesError, days }
+    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated, themes_error: themesError, days, excluded_handled: excludedHandled }
     const usage = { input_tokens: totalInput, output_tokens: totalOutput, calls }
     // `statuses` predates the date-window filter (it used to BE the filter) --
     // kept as a text[] column for the legacy not-null constraint, now just a

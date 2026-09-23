@@ -14,6 +14,12 @@
 // instead of silently written as fact, so a reviewer knows exactly what to
 // double-check before filing. Output is an editable preview -- actually
 // creating the Linear ticket (write access) is a later phase, not this.
+//
+// When `existing_ticket_ref` is passed alongside a single bug_report_id,
+// this switches to a different mode entirely: instead of drafting a new
+// ticket, it produces a short comment-shaped note for pasting onto an
+// ALREADY-FILED ticket (see EXAMPLE_SCHEMA) -- for when a new bug is just
+// another occurrence of something already tracked, not something new.
 import { corsHeaders } from '../_shared/cors.ts'
 
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!
@@ -46,6 +52,20 @@ const DRAFT_SCHEMA = {
         },
       },
     },
+  },
+}
+
+// "Add example to existing ticket" -- this bug isn't getting its own new
+// Linear ticket, it's a further occurrence of something already filed.
+// Produces a short comment-shaped note instead of the full four-section
+// template, since it's meant to be pasted onto an EXISTING ticket, not
+// stand alone as one.
+const EXAMPLE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['comment'],
+  properties: {
+    comment: { type: 'string', description: 'a short note (2-5 sentences, or a tight "- " bulleted list if there\'s more than one distinct point) for pasting as a Linear COMMENT on an already-filed ticket, describing this new occurrence of the same underlying issue -- NOT a full ticket with its own title/description/steps sections. Ground strictly in the reported fields and evidence; never invent specifics. End with a "Ticket ID: <id>" line if the bug has one, so the example stays traceable back to Command Center.' },
   },
 }
 
@@ -141,7 +161,40 @@ Deno.serve(async (req: Request) => {
     const bugReportIds: string[] | undefined = Array.isArray(body.bug_report_ids) ? body.bug_report_ids.filter((id: unknown) => typeof id === 'string') : undefined
     const themeTitle: string | undefined = typeof body.theme_title === 'string' ? body.theme_title : undefined
     const themeExplanation: string | undefined = typeof body.theme_explanation === 'string' ? body.theme_explanation : undefined
+    const existingTicketRef: string | undefined = typeof body.existing_ticket_ref === 'string' ? body.existing_ticket_ref : undefined
     if (!bugReportId && (!bugReportIds || bugReportIds.length === 0)) return json({ error: 'bug_report_id or bug_report_ids is required' }, 400)
+
+    if (existingTicketRef) {
+      if (!bugReportId) return json({ error: 'bug_report_id is required with existing_ticket_ref' }, 400)
+      const bugRes = await fetch(`${SUPABASE_URL}/rest/v1/bug_reports?id=eq.${bugReportId}&select=*`, { headers: sb })
+      if (!bugRes.ok) return json({ error: 'Failed to load bug report' }, 500)
+      const bug = (await bugRes.json())[0]
+      if (!bug) return json({ error: 'Bug report not found' }, 404)
+
+      const exampleSystem = `You are helping a QA reviewer add a new occurrence of an already-known bug as a COMMENT on an existing, already-filed Linear ticket (${existingTicketRef}) -- you are NOT drafting a new ticket. ${SHARED_CONTEXT} Ground the note strictly in the reported fields, the conversation, and any attached evidence -- never invent player words, steps, or facts you weren't given. Keep it short and scannable; this supplements an existing ticket, it doesn't replace it.`
+      const exampleRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-opus-4-8',
+          max_tokens: 700,
+          system: exampleSystem,
+          messages: [{ role: 'user', content: buildBugContent(bug, []) }],
+          output_config: { format: { type: 'json_schema', schema: EXAMPLE_SCHEMA } },
+        }),
+      })
+      if (!exampleRes.ok) return json({ error: `Anthropic API ${exampleRes.status}: ${(await exampleRes.text()).slice(0, 500)}` }, 502)
+      const ed = await exampleRes.json()
+      if (ed.stop_reason === 'refusal') return json({ error: 'The model declined to draft this example.' }, 502)
+      const eBlock = ed.content?.find((b: any) => b.type === 'text')
+      let example: any
+      try {
+        example = JSON.parse(eBlock?.text ?? '')
+      } catch {
+        return json({ error: 'Unexpected non-JSON response.' }, 502)
+      }
+      return json({ comment: example.comment, existing_ticket_ref: existingTicketRef, usage: ed.usage ?? null })
+    }
 
     let content: any[]
     if (bugReportIds && bugReportIds.length > 0) {
