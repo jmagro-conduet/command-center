@@ -1,10 +1,11 @@
 // bug-triage-report
 // AI analysis over every bug report for an operator that isn't dismissed as
-// Won't Fix -- open, investigating, resolved, duplicate, and related are all
-// included, since a resolved or duplicate-linked bug is still a real
-// occurrence worth counting toward a root-cause theme (and toward a batched
-// Linear draft covering everything in that theme). Produces two things in
-// one run:
+// Won't Fix, filed within a lookback window (default 30 days, caller-
+// configurable via `days`) -- NOT filtered by status. Statuses like
+// resolved/duplicate/related are easy to forget to set in the moment, so
+// filtering by them would silently drop real, recent bugs that are still
+// worth a theme or a resolution brief; a date window doesn't have that
+// failure mode. Produces two things in one run:
 //   1. A per-bug "resolution brief" (description / steps to reproduce / suggested fix /
 //      expected behavior / actual behavior / impact) an engineer can pick up cold —
 //      grounded in the reported fields AND any attached evidence (screenshots/PDFs),
@@ -62,7 +63,7 @@ const THEMES_SCHEMA = {
         required: ['title', 'explanation', 'bug_indices'],
         properties: {
           title:        { type: 'string', description: 'short name for the shared root cause' },
-          explanation:  { type: 'string', description: 'why these bugs likely share one underlying cause, and what engineering should investigate to confirm/fix it at the root' },
+          explanation:  { type: 'string', description: 'the SPECIFIC shared mechanism tying these bugs together (e.g. the exact knowledge-base article that\'s missing/wrong, the exact tool call that\'s misfiring, the exact prompt ambiguity) -- not a category label like "these are all payments issues". If you can\'t name a specific mechanism, these bugs don\'t belong in the same theme. Also say what engineering should investigate to confirm/fix it at the root.' },
           bug_indices:  { type: 'array', items: { type: 'integer' }, description: 'the idx value of every bug that belongs to this theme, copied from the input' },
         },
       },
@@ -147,15 +148,15 @@ Deno.serve(async (req: Request) => {
     const generatedBy: string | null = body.generated_by ?? null
     if (!operatorId) return json({ error: 'operator_id is required' }, 400)
 
-    const statuses = ['open', 'investigating', 'resolved', 'duplicate', 'related']
-    const statusFilter = statuses.map(s => `"${s}"`).join(',')
+    const days = Number.isFinite(body.days) && body.days > 0 ? Math.floor(body.days) : 30
+    const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
     const listRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/bug_reports?operator_id=eq.${operatorId}&status=in.(${statusFilter})&select=*&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/bug_reports?operator_id=eq.${operatorId}&status=neq.wont_fix&created_at=gte.${sinceIso}&select=*&order=created_at.desc`,
       { headers: sb },
     )
     if (!listRes.ok) return json({ error: 'Failed to load bug reports' }, 500)
     const allOpen: any[] = await listRes.json()
-    if (allOpen.length === 0) return json({ error: 'No bugs to analyze for this operator (all are marked Won\'t Fix, or there are none yet).' }, 404)
+    if (allOpen.length === 0) return json({ error: `No bugs from the last ${days} days for this operator (excluding Won't Fix).` }, 404)
 
     const totalOpen = allOpen.length
     const sorted = [...allOpen].sort((a, b) => {
@@ -197,10 +198,12 @@ Deno.serve(async (req: Request) => {
       actual_outcome: trunc(b.actual_outcome),
       additional_context: trunc(b.additional_context),
     }))
-    const themesSystem = `You are a senior engineer looking for deeper, cross-cutting root causes across a batch of open gameLM bugs. Individually-tagged "failing components" can share one true underlying cause (a specific knowledge-base gap, a shared prompt ambiguity, a tool/data-access limitation) even when the manual tags differ — find those clusters. Only group bugs that genuinely share a root cause; it's fine to return few or zero themes if the bugs are mostly unrelated. Reference bugs ONLY by their idx integer, copied exactly from the input — never invent an idx.`
+    const themesSystem = `You are a senior engineer looking for deeper, cross-cutting root causes across a batch of gameLM bugs. Individually-tagged "failing components" can share one true underlying cause (a specific knowledge-base gap, a shared prompt ambiguity, a tool/data-access limitation) even when the manual tags differ — find those clusters.
+
+These theme groupings become real, filed Linear tickets covering multiple bugs at once, so precision matters more than coverage: a bug sitting ungrouped costs nothing, but a bug forced into a theme it doesn't truly share a root cause with produces a vague, harder-to-triangulate ticket. Group bugs ONLY when you can point to one SPECIFIC shared mechanism between them (the same missing KB article, the same misfiring tool call, the same prompt ambiguity) -- never on category/component similarity alone ("both payments-related" is not a shared mechanism). Prefer several small, tight themes over one broad one. It's fine, and expected, to return few or zero themes when the bugs are mostly unrelated -- do not force a grouping to avoid an empty result. Reference bugs ONLY by their idx integer, copied exactly from the input — never invent an idx.`
     const themesResult = await callClaude(
       themesSystem,
-      `OPEN BUGS (idx is how you must reference each one):\n${JSON.stringify(indexed)}`,
+      `CANDIDATE BUGS (idx is how you must reference each one):\n${JSON.stringify(indexed)}`,
       THEMES_SCHEMA,
       3000,
     )
@@ -220,8 +223,12 @@ Deno.serve(async (req: Request) => {
       : null
 
     const generated_at = new Date().toISOString()
-    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated, themes_error: themesError }
+    const meta = { total_open: totalOpen, analyzed: bugs.length, truncated, themes_error: themesError, days }
     const usage = { input_tokens: totalInput, output_tokens: totalOutput, calls }
+    // `statuses` predates the date-window filter (it used to BE the filter) --
+    // kept as a text[] column for the legacy not-null constraint, now just a
+    // human-readable note of what actually ran, not something re-parsed.
+    const statuses = [`last ${days} days (excl. wont_fix)`]
 
     // Best-effort persistence — a save failure shouldn't lose the report the admin
     // is looking at right now, just mean it won't show up in History later.
