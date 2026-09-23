@@ -158,14 +158,24 @@ Deno.serve(async (req: Request) => {
 
     const fromDate: string | undefined = typeof body.from === 'string' && body.from ? body.from : undefined
     const toDate: string | undefined = typeof body.to === 'string' && body.to ? body.to : undefined
+    // Precise UTC instants, pre-resolved by the caller in the reviewer's own
+    // timezone -- authoritative when present. A bare yyyy-mm-dd date has no
+    // timezone of its own; treating it as a UTC calendar day (the fallback
+    // below) silently shifts the window by the reviewer's UTC offset, which
+    // drops or double-counts bugs created near their local midnight.
+    const sinceParam: string | undefined = typeof body.since === 'string' && body.since ? body.since : undefined
+    const untilParam: string | undefined = typeof body.until === 'string' && body.until ? body.until : undefined
 
     let sinceIso: string
     let untilIso: string | null = null
     let rangeLabel: string
-    if (fromDate) {
-      // Date-only strings from an <input type="date"> -- day-bounded, `to`
-      // inclusive of its whole day, mirroring the same T00:00:00/T23:59:59
-      // convention Submissions.tsx's own date filters already use.
+    if (sinceParam) {
+      sinceIso = sinceParam
+      untilIso = untilParam ?? null
+      rangeLabel = fromDate ? (fromDate === (toDate ?? fromDate) ? fromDate : `${fromDate} to ${toDate ?? fromDate}`) : 'custom range'
+    } else if (fromDate) {
+      // Date-only strings with no since/until -- e.g. a direct API call
+      // without timezone context. Best-effort UTC-day interpretation.
       sinceIso = `${fromDate}T00:00:00`
       const to = toDate ?? fromDate
       untilIso = `${to}T23:59:59`

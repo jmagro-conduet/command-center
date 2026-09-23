@@ -120,7 +120,7 @@ interface TriageReport {
   briefs: TriageBrief[]
   themes: TriageTheme[]
   usage: { input_tokens: number; output_tokens: number; calls: number } | null
-  meta: { total_open: number; analyzed: number; truncated: boolean; excluded_handled?: number }
+  meta: { total_open: number; analyzed: number; truncated: boolean; excluded_handled?: number; themes_error?: string | null }
   isHistorical?: boolean
 }
 
@@ -129,7 +129,7 @@ interface TriageHistoryEntry {
   generated_at: string
   generated_by: string | null
   bug_count: number
-  meta: { total_open: number; analyzed: number; truncated: boolean; excluded_handled?: number } | null
+  meta: { total_open: number; analyzed: number; truncated: boolean; excluded_handled?: number; themes_error?: string | null } | null
 }
 
 interface FormState {
@@ -537,8 +537,16 @@ export default function BugTracker() {
     if (!selectedOperator?.id) return
     setReportLoading(true)
     setReportError('')
+    // `new Date("yyyy-mm-ddTHH:mm:ss")` (no timezone suffix) is spec'd to
+    // parse as LOCAL time -- this is what actually resolves reportFrom/
+    // reportTo's day boundaries in the reviewer's own timezone, so the
+    // edge function gets a precise, unambiguous UTC instant instead of
+    // having to guess at a bare date string (which shifts the window by
+    // the reviewer's UTC offset and silently drops late-day bugs).
+    const since = new Date(`${reportFrom}T00:00:00`).toISOString()
+    const until = new Date(`${reportTo}T23:59:59.999`).toISOString()
     const { data, error } = await supabase.functions.invoke('bug-triage-report', {
-      body: { operator_id: selectedOperator.id, generated_by: user?.name ?? user?.email ?? null, from: reportFrom, to: reportTo },
+      body: { operator_id: selectedOperator.id, generated_by: user?.name ?? user?.email ?? null, from: reportFrom, to: reportTo, since, until },
     })
     if (error || data?.error) {
       setReportError(data?.error ?? error?.message ?? 'Report generation failed.')
@@ -1537,12 +1545,18 @@ export default function BugTracker() {
 
           {triageReport && !reportLoading && (
             <>
-              {triageReport.themes.length > 0 && (
-                <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>Root Cause Themes</p>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
-                    Bugs that likely share one deeper cause, even where they were tagged under different components
+              <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
+                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>Root Cause Themes</p>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+                  Bugs that likely share one deeper cause, even where they were tagged under different components
+                </p>
+                {triageReport.themes.length === 0 ? (
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
+                    {triageReport.meta?.themes_error
+                      ? `Theme generation failed: ${triageReport.meta.themes_error}`
+                      : `No shared root cause found across this pass's ${triageReport.meta?.analyzed ?? triageReport.bug_count} bug${(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'} — nothing was forced into a grouping it didn't genuinely share.`}
                   </p>
+                ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {triageReport.themes.map((t, i) => {
                       const selected = themeSelectedIds(i, t)
@@ -1701,8 +1715,8 @@ export default function BugTracker() {
                       )
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>
