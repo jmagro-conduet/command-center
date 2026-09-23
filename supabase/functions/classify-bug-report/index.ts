@@ -25,21 +25,27 @@ const LINEAR_API = 'https://api.linear.app/graphql'
 
 const MAX_CC_CANDIDATES = 40
 const MAX_LINEAR_CANDIDATES = 60
+const MAX_MATCHES = 4
 
 const SHARED_CONTEXT = `"gameLM" is an AI customer-service co-pilot for iGaming/sports-betting support agents. In CoPilot mode it drafts a suggested response a human agent reviews before sending; in Full Auto mode it can respond directly. Bugs are reported by support agents and QA when gameLM's behavior didn't match what it should have done. During real QA cycles (e.g. RSI UAT), a lot of reported "bugs" turned out to be non-issues or out-of-scope scenarios -- gameLM behaving correctly given a real content/policy gap, or a scenario outside what it was ever meant to handle.`
 
 const CLASSIFY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['status', 'reasoning', 'matched_ref'],
+  required: ['status', 'reasoning', 'matched_refs'],
   properties: {
     status: {
       type: 'string',
       enum: ['new', 'related', 'duplicate', 'possible_non_issue'],
       description: 'new: no meaningful overlap with any candidate. related: shares a root cause or theme with a candidate but is a distinct enough scenario to deserve its own ticket. duplicate: close enough to a candidate\'s underlying issue that this should be added as a supporting example against it, not filed as a new ticket. possible_non_issue: the reported behavior looks like expected/correct behavior given a known content or policy gap, or is an out-of-scope scenario for gameLM -- flag for human judgment, never treat as decisively dismissed.',
     },
-    reasoning: { type: 'string', description: '2-4 sentences a QA reviewer can act on immediately. When status is related, duplicate, or possible_non_issue, explicitly cite the matched candidate.' },
-    matched_ref: { type: 'string', description: 'the ref value (e.g. "cc:2" or "linear:0") of the single best-matching candidate, copied exactly from the input. Empty string when status is "new" or nothing meaningfully matches.' },
+    reasoning: { type: 'string', description: '2-4 sentences a QA reviewer can act on immediately. When status is related, duplicate, or possible_non_issue, explicitly cite the matched candidate(s).' },
+    matched_refs: {
+      type: 'array',
+      description: 'ref values (e.g. "cc:2", "linear:0") of the matching candidates, copied exactly from the input, ranked best match first. Usually just one -- only include more than one when multiple distinct existing tickets genuinely overlap with this report. Empty array when status is "new" or nothing meaningfully matches.',
+      items: { type: 'string' },
+      maxItems: MAX_MATCHES,
+    },
   },
 }
 
@@ -165,18 +171,18 @@ Deno.serve(async (req: Request) => {
 
     const linearIssues = linearProjects.length > 0 ? await fetchLinearIssues(linearProjects.map(p => p.id)) : []
 
-    const resolveMatch = (ref: string) => {
-      if (ref.startsWith('cc:')) {
-        const c = ccCandidates[parseInt(ref.slice(3), 10)]
-        if (!c) return { matched_source: null, matched_id: null, matched_title: null }
-        return { matched_source: 'command_center', matched_id: c.id, matched_title: c.ticket_number ? `Ticket #${c.ticket_number}` : `Bug ${String(c.id).slice(0, 8)}` }
+    const resolveMatches = (refs: string[]): { source: 'command_center' | 'linear'; id: string; title: string }[] => {
+      const out: { source: 'command_center' | 'linear'; id: string; title: string }[] = []
+      for (const ref of refs.slice(0, MAX_MATCHES)) {
+        if (ref.startsWith('cc:')) {
+          const c = ccCandidates[parseInt(ref.slice(3), 10)]
+          if (c) out.push({ source: 'command_center', id: c.id, title: c.ticket_number ? `Ticket #${c.ticket_number}` : `Bug ${String(c.id).slice(0, 8)}` })
+        } else if (ref.startsWith('linear:')) {
+          const iss = linearIssues[parseInt(ref.slice(7), 10)]
+          if (iss) out.push({ source: 'linear', id: iss.url, title: `${iss.identifier}: ${iss.title}${iss.project?.name ? ` (${iss.project.name})` : ''}` })
+        }
       }
-      if (ref.startsWith('linear:')) {
-        const iss = linearIssues[parseInt(ref.slice(7), 10)]
-        if (!iss) return { matched_source: null, matched_id: null, matched_title: null }
-        return { matched_source: 'linear', matched_id: iss.url, matched_title: `${iss.identifier}: ${iss.title}${iss.project?.name ? ` (${iss.project.name})` : ''}` }
-      }
-      return { matched_source: null, matched_id: null, matched_title: null }
+      return out
     }
 
     const persist = async (fields: Record<string, unknown>) => {
@@ -192,10 +198,10 @@ Deno.serve(async (req: Request) => {
         reasoning: linearProjects.length > 0
           ? 'No other open Command Center bugs or Linear issues found to compare against for this operator.'
           : 'No other open Command Center bugs found to compare against, and this operator has no Linear project linked (Settings -> Linear projects) for cross-checking.',
-        matched_source: null, matched_id: null, matched_title: null,
+        matches: [] as { source: 'command_center' | 'linear'; id: string; title: string }[],
       }
       const triaged_at = new Date().toISOString()
-      await persist({ triage_status: result.status, triage_reasoning: result.reasoning, triage_matched_source: null, triage_matched_id: null, triaged_at })
+      await persist({ triage_status: result.status, triage_reasoning: result.reasoning, triage_matches: [], triaged_at })
       return json({ ...result, triaged_at, meta: { cc_candidates: 0, linear_candidates: 0, linear_projects_linked: linearProjects.length } })
     }
 
@@ -222,7 +228,7 @@ Deno.serve(async (req: Request) => {
 
     const system = `You are a QA triage assistant for gameLM bug reports. ${SHARED_CONTEXT}
 
-Compare the NEW BUG REPORT below against the candidate lists (existing open Command Center bugs, and existing Linear issues across this operator's linked Linear project(s), if any) and classify it as new / related / duplicate / possible_non_issue. Reference a matched candidate ONLY by its exact "ref" string copied from the input (e.g. "cc:2" or "linear:0") -- never invent a ref, ticket number, or identifier. Pick at most one best match. A Linear issue whose state_type is "duplicate" or "canceled" can still be the right match if the new report describes the same underlying scenario -- say so in your reasoning.`
+Compare the NEW BUG REPORT below against the candidate lists (existing open Command Center bugs, and existing Linear issues across this operator's linked Linear project(s), if any) and classify it as new / related / duplicate / possible_non_issue. Reference matched candidates ONLY by their exact "ref" strings copied from the input (e.g. "cc:2" or "linear:0") -- never invent a ref, ticket number, or identifier. Pick the single best match in the common case, but list up to ${MAX_MATCHES} refs, ranked best first, when this report genuinely overlaps with more than one distinct existing ticket. A Linear issue whose state_type is "duplicate" or "canceled" can still be the right match if the new report describes the same underlying scenario -- say so in your reasoning.`
 
     const content = [
       ...buildBugContent(bug),
@@ -234,20 +240,19 @@ Compare the NEW BUG REPORT below against the candidate lists (existing open Comm
       return json({ error: [result.error, result.body].filter(Boolean).join(' — ') || 'Classification failed' }, 502)
     }
 
-    const matched = resolveMatch(result.data.matched_ref ?? '')
+    const matches = resolveMatches(result.data.matched_refs ?? [])
     const triaged_at = new Date().toISOString()
     await persist({
       triage_status: result.data.status,
       triage_reasoning: result.data.reasoning,
-      triage_matched_source: matched.matched_source,
-      triage_matched_id: matched.matched_id,
+      triage_matches: matches,
       triaged_at,
     })
 
     return json({
       status: result.data.status,
       reasoning: result.data.reasoning,
-      ...matched,
+      matches,
       triaged_at,
       meta: { cc_candidates: ccCandidates.length, linear_candidates: linearIssues.length, linear_projects_linked: linearProjects.length },
     })

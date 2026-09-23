@@ -38,9 +38,14 @@ interface BugReport {
   linear_issue_url: string | null
   triage_status: 'new' | 'related' | 'duplicate' | 'possible_non_issue' | null
   triage_reasoning: string | null
-  triage_matched_source: 'linear' | 'command_center' | null
-  triage_matched_id: string | null
+  triage_matches: TriageMatch[] | null
   triaged_at: string | null
+}
+
+interface TriageMatch {
+  source: 'linear' | 'command_center'
+  id: string
+  title: string
 }
 
 // draft-bug-ticket's elaborated output — an editable preview, not persisted
@@ -60,11 +65,10 @@ interface TriageBundle {
   isAdmin: boolean
   triaging: Set<string>
   triageErrors: Record<string, string>
-  matchedTitles: Record<string, string>
   draftingTicket: string | null
   draftErrors: Record<string, string>
   onClassify: (bugId: string) => void
-  onConfirmMatch: (bug: BugReport) => void
+  onConfirmMatch: (bug: BugReport, match: TriageMatch) => void
   onDismiss: (bugId: string) => void
   onMarkNotABug: (bugId: string) => void
   onDraftTicket: (bugId: string) => void
@@ -365,12 +369,8 @@ export default function BugTracker() {
   const [copied, setCopied]       = useState<string | null>(null)
 
   // Triage assistant — classification + ticket drafting, keyed by bug id.
-  // matchedTitles is session-only display polish (a human-readable label for
-  // whatever triage_matched_id points at) -- not persisted, since the id
-  // itself (a CC bug uuid or a Linear URL) is enough to resolve the link.
   const [triaging, setTriaging]         = useState<Set<string>>(new Set())
   const [triageErrors, setTriageErrors] = useState<Record<string, string>>({})
-  const [matchedTitles, setMatchedTitles] = useState<Record<string, string>>({})
   const [draftingTicket, setDraftingTicket] = useState<string | null>(null)
   const [draftErrors, setDraftErrors]   = useState<Record<string, string>>({})
   const [draftPreview, setDraftPreview] = useState<{ bugId: string; text: string; lowConfidence: DraftTicket['low_confidence_sections'] } | null>(null)
@@ -629,44 +629,41 @@ export default function BugTracker() {
         ...b,
         triage_status: data.status,
         triage_reasoning: data.reasoning,
-        triage_matched_source: data.matched_source,
-        triage_matched_id: data.matched_id,
+        triage_matches: data.matches ?? [],
         triaged_at: data.triaged_at,
       } : b))
-      if (data.matched_title) setMatchedTitles(prev => ({ ...prev, [bugId]: data.matched_title }))
     }
     setTriaging(prev => { const n = new Set(prev); n.delete(bugId); return n })
   }
 
-  // Reviewer confirms a triage match. "Duplicate" links this bug to whatever
-  // it matched (a Command Center canonical bug, or an existing Linear issue)
-  // so it reads as a supporting example rather than a standalone ticket --
-  // and either way, sets status so the Bug Tracker list shows at a glance
-  // that this is being addressed via another ticket. "Related" doesn't merge
-  // anything (it's still its own ticket), just marks the status.
-  async function confirmMatch(bug: BugReport) {
-    if (!bug.triage_matched_id || !bug.triage_matched_source) return
+  // Reviewer confirms a triage match. "Duplicate" links this bug to whichever
+  // specific candidate they picked (a Command Center canonical bug, or an
+  // existing Linear issue) so it reads as a supporting example rather than a
+  // standalone ticket -- and either way, sets status so the Bug Tracker list
+  // shows at a glance that this is being addressed via another ticket.
+  // "Related" doesn't merge anything (it's still its own ticket), just marks
+  // the status -- which candidate triggered it doesn't matter.
+  async function confirmMatch(bug: BugReport, match: TriageMatch) {
     if (bug.triage_status === 'related') {
       await supabase.from('bug_reports').update({ status: 'related' }).eq('id', bug.id)
       setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, status: 'related' } : b))
       return
     }
-    if (bug.triage_matched_source === 'command_center') {
-      await supabase.from('bug_reports').update({ canonical_bug_id: bug.triage_matched_id, status: 'duplicate' }).eq('id', bug.id)
-      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, canonical_bug_id: bug.triage_matched_id, status: 'duplicate' } : b))
+    if (match.source === 'command_center') {
+      await supabase.from('bug_reports').update({ canonical_bug_id: match.id, status: 'duplicate' }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, canonical_bug_id: match.id, status: 'duplicate' } : b))
     } else {
-      const title = matchedTitles[bug.id] ?? ''
-      const identifier = title.includes(':') ? title.split(':')[0].trim() : null
-      await supabase.from('bug_reports').update({ linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id, status: 'duplicate' }).eq('id', bug.id)
-      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, linear_issue_id: identifier, linear_issue_url: bug.triage_matched_id, status: 'duplicate' } : b))
+      const identifier = match.title.includes(':') ? match.title.split(':')[0].trim() : null
+      await supabase.from('bug_reports').update({ linear_issue_id: identifier, linear_issue_url: match.id, status: 'duplicate' }).eq('id', bug.id)
+      setBugs(prev => prev.map(b => b.id === bug.id ? { ...b, linear_issue_id: identifier, linear_issue_url: match.id, status: 'duplicate' } : b))
     }
   }
 
   // Reviewer disagrees with the classification -- clears it back to
   // untriaged rather than leaving a wrong verdict standing.
   async function dismissClassification(bugId: string) {
-    await supabase.from('bug_reports').update({ triage_status: null, triage_reasoning: null, triage_matched_source: null, triage_matched_id: null, triaged_at: null }).eq('id', bugId)
-    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, triage_status: null, triage_reasoning: null, triage_matched_source: null, triage_matched_id: null, triaged_at: null } : b))
+    await supabase.from('bug_reports').update({ triage_status: null, triage_reasoning: null, triage_matches: null, triaged_at: null }).eq('id', bugId)
+    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, triage_status: null, triage_reasoning: null, triage_matches: null, triaged_at: null } : b))
   }
 
   function markNotABug(bugId: string) {
@@ -742,7 +739,7 @@ export default function BugTracker() {
   ]
 
   const triageBundle: TriageBundle = {
-    isAdmin, triaging, triageErrors, matchedTitles, draftingTicket, draftErrors,
+    isAdmin, triaging, triageErrors, draftingTicket, draftErrors,
     onClassify: classifyBug, onConfirmMatch: confirmMatch, onDismiss: dismissClassification,
     onMarkNotABug: markNotABug, onDraftTicket: draftTicket,
   }
@@ -1480,11 +1477,10 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                   isAdmin={triage.isAdmin}
                   triaging={triage.triaging.has(bug.id)}
                   triageError={triage.triageErrors[bug.id]}
-                  matchedTitle={triage.matchedTitles[bug.id]}
                   drafting={triage.draftingTicket === bug.id}
                   draftError={triage.draftErrors[bug.id]}
                   onClassify={() => triage.onClassify(bug.id)}
-                  onConfirmMatch={() => triage.onConfirmMatch(bug)}
+                  onConfirmMatch={(match) => triage.onConfirmMatch(bug, match)}
                   onDismiss={() => triage.onDismiss(bug.id)}
                   onMarkNotABug={() => triage.onMarkNotABug(bug.id)}
                   onDraftTicket={() => triage.onDraftTicket(bug.id)}
@@ -1587,24 +1583,24 @@ function DetailBox({ label, value, highlight = false }: { label: string; value: 
 // the classify/draft/confirm actions are admin-only, same gate as status
 // changes and the Engineering Report tab.
 function BugTriagePanel({
-  bug, isAdmin, triaging, triageError, matchedTitle, drafting, draftError,
+  bug, isAdmin, triaging, triageError, drafting, draftError,
   onClassify, onConfirmMatch, onDismiss, onMarkNotABug, onDraftTicket,
 }: {
   bug: BugReport
   isAdmin: boolean
   triaging: boolean
   triageError?: string
-  matchedTitle?: string
   drafting: boolean
   draftError?: string
   onClassify: () => void
-  onConfirmMatch: () => void
+  onConfirmMatch: (match: TriageMatch) => void
   onDismiss: () => void
   onMarkNotABug: () => void
   onDraftTicket: () => void
 }) {
   const cfg = bug.triage_status ? TRIAGE_STATUS_CONFIG[bug.triage_status] : null
-  const hasMatch = !!(bug.triage_matched_id && bug.triage_matched_source)
+  const matches = bug.triage_matches ?? []
+  const hasMatch = matches.length > 0
   const alreadyLinked = !!(bug.canonical_bug_id || bug.linear_issue_url)
 
   return (
@@ -1650,33 +1646,39 @@ function BugTriagePanel({
       )}
 
       {hasMatch && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
-            Matched:{' '}
-            {bug.triage_matched_source === 'linear' ? (
-              <a href={bug.triage_matched_id!} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#9B59D0' }}>{matchedTitle ?? 'View in Linear'} ↗</a>
-            ) : (
-              <span style={{ color: '#000' }}>{matchedTitle ?? `Bug ${shortId(bug.triage_matched_id!)}`}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+          {matches.map((m, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                Matched:{' '}
+                {m.source === 'linear' ? (
+                  <a href={m.id} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#9B59D0' }}>{m.title || 'View in Linear'} ↗</a>
+                ) : (
+                  <span style={{ color: '#000' }}>{m.title || `Bug ${shortId(m.id)}`}</span>
+                )}
+              </span>
+              {isAdmin && bug.triage_status === 'duplicate' && !alreadyLinked && (
+                <button onClick={() => onConfirmMatch(m)} style={{
+                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                  border: '1.5px solid rgba(155,89,208,0.4)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer',
+                }}>{m.source === 'linear' ? 'Link to this Linear ticket' : 'Confirm as duplicate'}</button>
+              )}
+            </div>
+          ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {isAdmin && bug.triage_status === 'related' && bug.status !== 'related' && (
+              <button onClick={() => onConfirmMatch(matches[0])} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                border: '1.5px solid rgba(8,145,178,0.4)', background: 'rgba(8,145,178,0.08)', color: '#0e7490', cursor: 'pointer',
+              }}>Mark as related</button>
             )}
-          </span>
-          {isAdmin && bug.triage_status === 'duplicate' && !alreadyLinked && (
-            <button onClick={onConfirmMatch} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-              border: '1.5px solid rgba(155,89,208,0.4)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer',
-            }}>{bug.triage_matched_source === 'linear' ? 'Link to this Linear ticket' : 'Confirm as duplicate'}</button>
-          )}
-          {isAdmin && bug.triage_status === 'related' && bug.status !== 'related' && (
-            <button onClick={onConfirmMatch} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-              border: '1.5px solid rgba(8,145,178,0.4)', background: 'rgba(8,145,178,0.08)', color: '#0e7490', cursor: 'pointer',
-            }}>Mark as related</button>
-          )}
-          {isAdmin && !(alreadyLinked || bug.status === 'related') && (
-            <button onClick={onDismiss} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-              border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
-            }}>Not a match — dismiss</button>
-          )}
+            {isAdmin && !(alreadyLinked || bug.status === 'related') && (
+              <button onClick={onDismiss} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+              }}>Not a match — dismiss</button>
+            )}
+          </div>
         </div>
       )}
 
