@@ -839,8 +839,34 @@ export default function BugTracker() {
   // "Draft ticket from this theme" -- one draft covering every bug still
   // selected in that theme's grouping, rather than drafting each bug in it
   // one at a time.
+  // themeSelections is local-only (never persisted) -- resets on every fresh
+  // page load. If the default selection were just "everything," a bug you'd
+  // already marked out of scope or logged as filed in a PRIOR session would
+  // silently count as selected again after a refresh, making the Draft/Log-
+  // filed/Mark-out-of-scope button counts look like nothing had been saved,
+  // even though the chip styling (driven by live DB state) shows correctly.
+  // Defaulting to "still-pending only" keeps both in sync.
   function themeSelectedIds(themeIdx: number, theme: TriageTheme): Set<string> {
-    return themeSelections[themeIdx] ?? new Set(theme.bugs.map(b => b.bug_id))
+    if (themeSelections[themeIdx]) return themeSelections[themeIdx]
+    return new Set(theme.bugs.filter(b => {
+      const live = bugs.find(bb => bb.id === b.bug_id)
+      return !live || (live.status !== 'wont_fix' && !live.filed_ticket_id && !live.filed_ticket_url && !live.canonical_bug_id && !live.linear_issue_id && !live.linear_issue_url)
+    }).map(b => b.bug_id))
+  }
+
+  // Distinct filed-ticket refs already logged among a theme's currently-
+  // selected bugs -- surfaced before a bulk "Log filed ticket" save so it's
+  // never a silent overwrite of something already recorded.
+  function themeExistingFiledRefs(themeIdx: number, theme: TriageTheme): string[] {
+    const selected = themeSelectedIds(themeIdx, theme)
+    const refs = new Set<string>()
+    for (const b of theme.bugs) {
+      if (!selected.has(b.bug_id)) continue
+      const live = bugs.find(bb => bb.id === b.bug_id)
+      const ref = live?.filed_ticket_url ?? live?.filed_ticket_id
+      if (ref) refs.add(ref)
+    }
+    return Array.from(refs)
   }
 
   function toggleThemeBug(themeIdx: number, theme: TriageTheme, bugId: string) {
@@ -1485,7 +1511,11 @@ export default function BugTracker() {
                             >{draftingTheme === i ? 'Drafting…' : `Draft ticket from theme (${selected.size} selected)`}</button>
                             {editingFiledTheme !== i && (
                               <button
-                                onClick={() => { setFiledThemeInput(''); setEditingFiledTheme(i) }}
+                                onClick={() => {
+                                  const existing = themeExistingFiledRefs(i, t)
+                                  setFiledThemeInput(existing.length === 1 ? existing[0] : '')
+                                  setEditingFiledTheme(i)
+                                }}
                                 disabled={selected.size === 0}
                                 style={{
                                   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
@@ -1510,28 +1540,40 @@ export default function BugTracker() {
                             {outOfScopeErrors[i] && (
                               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{outOfScopeErrors[i]}</p>
                             )}
-                            {editingFiledTheme === i && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <input
-                                  autoFocus
-                                  value={filedThemeInput}
-                                  onChange={e => setFiledThemeInput(e.target.value)}
-                                  placeholder="Linear URL or CON-1234"
-                                  style={{
-                                    fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '4px 8px', borderRadius: 8,
-                                    border: '1.5px solid rgba(0,0,0,0.12)', width: 190,
-                                  }}
-                                />
-                                <button onClick={() => { logFiledTicketForTheme(i, t, filedThemeInput); setEditingFiledTheme(null) }} style={{
-                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-                                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
-                                }}>Save</button>
-                                <button onClick={() => setEditingFiledTheme(null)} style={{
-                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-                                  border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
-                                }}>Cancel</button>
-                              </span>
-                            )}
+                            {editingFiledTheme === i && (() => {
+                              const existing = themeExistingFiledRefs(i, t)
+                              return (
+                                <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  {existing.length > 0 && (
+                                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#b45309', margin: 0 }}>
+                                      {existing.length === 1
+                                        ? `Already logged as ${existing[0]} — saving will overwrite it.`
+                                        : `Selected bugs already have ${existing.length} different tickets logged — saving will overwrite all of them with one value.`}
+                                    </p>
+                                  )}
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <input
+                                      autoFocus
+                                      value={filedThemeInput}
+                                      onChange={e => setFiledThemeInput(e.target.value)}
+                                      placeholder="Linear URL or CON-1234"
+                                      style={{
+                                        fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '4px 8px', borderRadius: 8,
+                                        border: '1.5px solid rgba(0,0,0,0.12)', width: 190,
+                                      }}
+                                    />
+                                    <button onClick={() => { logFiledTicketForTheme(i, t, filedThemeInput); setEditingFiledTheme(null) }} style={{
+                                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                                      border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+                                    }}>Save</button>
+                                    <button onClick={() => setEditingFiledTheme(null)} style={{
+                                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                                      border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                                    }}>Cancel</button>
+                                  </span>
+                                </span>
+                              )
+                            })()}
                             {draftThemeErrors[i] && (
                               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{draftThemeErrors[i]}</p>
                             )}
