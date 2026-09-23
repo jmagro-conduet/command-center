@@ -115,6 +115,15 @@ export default function Submissions() {
   // be affected by this at all.
   const [viewMode, setViewMode] = useState<'copilot' | 'full_auto'>('copilot')
 
+  // For a Full Auto-only operator (e.g. MODO), the CoPilot view is always
+  // empty -- default straight to Full Auto instead of making every visit
+  // start on a silently-empty table. Only re-derives when the operator
+  // changes, so a manual switch within the same operator sticks.
+  useEffect(() => {
+    if (!selectedOperator) return
+    setViewMode(selectedOperator.fullAutoEnabled && !selectedOperator.copilotEnabled ? 'full_auto' : 'copilot')
+  }, [selectedOperator?.id])
+
   const [rows,        setRows]        = useState<Row[]>([])
   const [total,       setTotal]       = useState(0)
   const [ticketCount, setTicketCount] = useState(0)

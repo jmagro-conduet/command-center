@@ -308,6 +308,21 @@ export default function Analytics() {
   useEffect(() => {
     if (user?.email) localStorage.setItem(tabKey(user.email), tab)
   }, [tab, user?.email])
+
+  // The saved tab is per-user, not per-operator, so it can carry over wrong
+  // across an operator switch: a Full Auto-only operator (e.g. MODO) needs
+  // "full_auto" (every other tab is empty for it), while switching to a
+  // CoPilot-only operator needs to leave a stale "full_auto" tab (empty for
+  // THAT operator) rather than keep it. An operator with both modes enabled
+  // is left alone either way -- whatever was already selected still applies.
+  useEffect(() => {
+    if (!selectedOperator) return
+    if (selectedOperator.fullAutoEnabled && !selectedOperator.copilotEnabled) {
+      setTab('full_auto')
+    } else if (selectedOperator.copilotEnabled && !selectedOperator.fullAutoEnabled) {
+      setTab(prev => prev === 'full_auto' ? 'team' : prev)
+    }
+  }, [selectedOperator?.id])
   const [allRows, setAllRows] = useState<DataRow[]>([])
   const [events, setEvents]   = useState<HotEvent[]>([])
   const [loading, setLoading] = useState(true)
