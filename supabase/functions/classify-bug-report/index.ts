@@ -42,9 +42,8 @@ const CLASSIFY_SCHEMA = {
     reasoning: { type: 'string', description: '2-4 sentences a QA reviewer can act on immediately. When status is related, duplicate, or possible_non_issue, explicitly cite the matched candidate(s).' },
     matched_refs: {
       type: 'array',
-      description: 'ref values (e.g. "cc:2", "linear:0") of the matching candidates, copied exactly from the input, ranked best match first. Usually just one -- only include more than one when multiple distinct existing tickets genuinely overlap with this report. Empty array when status is "new" or nothing meaningfully matches.',
+      description: `ref values (e.g. "cc:2", "linear:0") of the matching candidates, copied exactly from the input, ranked best match first. Usually just one -- only include more than one when multiple distinct existing tickets genuinely overlap with this report. NEVER more than ${MAX_MATCHES} entries. Empty array when status is "new" or nothing meaningfully matches.`,
       items: { type: 'string' },
-      maxItems: MAX_MATCHES,
     },
   },
 }
