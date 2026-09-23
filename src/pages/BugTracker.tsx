@@ -1506,9 +1506,9 @@ export default function BugTracker() {
                       {triageReport.generated_by ? ` · by ${triageReport.generated_by}` : ''}
                     </p>
                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
-                      Analyzed {triageReport.meta?.analyzed ?? triageReport.bug_count} bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'}
+                      {triageReport.meta?.analyzed ?? triageReport.bug_count} new bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'} to review
                       {triageReport.meta?.truncated ? ` (of ${triageReport.meta.total_open} eligible — highest severity + most recent kept)` : ''}
-                      {!!triageReport.meta?.excluded_handled && ` · ${triageReport.meta.excluded_handled} excluded — already linked or filed`}
+                      {!!triageReport.meta?.excluded_handled && ` — ${triageReport.meta.excluded_handled} more already linked or filed, not shown below`}
                     </p>
                   </div>
                   {triageReport.briefs.length > 0 && (
@@ -1548,7 +1548,8 @@ export default function BugTracker() {
               <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>Root Cause Themes</p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
-                  Bugs that likely share one deeper cause, even where they were tagged under different components
+                  Among this pass's {triageReport.meta?.analyzed ?? triageReport.bug_count} new bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'} -- bugs that likely share one deeper cause, even where they were tagged under different components
+                  {!!triageReport.meta?.excluded_handled && `. ${triageReport.meta.excluded_handled} other${triageReport.meta.excluded_handled === 1 ? '' : 's'} from this window ${triageReport.meta.excluded_handled === 1 ? 'is' : 'are'} already linked or filed, so ${triageReport.meta.excluded_handled === 1 ? "it's" : "they're"} left out of this pass entirely.`}
                 </p>
                 {triageReport.themes.length === 0 ? (
                   <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
@@ -1720,10 +1721,11 @@ export default function BugTracker() {
 
               <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
                 <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>
-                  Resolution Briefs ({triageReport.briefs.length})
+                  Resolution Briefs — {triageReport.briefs.length} new
                 </p>
                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
-                  Click a bug to view its full brief and draft a ticket -- covers every bug, including ones not grouped into a theme above
+                  Click a bug to view its full brief and draft a ticket -- covers every new bug this pass, including ones not grouped into a theme above
+                  {!!triageReport.meta?.excluded_handled && ` (${triageReport.meta.excluded_handled} already linked or filed aren't repeated here)`}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {triageReport.briefs.map(b => {
