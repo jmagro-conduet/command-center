@@ -488,6 +488,10 @@ export default function BugTracker() {
   const [filedThemeInput, setFiledThemeInput]     = useState('')
   const [markingOutOfScope, setMarkingOutOfScope] = useState<number | null>(null)
   const [outOfScopeErrors, setOutOfScopeErrors]   = useState<Record<number, string>>({})
+  // Requires an explicit second click before committing -- clicking through
+  // several theme cards in quick succession had silently marked more themes
+  // out of scope than intended, with no way to notice or stop it in time.
+  const [confirmingOutOfScope, setConfirmingOutOfScope] = useState<number | null>(null)
   // Shared detail modal -- opened from a compact Resolution Briefs row or
   // from a theme chip's peek icon, both showing the same underlying brief.
   const [detailBugId, setDetailBugId]             = useState<string | null>(null)
@@ -900,6 +904,28 @@ export default function BugTracker() {
       if (ref) refs.add(ref)
     }
     return Array.from(refs)
+  }
+
+  // Theme-wide summary (every bug in the theme, not just the currently-
+  // selected subset) -- a prominent, single glance answer to "has this
+  // theme already been filed, and as what" so a reviewer isn't piecing it
+  // together from small per-chip decorations, and doesn't lose track of
+  // which themes were already acted on across a report.
+  function themeFiledSummary(theme: TriageTheme): { ref: string; url: string | null; count: number }[] {
+    const map = new Map<string, { url: string | null; count: number }>()
+    for (const b of theme.bugs) {
+      const live = bugs.find(bb => bb.id === b.bug_id)
+      const ref = live?.filed_ticket_id ?? live?.filed_ticket_url
+      if (!ref) continue
+      const entry = map.get(ref) ?? { url: live?.filed_ticket_url ?? null, count: 0 }
+      entry.count++
+      map.set(ref, entry)
+    }
+    return Array.from(map.entries()).map(([ref, v]) => ({ ref, ...v }))
+  }
+
+  function themeOutOfScopeCount(theme: TriageTheme): number {
+    return theme.bugs.filter(b => bugs.find(bb => bb.id === b.bug_id)?.status === 'wont_fix').length
   }
 
   function toggleThemeBug(themeIdx: number, theme: TriageTheme, bugId: string) {
@@ -1524,6 +1550,27 @@ export default function BugTracker() {
                         <div key={i} style={{ borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)', padding: '12px 14px' }}>
                           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>{t.title}</p>
                           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
+                          {(themeFiledSummary(t).length > 0 || themeOutOfScopeCount(t) > 0) && (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                              {themeFiledSummary(t).map(f => f.url ? (
+                                <a key={f.ref} href={f.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                                  color: '#166534', background: 'rgba(22,101,52,0.1)', padding: '4px 10px', borderRadius: 100, textDecoration: 'none',
+                                }}>Filed: {f.ref} ↗ ({f.count})</a>
+                              ) : (
+                                <span key={f.ref} style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                                  color: '#166534', background: 'rgba(22,101,52,0.1)', padding: '4px 10px', borderRadius: 100,
+                                }}>Filed: {f.ref} ({f.count})</span>
+                              ))}
+                              {themeOutOfScopeCount(t) > 0 && (
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                                  color: '#58595B', background: 'rgba(0,0,0,0.06)', padding: '4px 10px', borderRadius: 100,
+                                }}>✕ {themeOutOfScopeCount(t)} out of scope</span>
+                              )}
+                            </div>
+                          )}
                           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 6 }}>Click a bug to deselect it before drafting</p>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                             {t.bugs.map(b => {
@@ -1562,7 +1609,7 @@ export default function BugTracker() {
                                 opacity: draftingTheme === i || selected.size === 0 ? 0.5 : 1,
                               }}
                             >{draftingTheme === i ? 'Drafting…' : `Draft ticket from theme (${selected.size} selected)`}</button>
-                            {editingFiledTheme !== i && (
+                            {editingFiledTheme !== i && confirmingOutOfScope !== i && (
                               <button
                                 onClick={() => {
                                   const existing = themeExistingFiledRefs(i, t)
@@ -1577,18 +1624,37 @@ export default function BugTracker() {
                                 }}
                               >{`Log filed ticket for ${selected.size} selected`}</button>
                             )}
-                            {editingFiledTheme !== i && (
+                            {editingFiledTheme !== i && confirmingOutOfScope !== i && (
                               <button
-                                onClick={() => markThemeOutOfScope(i, t)}
-                                disabled={markingOutOfScope === i || selected.size === 0}
+                                onClick={() => setConfirmingOutOfScope(i)}
+                                disabled={selected.size === 0}
                                 title="Mark selected bugs Won't Fix -- excludes them from every future report and classify run"
                                 style={{
                                   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
                                   border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', transition: 'opacity 0.15s',
-                                  cursor: markingOutOfScope === i || selected.size === 0 ? 'not-allowed' : 'pointer',
-                                  opacity: markingOutOfScope === i || selected.size === 0 ? 0.5 : 1,
+                                  cursor: selected.size === 0 ? 'not-allowed' : 'pointer',
+                                  opacity: selected.size === 0 ? 0.5 : 1,
                                 }}
-                              >{markingOutOfScope === i ? 'Marking…' : `Mark ${selected.size} out of scope`}</button>
+                              >{`Mark ${selected.size} out of scope`}</button>
+                            )}
+                            {confirmingOutOfScope === i && (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', fontWeight: 500 }}>
+                                  {`Mark these ${selected.size} Won't Fix?`}
+                                </span>
+                                <button
+                                  onClick={() => { markThemeOutOfScope(i, t); setConfirmingOutOfScope(null) }}
+                                  disabled={markingOutOfScope === i}
+                                  style={{
+                                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                                    border: '1.5px solid rgba(229,62,62,0.4)', background: 'rgba(229,62,62,0.06)', color: '#e53e3e', cursor: 'pointer',
+                                  }}
+                                >{markingOutOfScope === i ? 'Marking…' : 'Confirm'}</button>
+                                <button onClick={() => setConfirmingOutOfScope(null)} style={{
+                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                                  border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                                }}>Cancel</button>
+                              </span>
                             )}
                             {outOfScopeErrors[i] && (
                               <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{outOfScopeErrors[i]}</p>
