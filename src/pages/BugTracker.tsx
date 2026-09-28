@@ -1634,27 +1634,53 @@ export default function BugTracker() {
                               )}
                             </div>
                           )}
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 6 }}>Click a bug to deselect it before drafting</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', margin: 0 }}>Click a bug to toggle it before an action</p>
+                            {t.bugs.some(b => {
+                              const lb = bugs.find(bb => bb.id === b.bug_id)
+                              return lb?.filed_ticket_id && lb.status !== 'resolved' && !selected.has(b.bug_id)
+                            }) && (
+                              <button
+                                onClick={() => setThemeSelections(prev => ({
+                                  ...prev,
+                                  [i]: new Set(t.bugs.filter(b => {
+                                    const lb = bugs.find(bb => bb.id === b.bug_id)
+                                    return lb?.filed_ticket_id && lb.status !== 'resolved'
+                                  }).map(b => b.bug_id)),
+                                }))}
+                                style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#166534', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                              >Select filed bugs (to mark resolved)</button>
+                            )}
+                          </div>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                             {t.bugs.map(b => {
                               const liveBug = bugs.find(bb => bb.id === b.bug_id)
                               const isSelected = selected.has(b.bug_id)
                               const isFiled = !!liveBug?.filed_ticket_id
+                              const isResolved = liveBug?.status === 'resolved'
                               const isOutOfScope = liveBug?.status === 'wont_fix'
+                              // Filed/resolved are positive outcomes, not "excluded" -- they stay
+                              // colored and un-struck even while deselected (deselecting them is
+                              // the NORMAL post-filing state, not a dismissal). Only a plain,
+                              // never-actioned bug that's been manually deselected gets the
+                              // muted/struck "not included in the next action" treatment.
+                              const color = isOutOfScope ? 'rgba(0,0,0,0.3)' : isResolved || isFiled ? '#166534' : !isSelected ? 'rgba(0,0,0,0.35)' : '#9B59D0'
+                              const background = isOutOfScope ? 'rgba(0,0,0,0.05)' : isResolved || isFiled ? 'rgba(22,101,52,0.1)' : !isSelected ? 'rgba(0,0,0,0.04)' : 'rgba(155,89,208,0.1)'
+                              const strike = isOutOfScope || (!isFiled && !isResolved && !isSelected)
+                              const prefix = isOutOfScope ? '✕ ' : isResolved ? '✓✓ ' : isFiled ? '✓ ' : ''
                               return (
                                 <span
                                   key={b.bug_id}
                                   onClick={() => toggleThemeBug(i, t, b.bug_id)}
-                                  title={isOutOfScope ? 'Marked out of scope (Won\'t Fix)' : isFiled ? 'Already logged as filed' : undefined}
+                                  title={isOutOfScope ? "Marked out of scope (Won't Fix)" : isResolved ? 'Resolved' : isFiled ? 'Already logged as filed' : undefined}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
-                                    color: isOutOfScope ? 'rgba(0,0,0,0.3)' : !isSelected ? 'rgba(0,0,0,0.35)' : isFiled ? '#166534' : '#9B59D0',
-                                    background: isOutOfScope ? 'rgba(0,0,0,0.05)' : !isSelected ? 'rgba(0,0,0,0.04)' : isFiled ? 'rgba(22,101,52,0.1)' : 'rgba(155,89,208,0.1)',
-                                    padding: '2px 8px', borderRadius: 100, cursor: 'pointer',
-                                    textDecoration: isOutOfScope || !isSelected ? 'line-through' : 'none',
+                                    color, background, padding: '2px 8px', borderRadius: 100, cursor: 'pointer',
+                                    textDecoration: strike ? 'line-through' : 'none',
+                                    boxShadow: isSelected ? '0 0 0 1.5px currentColor' : 'none',
                                   }}
                                 >
-                                  {isOutOfScope ? '✕ ' : isFiled ? '✓ ' : ''}{b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
+                                  {prefix}{b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
                                   {b.ticket_id && <CopyIconButton value={b.ticket_id} title="Copy ticket ID" />}
                                   <PeekIconButton onClick={() => setDetailBugId(b.bug_id)} title="View this bug's full detail" />
                                 </span>
