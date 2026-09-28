@@ -792,10 +792,20 @@ export default function BugTracker() {
   // regardless of triage/status. Linear write access isn't wired up (see
   // draft-bug-ticket), so this is a paste-after-filing step. Accepts a full
   // Linear URL or just an identifier (e.g. "CON-1935"); empty input clears it.
+  // Filing a real ticket also moves status to Investigating -- QA watches
+  // status specifically to know what's been picked up by engineering and
+  // needs a re-test once it's done, so this needs to happen automatically
+  // rather than requiring a second manual status change on top of filing.
+  // Only applies when actually filing (a non-empty ref); clearing a filed
+  // ticket doesn't know what to revert status to, so it's left alone.
+  function withFiledStatus(parsed: ReturnType<typeof parseFiledTicketInput>): Partial<BugReport> {
+    return parsed.filed_ticket_id || parsed.filed_ticket_url ? { ...parsed, status: 'investigating' } : parsed
+  }
+
   async function logFiledTicket(bugId: string, raw: string) {
-    const parsed = parseFiledTicketInput(raw)
-    await supabase.from('bug_reports').update(parsed).eq('id', bugId)
-    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, ...parsed } : b))
+    const updates = withFiledStatus(parseFiledTicketInput(raw))
+    await supabase.from('bug_reports').update(updates).eq('id', bugId)
+    setBugs(prev => prev.map(b => b.id === bugId ? { ...b, ...updates } : b))
   }
 
   // Filing a theme's batched ticket needs to mark EVERY bug in that group as
@@ -806,9 +816,9 @@ export default function BugTracker() {
     const selected = themeSelectedIds(themeIdx, theme)
     const ids = theme.bugs.map(b => b.bug_id).filter(id => selected.has(id))
     if (ids.length === 0) return
-    const parsed = parseFiledTicketInput(raw)
-    await supabase.from('bug_reports').update(parsed).in('id', ids)
-    setBugs(prev => prev.map(b => ids.includes(b.id) ? { ...b, ...parsed } : b))
+    const updates = withFiledStatus(parseFiledTicketInput(raw))
+    await supabase.from('bug_reports').update(updates).in('id', ids)
+    setBugs(prev => prev.map(b => ids.includes(b.id) ? { ...b, ...updates } : b))
   }
 
   function markNotABug(bugId: string) {
@@ -1632,6 +1642,7 @@ export default function BugTracker() {
                                   setEditingFiledTheme(i)
                                 }}
                                 disabled={selected.size === 0}
+                                title="Also sets status to Investigating on these bugs"
                                 style={{
                                   fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
                                   border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534',
@@ -2121,10 +2132,14 @@ function BugTriagePanel({
           )
         )}
         {isAdmin && !editingFiled && (
-          <button onClick={() => { setFiledInput(bug.filed_ticket_url ?? bug.filed_ticket_id ?? ''); setEditingFiled(true) }} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-            border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
-          }}>{isFiled ? 'Edit filed ticket' : 'Log filed ticket'}</button>
+          <button
+            onClick={() => { setFiledInput(bug.filed_ticket_url ?? bug.filed_ticket_id ?? ''); setEditingFiled(true) }}
+            title={isFiled ? undefined : 'Also sets status to Investigating'}
+            style={{
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+              border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+            }}
+          >{isFiled ? 'Edit filed ticket' : 'Log filed ticket'}</button>
         )}
         {editingFiled && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
