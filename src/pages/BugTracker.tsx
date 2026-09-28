@@ -492,6 +492,9 @@ export default function BugTracker() {
   // several theme cards in quick succession had silently marked more themes
   // out of scope than intended, with no way to notice or stop it in time.
   const [confirmingOutOfScope, setConfirmingOutOfScope] = useState<number | null>(null)
+  const [markingResolved, setMarkingResolved] = useState<number | null>(null)
+  const [resolvedErrors, setResolvedErrors]   = useState<Record<number, string>>({})
+  const [confirmingResolved, setConfirmingResolved] = useState<number | null>(null)
   // Shared detail modal -- opened from a compact Resolution Briefs row or
   // from a theme chip's peek icon, both showing the same underlying brief.
   const [detailBugId, setDetailBugId]             = useState<string | null>(null)
@@ -853,6 +856,31 @@ export default function BugTracker() {
     })
   }
 
+  // The reverse of logging a filed ticket: once engineering has actually
+  // finished it (checked in Linear, not synced automatically -- that's a
+  // future piece), mark the theme's bugs Resolved so QA sees at a glance
+  // what's ready to re-test. Filed/investigating bugs are deselected by
+  // default (see themeSelectedIds), so re-select their chips first.
+  async function markThemeResolved(themeIdx: number, theme: TriageTheme) {
+    const selected = themeSelectedIds(themeIdx, theme)
+    const ids = theme.bugs.map(b => b.bug_id).filter(id => selected.has(id))
+    if (ids.length === 0) return
+    setMarkingResolved(themeIdx)
+    setResolvedErrors(prev => { const n = { ...prev }; delete n[themeIdx]; return n })
+    const { error } = await supabase.from('bug_reports').update({ status: 'resolved', updated_at: new Date().toISOString() }).in('id', ids)
+    setMarkingResolved(null)
+    if (error) {
+      setResolvedErrors(prev => ({ ...prev, [themeIdx]: error.message || 'Failed to mark resolved.' }))
+      return
+    }
+    setBugs(prev => prev.map(b => ids.includes(b.id) ? { ...b, status: 'resolved' } : b))
+    setThemeSelections(prev => {
+      const current = new Set(prev[themeIdx] ?? theme.bugs.map(b => b.bug_id))
+      for (const id of ids) current.delete(id)
+      return { ...prev, [themeIdx]: current }
+    })
+  }
+
   async function draftTicket(bugId: string) {
     setDraftingTicket(bugId)
     setDraftErrors(prev => { const n = { ...prev }; delete n[bugId]; return n })
@@ -944,6 +972,10 @@ export default function BugTracker() {
 
   function themeOutOfScopeCount(theme: TriageTheme): number {
     return theme.bugs.filter(b => bugs.find(bb => bb.id === b.bug_id)?.status === 'wont_fix').length
+  }
+
+  function themeResolvedCount(theme: TriageTheme): number {
+    return theme.bugs.filter(b => bugs.find(bb => bb.id === b.bug_id)?.status === 'resolved').length
   }
 
   function toggleThemeBug(themeIdx: number, theme: TriageTheme, bugId: string) {
@@ -1575,7 +1607,7 @@ export default function BugTracker() {
                         <div key={i} style={{ borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)', padding: '12px 14px' }}>
                           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>{t.title}</p>
                           <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
-                          {(themeFiledSummary(t).length > 0 || themeOutOfScopeCount(t) > 0) && (
+                          {(themeFiledSummary(t).length > 0 || themeOutOfScopeCount(t) > 0 || themeResolvedCount(t) > 0) && (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
                               {themeFiledSummary(t).map(f => f.url ? (
                                 <a key={f.ref} href={f.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{
@@ -1588,6 +1620,12 @@ export default function BugTracker() {
                                   color: '#166534', background: 'rgba(22,101,52,0.1)', padding: '4px 10px', borderRadius: 100,
                                 }}>Filed: {f.ref} ({f.count})</span>
                               ))}
+                              {themeResolvedCount(t) > 0 && (
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                                  color: '#166534', background: 'rgba(22,101,52,0.1)', padding: '4px 10px', borderRadius: 100,
+                                }}>✓ {themeResolvedCount(t)} resolved — ready to re-test</span>
+                              )}
                               {themeOutOfScopeCount(t) > 0 && (
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
@@ -1634,7 +1672,7 @@ export default function BugTracker() {
                                 opacity: draftingTheme === i || selected.size === 0 ? 0.5 : 1,
                               }}
                             >{draftingTheme === i ? 'Drafting…' : `Draft ticket from theme (${selected.size} selected)`}</button>
-                            {editingFiledTheme !== i && confirmingOutOfScope !== i && (
+                            {editingFiledTheme !== i && confirmingOutOfScope !== i && confirmingResolved !== i && (
                               <button
                                 onClick={() => {
                                   const existing = themeExistingFiledRefs(i, t)
@@ -1650,7 +1688,42 @@ export default function BugTracker() {
                                 }}
                               >{`Log filed ticket for ${selected.size} selected`}</button>
                             )}
-                            {editingFiledTheme !== i && confirmingOutOfScope !== i && (
+                            {editingFiledTheme !== i && confirmingOutOfScope !== i && confirmingResolved !== i && (
+                              <button
+                                onClick={() => setConfirmingResolved(i)}
+                                disabled={selected.size === 0}
+                                title="Mark selected bugs Resolved -- for once engineering's actually fixed it, ready for QA to re-test"
+                                style={{
+                                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', transition: 'opacity 0.15s',
+                                  cursor: selected.size === 0 ? 'not-allowed' : 'pointer',
+                                  opacity: selected.size === 0 ? 0.5 : 1,
+                                }}
+                              >{`Mark ${selected.size} resolved`}</button>
+                            )}
+                            {confirmingResolved === i && (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', fontWeight: 500 }}>
+                                  {`Mark these ${selected.size} Resolved?`}
+                                </span>
+                                <button
+                                  onClick={() => { markThemeResolved(i, t); setConfirmingResolved(null) }}
+                                  disabled={markingResolved === i}
+                                  style={{
+                                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                                    border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+                                  }}
+                                >{markingResolved === i ? 'Marking…' : 'Confirm'}</button>
+                                <button onClick={() => setConfirmingResolved(null)} style={{
+                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                                  border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                                }}>Cancel</button>
+                              </span>
+                            )}
+                            {resolvedErrors[i] && (
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{resolvedErrors[i]}</p>
+                            )}
+                            {editingFiledTheme !== i && confirmingOutOfScope !== i && confirmingResolved !== i && (
                               <button
                                 onClick={() => setConfirmingOutOfScope(i)}
                                 disabled={selected.size === 0}
