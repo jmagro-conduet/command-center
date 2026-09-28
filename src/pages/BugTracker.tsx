@@ -509,6 +509,26 @@ export default function BugTracker() {
     setReportError('')
   }, [selectedOperator?.id, isAdmin])
 
+  // themeSelections and the other per-theme action state below are all
+  // keyed by theme ARRAY INDEX, not theme identity -- a fresh report's
+  // themes array starts over from index 0 with completely different bugs,
+  // so a stale selection/confirm state left over from a PREVIOUS report at
+  // the same index would otherwise get misapplied (a theme showing "0
+  // selected" out of the box because index 0 was deselected in an earlier
+  // report, not because these particular bugs are actually excluded).
+  function resetThemeUiState() {
+    setThemeSelections({})
+    setDraftingTheme(null)
+    setDraftThemeErrors({})
+    setEditingFiledTheme(null)
+    setMarkingOutOfScope(null)
+    setOutOfScopeErrors({})
+    setConfirmingOutOfScope(null)
+    setMarkingResolved(null)
+    setResolvedErrors({})
+    setConfirmingResolved(null)
+  }
+
   async function loadLatestReport() {
     if (!selectedOperator?.id) { setTriageReport(null); return }
     const { data } = await supabase
@@ -518,6 +538,7 @@ export default function BugTracker() {
       .order('generated_at', { ascending: false })
       .limit(1)
     const row = data?.[0]
+    resetThemeUiState()
     setTriageReport(row ? { ...(row as any), isHistorical: false } : null)
   }
 
@@ -556,6 +577,7 @@ export default function BugTracker() {
       setReportLoading(false)
       return
     }
+    resetThemeUiState()
     setTriageReport({ ...data, isHistorical: false })
     setReportHistory(null)
     setReportHistoryOpen(false)
@@ -580,6 +602,7 @@ export default function BugTracker() {
   async function viewHistoricalReport(id: string) {
     const { data } = await supabase.from('bug_triage_reports').select('*').eq('id', id).single()
     if (!data) return
+    resetThemeUiState()
     setTriageReport({ ...(data as any), isHistorical: true })
     setReportHistoryOpen(false)
   }
