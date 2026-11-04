@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { authClient } from '../../lib/supabase'
 import type { Doc } from '../../lib/roadmap/logic'
 import {
   ALIGN, CONF, D, DAY, HOR, IMPACT, STATUS, TEAMS, TRACKS, WORST, candidates, chunkList, fmt, riceScore, safeUrl,
@@ -298,8 +299,27 @@ function SprintDrawer({ ctx }: { ctx: Ctx }) {
   const [end, setEnd] = useState(defEnd)
   const [summary, setSummary] = useState<string>(sd.summary || '')
   const [focus, setFocus] = useState<string[]>(sd.focus || [])
+  const [drafting, setDrafting] = useState(false)
+  const [draftErr, setDraftErr] = useState('')
   if (!ctx.canEdit) return null
   const C = ctx.C.filter(c => c.status !== 'done')
+
+  // Ask Claude (via the roadmap-sprint-draft function) for a first draft from the live
+  // Linear-derived data. It only fills the form; nothing is saved until you press Save.
+  async function draft() {
+    setDrafting(true); setDraftErr('')
+    try {
+      const pieces = C.map(c => ({
+        name: c.name, status: STATUS[c.status], plain: c.plain, closedIssues: c.done, openIssues: c.open, inProgress: c.inProgress, blocked: c.blocked, target: c.target,
+        projects: c.kids.filter(p => p.status !== 'done').slice(0, 6).map(p => ({ name: p.name, status: STATUS[p.status], target: p.target })),
+      }))
+      const { data, error } = await authClient.functions.invoke('roadmap-sprint-draft', { body: { pieces, cycle: ctx.v.sync?.cycle ?? null } })
+      if (error || !data?.ok) throw new Error(data?.error || "Couldn't draft a summary. Try again.")
+      setSummary(data.summary)
+      setFocus(C.filter(c => (data.focus as string[]).includes(c.name)).map(c => c.id))
+    } catch (e) { setDraftErr(e instanceof Error ? e.message : "Couldn't draft a summary. Try again.") }
+    setDrafting(false)
+  }
   async function save(data: Record<string, any>) {
     try { await ctx.writer.set('meta', 'sprint', { ...data, updatedAt: nowIso() }); ctx.closeDrawer(); ctx.toast('Sprint status saved') } catch (e) { ctx.toast(saveErr(e)) }
   }
@@ -309,6 +329,11 @@ function SprintDrawer({ ctx }: { ctx: Ctx }) {
       <form className="rm-form" onSubmit={e => { e.preventDefault(); save({ start, end, summary: summary.trim(), focus }) }} noValidate>
         <label>Sprint starts<input type="date" value={start} onChange={e => setStart(e.target.value)} /></label>
         <label>Sprint ends<input type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
+        <div className="full" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" className="rm-btn rm-btn--ghost" onClick={draft} disabled={drafting}>{drafting ? 'Drafting…' : 'Draft with Claude'}</button>
+          <span style={{ fontSize: 12, color: '#58595B' }}>Fills the summary and focus from the live Linear data. Edit it, then Save.</span>
+          {draftErr && <span className="rm-err">{draftErr}</span>}
+        </div>
         <label className="full">Sprint summary<textarea value={summary} onChange={e => setSummary(e.target.value)} placeholder="Two or three lines: what we're shipping this sprint and anything the ELT should know" /></label>
         <div className="full"><span style={{ fontSize: 12, color: '#58595B' }}>Focus this sprint</span>
           <div className="rm-checks col">{C.map(c => <label key={c.id}><input type="checkbox" checked={focus.includes(c.id)}
