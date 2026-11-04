@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { GATED_PAGES } from '../lib/pageAccess'
 
 interface DBUser {
   authId: string
@@ -100,6 +101,15 @@ export default function Users() {
   const [accessLoading, setAccessLoading] = useState(false)
   const [accessSaving, setAccessSaving]   = useState(false)
 
+  // Page access (gated pages like the ELT-only Product Roadmap) -- SuperAdmin only.
+  // 'none' = no row, 'view' = row with can_edit false, 'edit' = row with can_edit true.
+  type PageLevel = 'none' | 'view' | 'edit'
+  const [pageGrants, setPageGrants]     = useState<Map<string, Record<string, PageLevel>>>(new Map()) // profileId -> pageKey -> level
+  const [pagesTarget, setPagesTarget]   = useState<DBUser | null>(null)
+  const [pagesSel, setPagesSel]         = useState<Record<string, PageLevel>>({})
+  const [pagesSaving, setPagesSaving]   = useState(false)
+  const [pagesError, setPagesError]     = useState<string | null>(null)
+
   // Add user modal
   const [addOpen, setAddOpen]         = useState(false)
   const [addName, setAddName]         = useState('')
@@ -112,7 +122,7 @@ export default function Users() {
   const [addError, setAddError]       = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([loadUsers(), loadTeams(), loadOperators(), loadAccessGrants(), loadOrgTeams(), loadOrgTeamLeads()])
+    Promise.all([loadUsers(), loadTeams(), loadOperators(), loadAccessGrants(), loadOrgTeams(), loadOrgTeamLeads(), loadPageGrants()])
   }, [])
 
   async function loadOrgTeams() {
@@ -324,6 +334,54 @@ export default function Users() {
     setAccessByUser(prev => new Map(prev).set(profileId, Array.from(accessSelected)))
     setAccessSaving(false)
     setAccessTarget(null)
+  }
+
+  // ── Page access (page_access table) — SuperAdmin only ──────────────────────
+  // Fallback-safe: if the table doesn't exist yet (migration not run) the
+  // modal still opens, and saving reports the real error instead of failing silently.
+  async function loadPageGrants() {
+    try {
+      const { data, error } = await supabase.from('page_access').select('user_id, page_key, can_edit')
+      if (error) return
+      const map = new Map<string, Record<string, PageLevel>>()
+      for (const r of data ?? []) {
+        const cur = map.get(r.user_id) ?? {}
+        cur[r.page_key] = r.can_edit ? 'edit' : 'view'
+        map.set(r.user_id, cur)
+      }
+      setPageGrants(map)
+    } catch { /* table not created yet */ }
+  }
+
+  function openPagesModal(u: DBUser) {
+    setPagesError(null)
+    setPagesTarget(u)
+    setPagesSel(u.profileId ? { ...(pageGrants.get(u.profileId) ?? {}) } : {})
+  }
+
+  async function handleSavePages() {
+    if (!pagesTarget || !isSuperAdmin) return
+    setPagesSaving(true); setPagesError(null)
+    const profileId = await ensureProfileId(pagesTarget)
+    if (!profileId) { setPagesError('Could not find or create this user profile.'); setPagesSaving(false); return }
+    for (const pg of GATED_PAGES) {
+      const level = pagesSel[pg.key] ?? 'none'
+      const del = await supabase.from('page_access').delete().eq('user_id', profileId).eq('page_key', pg.key)
+      if (del.error) { setPagesError(del.error.message); setPagesSaving(false); return }
+      if (level !== 'none') {
+        const ins = await supabase.from('page_access').insert({ page_key: pg.key, user_id: profileId, can_edit: level === 'edit', granted_by: currentUser?.email ?? null })
+        if (ins.error) { setPagesError(ins.error.message); setPagesSaving(false); return }
+      }
+    }
+    setPageGrants(prev => {
+      const next = new Map(prev)
+      const rec: Record<string, PageLevel> = {}
+      for (const pg of GATED_PAGES) if ((pagesSel[pg.key] ?? 'none') !== 'none') rec[pg.key] = pagesSel[pg.key]
+      next.set(profileId, rec)
+      return next
+    })
+    setPagesSaving(false)
+    setPagesTarget(null)
   }
 
   // ── Manage Teams (org_teams) — SuperAdmin only ─────────────────────────────
@@ -639,6 +697,29 @@ export default function Users() {
                         }}
                       >
                         {grantCount > 0 ? `+${grantCount} operator${grantCount === 1 ? '' : 's'}` : 'Manage access'}
+                      </button>
+                    )
+                  })()}
+                  {isSuperAdmin && u.role !== 'operator' && (() => {
+                    const g = u.profileId ? (pageGrants.get(u.profileId) ?? {}) : {}
+                    const n = Object.keys(g).length
+                    const on = n > 0 || u.role === 'superadmin'
+                    const label = u.role === 'superadmin' ? 'All pages' : n > 0 ? `${n} gated page${n === 1 ? '' : 's'}` : 'Pages'
+                    return (
+                      <button
+                        onClick={() => openPagesModal(u)}
+                        title="Which gated pages (e.g. Product Roadmap) this person can open"
+                        style={{
+                          marginLeft: 6,
+                          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                          padding: '5px 12px', borderRadius: 100, cursor: 'pointer',
+                          border: `1.5px solid ${on ? 'rgba(155,89,208,0.3)' : 'rgba(0,0,0,0.12)'}`,
+                          background: on ? 'rgba(155,89,208,0.08)' : '#fff',
+                          color: on ? '#9B59D0' : '#58595B',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {label}
                       </button>
                     )
                   })()}
@@ -962,6 +1043,67 @@ export default function Users() {
                 padding: '9px 16px', borderRadius: 10, border: 'none',
                 cursor: accessSaving ? 'not-allowed' : 'pointer', opacity: accessSaving ? 0.6 : 1, transition: 'opacity 0.15s',
               }}>{accessSaving ? 'Saving…' : 'Save access'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Page access modal (gated pages — SuperAdmin only) */}
+      {pagesTarget && isSuperAdmin && (
+        <div
+          onClick={() => !pagesSaving && setPagesTarget(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Page access</h2>
+              <button onClick={() => setPagesTarget(null)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+            </div>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+              Gated pages {pagesTarget.name} can open, on top of their role. SuperAdmins always have every gated page.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {GATED_PAGES.map(pg => (
+                <div key={pg.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{pg.label}</p>
+                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{pg.description}</p>
+                  </div>
+                  <select
+                    value={pagesTarget.role === 'superadmin' ? 'edit' : (pagesSel[pg.key] ?? 'none')}
+                    disabled={pagesTarget.role === 'superadmin' || pagesSaving}
+                    onChange={e => setPagesSel(prev => ({ ...prev, [pg.key]: e.target.value as PageLevel }))}
+                    style={{ ...inputStyle, width: 150, flexShrink: 0 }}
+                  >
+                    <option value="none">No access</option>
+                    <option value="view">Can view</option>
+                    <option value="edit">Can view and edit</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+            {pagesError && (
+              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 14 }}>
+                {/page_access/i.test(pagesError) && /does not exist|schema cache/i.test(pagesError)
+                  ? 'The page_access table does not exist yet. Run supabase/migrations/20261104_roadmap.sql first.'
+                  : pagesError}
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 18 }}>
+              <button onClick={() => setPagesTarget(null)} disabled={pagesSaving} style={{
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+              }}>Cancel</button>
+              <button onClick={handleSavePages} disabled={pagesSaving || pagesTarget.role === 'superadmin'} style={{
+                background: '#000', color: '#fff',
+                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                padding: '9px 16px', borderRadius: 10, border: 'none',
+                cursor: pagesSaving ? 'not-allowed' : 'pointer', opacity: pagesSaving || pagesTarget.role === 'superadmin' ? 0.6 : 1, transition: 'opacity 0.15s',
+              }}>{pagesSaving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
         </div>

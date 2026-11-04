@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { authClient, supabase } from '../lib/supabase'
+import { fetchPageAccess } from '../lib/pageAccess'
+import type { PageAccessMap } from '../lib/pageAccess'
 
 export interface AppUser {
   id: string
@@ -12,9 +14,12 @@ export interface AppUser {
   isSuperAdmin: boolean
   operatorTeam: string | null
   operatorId: string | null
+  // Gated pages this user was granted (e.g. the ELT-only Product Roadmap).
+  // SuperAdmins pass every gate regardless; see lib/pageAccess.ts.
+  pageAccess: PageAccessMap
 }
 
-function toAppUser(profile: any): AppUser {
+function toAppUser(profile: any, pageAccess: PageAccessMap = {}): AppUser {
   const isSuperAdmin = profile.role === 'superadmin'
   return {
     id:           profile.id,
@@ -24,6 +29,7 @@ function toAppUser(profile: any): AppUser {
     isSuperAdmin,
     operatorTeam: profile.operator_team,
     operatorId:   profile.operator_id ?? null,
+    pageAccess,
   }
 }
 
@@ -57,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user?.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser(toAppUser(profile))
+          setUser(toAppUser(profile, await fetchPageAccess(profile.id)))
         }
       }
       setLoading(false)
@@ -69,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session.user.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser(toAppUser(profile))
+          setUser(toAppUser(profile, await fetchPageAccess(profile.id)))
         }
       }
     })
@@ -97,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.user?.email) {
       const profile = await loadUser(session.user.email)
       if (profile) {
-        setUser(toAppUser(profile))
+        setUser(toAppUser(profile, await fetchPageAccess(profile.id)))
       }
     }
     return { error: null }

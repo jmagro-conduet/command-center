@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
   Ticket, Megaphone, Trophy, Inbox, LayoutDashboard,
-  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch,
+  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch, Milestone,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
+import { pageAccessFor } from '../../lib/pageAccess'
 import { computeHealthIssues, fetchDismissals, filterActive } from '../../lib/dataHealth'
 import type { HealthSeverity } from '../../lib/dataHealth'
 
@@ -37,6 +38,7 @@ export type Page =
   | 'learn'
   | 'settings'
   | 'eval-reports'
+  | 'roadmap'
 
 interface NavItem {
   id: Page
@@ -58,6 +60,7 @@ const ExecSummaryIcon = () => <LayoutDashboard {...ICON} />
 const ReportCardIcon  = () => <ClipboardCheck {...ICON} />
 const BugTrackerIcon  = () => <Bug {...ICON} />
 const EvalReportsIcon = () => <FileSearch {...ICON} />
+const RoadmapIcon     = () => <Milestone {...ICON} />
 const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.8} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
@@ -135,11 +138,19 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   // Card since they're both eval-driven views; falls back to appending at the end for
   // any nav (e.g. agent/operator) that doesn't have a Report Card item to anchor on.
   const navItems = (() => {
-    if (!isSuperAdmin) return baseNav
-    const evalReportsItem: NavItem = { id: 'eval-reports', label: 'Eval Reports', icon: <EvalReportsIcon /> }
-    const idx = baseNav.findIndex(i => i.id === 'report-card')
-    if (idx === -1) return [...baseNav, evalReportsItem]
-    return [...baseNav.slice(0, idx + 1), evalReportsItem, ...baseNav.slice(idx + 1)]
+    let items = baseNav
+    if (isSuperAdmin) {
+      const evalReportsItem: NavItem = { id: 'eval-reports', label: 'Eval Reports', icon: <EvalReportsIcon /> }
+      const idx = baseNav.findIndex(i => i.id === 'report-card')
+      items = idx === -1 ? [...baseNav, evalReportsItem] : [...baseNav.slice(0, idx + 1), evalReportsItem, ...baseNav.slice(idx + 1)]
+    }
+    // Gated, ELT-only Product Roadmap: SuperAdmins plus anyone granted it in Admin settings -> Users.
+    if (pageAccessFor(user, 'roadmap').allowed) {
+      const roadmapItem: NavItem = { id: 'roadmap', label: 'Roadmap', icon: <RoadmapIcon /> }
+      const idx = items.findIndex(i => i.id === 'bug-tracker')
+      items = idx === -1 ? [...items, roadmapItem] : [...items.slice(0, idx + 1), roadmapItem, ...items.slice(idx + 1)]
+    }
+    return items
   })()
 
   return (

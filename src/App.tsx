@@ -18,6 +18,8 @@ import Settings from './pages/Settings'
 import ReportCard from './pages/ReportCard'
 import BugTracker from './pages/BugTracker'
 import EvalReport from './pages/EvalReport'
+import Roadmap from './pages/Roadmap'
+import { pageAccessFor } from './lib/pageAccess'
 
 const FOCUS_STALE_MS = 2 * 60 * 1000 // treat data as stale after 2 min away
 
@@ -102,6 +104,7 @@ function AppShell() {
       case 'report-card': return (isAdmin || isQA) ? <ReportCard key={pageKey} /> : <LogTicket key={pageKey} />
       case 'bug-tracker': return <BugTracker key={pageKey} />
       case 'eval-reports': return isSuperAdmin ? <EvalReport key={pageKey} /> : <LogTicket key={pageKey} />
+      case 'roadmap':     return pageAccessFor(user, 'roadmap').allowed ? <Roadmap key={pageKey} /> : <LogTicket key={pageKey} />
       case 'users':       return isSuperAdmin ? <Settings key={pageKey} initialTab="users" /> : <LogTicket key={pageKey} />
       case 'learn':       return <Learn       key={pageKey} />
       case 'settings':    return isAdmin ? <Settings key={pageKey} /> : <Settings key={pageKey} />
