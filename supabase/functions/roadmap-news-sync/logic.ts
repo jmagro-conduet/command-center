@@ -7,7 +7,7 @@
 // must be plain http(s).
 
 export type PostKind = 'briefing' | 'radar'
-export interface SlackPost { ts: string; text: string }
+export interface SlackPost { ts: string; text: string; meta?: Record<string, unknown> }
 export interface Story { title: string; sourceName: string; url: string; summary: string; relevance: string }
 export interface ExistingNews { id: string; data: Record<string, any> }
 

@@ -28,7 +28,7 @@ async function slackHistory(days: number): Promise<SlackPost[]> {
   const res = await fetch(`https://slack.com/api/conversations.history?channel=${CHANNEL}&oldest=${oldest}&limit=100`, { headers: { Authorization: `Bearer ${SLACK_TOKEN}` } })
   const j = await res.json()
   if (!j.ok) throw new Error(`Slack: ${j.error}${j.error === 'not_in_channel' ? ' (invite the bot to #ai-newsletter)' : ''}`)
-  return (j.messages || []).filter((m: any) => typeof m.text === 'string' && m.text).map((m: any) => ({ ts: m.ts, text: m.text }))
+  return (j.messages || []).map((m: any) => ({ ts: m.ts, text: String(m.text || ''), meta: { subtype: m.subtype || '', hasBlocks: Array.isArray(m.blocks), hasAttachments: Array.isArray(m.attachments), hasFiles: Array.isArray(m.files), threadReplies: m.reply_count || 0, bot: !!m.bot_id } }))
 }
 
 async function extract(kind: 'briefing' | 'radar', text: string) {
@@ -58,7 +58,8 @@ Deno.serve(async (req: Request) => {
   const body = await req.json().catch(() => ({}))
   const days = Math.min(Math.max(Number(body.days) || 3, 1), 14)
   try {
-    const posts = (await slackHistory(days)).map(p => ({ ...p, kind: postKind(p.text) })).filter(p => p.kind)
+    const all = (await slackHistory(days)).map(p => ({ ...p, kind: postKind(p.text) }))
+    const posts = all.filter(p => p.kind)
     const existing = await db.list('news')
     const added: { id: string; title: string }[] = []
     const rows: { collection: string; doc_id: string; data: Record<string, any>; updated_by: string }[] = []
@@ -70,7 +71,10 @@ Deno.serve(async (req: Request) => {
       }
     }
     if (!body.dryRun && rows.length) await db.upsert(rows)
-    return json({ ok: true, dryRun: !!body.dryRun, postsFound: posts.length, added: added.length, items: added })
+    return json({
+      ok: true, dryRun: !!body.dryRun, postsFound: posts.length, added: added.length, items: added,
+      ...(body.debug ? { messages: all.map(p => ({ ts: p.ts, kind: p.kind, chars: p.text.length, preview: p.text.slice(0, 90), ...(p as any).meta })) } : {}),
+    })
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 502)
   }
