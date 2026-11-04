@@ -1,0 +1,142 @@
+/* Raphie Design System tokens -- copied from the official Raphie Design System
+   (https://claude.ai/artifact/HvFS2DzBGBTC9S37Dd3kgH, project/tokens.css).
+   Do not edit values here: change them in the design system and re-copy.
+   The ONLY additions are in the "Command Center additions" block at the bottom. */
+:root, [data-theme="light"] {
+  --green: #00a8b0;
+  --purple: #782aff;
+  --lavender: #c8a4ff;
+  --blue: #5078ff;
+  --navy: #002896;
+  --orange: #ff8c78;
+  --pink: var(--lavender);
+  --primary: #00a8b0;
+  --primary-light: #cceef0;
+  --primary-pale: #e8f7f8;
+  --primary-bg-soft: rgba(0, 168, 176, 0.05);
+  --primary-bg: rgba(0, 168, 176, 0.08);
+  --primary-bg-strong: rgba(0, 168, 176, 0.14);
+  --primary-border: rgba(0, 168, 176, 0.28);
+  --ai: #782aff;
+  --ai-text: #6a1ff0;
+  --ai-light: #e9dcff;
+  --ai-pale: #f5f0ff;
+  --ai-bg-soft: rgba(120, 42, 255, 0.05);
+  --ai-bg: rgba(120, 42, 255, 0.08);
+  --ai-bg-strong: rgba(120, 42, 255, 0.14);
+  --ai-border: rgba(120, 42, 255, 0.28);
+  --purple-deep: var(--primary);
+  --purple-dark: var(--primary);
+  --purple-light: var(--primary-light);
+  --purple-pale: var(--primary-pale);
+  --purple-bg-soft: var(--primary-bg-soft);
+  --purple-bg: var(--primary-bg);
+  --purple-bg-strong: var(--primary-bg-strong);
+  --purple-border-soft: rgba(0, 168, 176, 0.18);
+  --purple-border: var(--primary-border);
+  --purple-border-mid: rgba(0, 168, 176, 0.34);
+  --purple-border-str: rgba(0, 168, 176, 0.48);
+  --stone-1: #fbfaf9;
+  --stone-2: #f0eeec;
+  --stone-3: #e4e3df;
+  --stone-4: #d9d7d3;
+  --stone-5: #cdccc6;
+  --stone-6: #c2c0b9;
+  --grey-1: #141414;
+  --grey-2: #282828;
+  --grey-3: #323232;
+  --page-bg: #f0eeec;
+  --page-bg-academy: #fbfaf9;
+  --card-bg: #ffffff;
+  --sidebar-bg: #ffffff;
+  --dark: #141414;
+  --dark-card: #282828;
+  --black: #000000;
+  --dark-panel: #1f1f1f;
+  --dark-raised: #2d2d2d;
+  --text-primary: #000000;
+  --text-secondary: #323232;
+  --text-tertiary: rgba(0, 0, 0, 0.55);
+  --text-disabled: rgba(0, 0, 0, 0.35);
+  --text-placeholder: #c2c0b9;
+  --text-on-dark: #fbfaf9;
+  --text-on-dark-mute: rgba(255, 255, 255, 0.5);
+  --text-on-dark-faint: rgba(255, 255, 255, 0.4);
+  --border-default: rgba(0, 0, 0, 0.10);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.20);
+  --divider: rgba(0, 0, 0, 0.07);
+  --border-on-dark: rgba(255, 255, 255, 0.10);
+  --success: #00a8b0;
+  --success-light: #d6f0f1;
+  --success-teal: var(--success);
+  --success-teal-light: var(--success-light);
+  --info: #5078ff;
+  --info-light: #e6ecff;
+  --coral: #ff8c78;
+  --coral-light: #fff0ed;
+  --orange-light: #fff0ed;
+  --danger: #e53e3e;
+  --danger-dark: #c53030;
+  --danger-bg: rgba(229, 62, 62, 0.06);
+  --danger-border: rgba(229, 62, 62, 0.15);
+  --shadow-light: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0px 1px 2px rgba(0,0,0,0.30), 0px 1px 3px 1px rgba(0,0,0,0.15);
+  --shadow-heavy: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-overlay: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --focus-ring: 0 0 0 2px #00a8b0;
+  --ai-focus-ring: 0 0 0 2px #782aff;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-3xl: 16px;
+  --radius-4xl: 20px;
+  --radius-pill: 100px;
+  --radius-hero: 32px;
+  --grad-teal: linear-gradient(160deg, #00b4b8 0%, #0096d6 100%);
+  --grad-blue: linear-gradient(160deg, #4a82ff 0%, #2a56dc 100%);
+  --grad-cool: linear-gradient(90deg, #00a8d0 0%, #8aa8ff 50%, #c8a4ff 100%);
+  --grad-warm: linear-gradient(90deg, #ff8c78 0%, #c8a4ff 55%, #5078ff 100%);
+  --grad-violet: linear-gradient(180deg, #5078ff 0%, #782aff 100%);
+  --grad-lavender: linear-gradient(180deg, #e6d4ff 0%, #c8a4ff 100%);
+  --grad-ai-bubble: linear-gradient(180deg, #f4fbfb 0%, #b4e9ec 100%);
+  --font-body: 'Maax', 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Maax', 'Outfit', sans-serif;
+  --font-mono: 'Maax Mono', 'JetBrains Mono', 'Fira Code', monospace;
+}
+.t-display { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
+.t-section { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.t-body-lg { font-family: var(--font-body); font-size: 15px; font-weight: 400; }
+.t-body { font-family: var(--font-body); font-size: 14px; font-weight: 400; }
+.t-body-sm { font-family: var(--font-body); font-size: 13px; font-weight: 400; }
+.t-caption { font-family: var(--font-body); font-size: 12px; font-weight: 400; }
+.t-micro { font-family: var(--font-body); font-size: 11px; font-weight: 500; letter-spacing: 0.06em; }
+.t-headline { font-family: var(--font-display); font-size: 56px; font-weight: 300; line-height: 1.12; letter-spacing: -0.005em; }
+.t-url { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
+
+/* ---- Command Center additions (not in the official tokens) ---------------
+   --success-text: the official success colour (#00a8b0) is only 3:1 on white,
+   which is too faint for small text such as a "Resolved" label. #00787e is the
+   same hue darkened to ~5.5:1 for TEXT; fills, borders and rings still use the
+   official --primary / --success. Flagged so it can be proposed upstream. */
+:root {
+  --success-text: #00787e;
+}
+
+/* Operator focus: a solid 2px green ring, never a drop shadow (design system rule). */
+:focus-visible { outline: none; box-shadow: var(--focus-ring); }

@@ -35,7 +35,7 @@ interface OrgTeam {
   operator_id: string
 }
 
-const AVATAR_COLORS = ['#9B59D0', '#0891b2', '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#be185d']
+const AVATAR_COLORS = ['#00a8b0', '#5078ff', '#002896', '#323232']
 
 function avatarColor(str: string): string {
   let h = 0
@@ -54,7 +54,7 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '9px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s', background: '#fff', width: '100%',
-  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
 }
 
 export default function Users() {
@@ -507,7 +507,7 @@ export default function Users() {
   if (loading) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading users…</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading users…</p>
       </div>
     )
   }
@@ -517,8 +517,8 @@ export default function Users() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Users</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Users</h1>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
             {users.length} team member{users.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -529,14 +529,14 @@ export default function Users() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ ...inputStyle, width: 200 }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           />
           <select
             value={filterOpId}
             onChange={e => setFilterOpId(e.target.value)}
             style={{ ...inputStyle, width: 170 }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           >
             <option value="">All operators</option>
@@ -546,7 +546,7 @@ export default function Users() {
             <button
               onClick={openTeamsModal}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, cursor: 'pointer', whiteSpace: 'nowrap',
                 border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
                 transition: 'all 0.15s',
@@ -559,7 +559,7 @@ export default function Users() {
             onClick={openAdd}
             style={{
               background: '#000', color: '#fff',
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '9px 16px', borderRadius: 10, border: 'none',
               cursor: 'pointer', whiteSpace: 'nowrap', transition: 'opacity 0.15s',
             }}
@@ -578,8 +578,8 @@ export default function Users() {
             <tr style={{ background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
               {['Member', 'Role', 'Operator', 'Team', 'Sub-team', 'Extra access', 'Joined', ''].map(h => (
                 <th key={h} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
-                  color: '#58595B', textAlign: 'left', padding: '12px 16px',
+                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
+                  color: '#323232', textAlign: 'left', padding: '12px 16px',
                 }}>{h}</th>
               ))}
             </tr>
@@ -593,13 +593,13 @@ export default function Users() {
                       width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
                       background: avatarColor(u.name), display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 700, color: '#fff' }}>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, color: '#fff' }}>
                         {initials(u.name)}
                       </span>
                     </div>
                     <div>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{u.name}</p>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{u.email}</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{u.name}</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{u.email}</p>
                     </div>
                   </div>
                 </td>
@@ -609,11 +609,11 @@ export default function Users() {
                     value={u.role}
                     onChange={e => handleRoleChange(u, e.target.value as 'admin' | 'agent' | 'qa' | 'superadmin')}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                       padding: '4px 10px', borderRadius: 100, cursor: 'pointer',
                       border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none',
-                      background: u.role === 'superadmin' ? 'rgba(155,89,208,0.18)' : u.role === 'admin' ? 'rgba(155,89,208,0.1)' : 'rgba(0,0,0,0.06)',
-                      color: u.role === 'superadmin' ? '#6b21a8' : u.role === 'admin' ? '#6b21a8' : u.role === 'qa' ? '#0369a1' : '#58595B',
+                      background: u.role === 'superadmin' ? 'rgba(0,168,176,0.18)' : u.role === 'admin' ? 'rgba(0,168,176,0.1)' : 'rgba(0,0,0,0.06)',
+                      color: u.role === 'superadmin' ? '#00787e' : u.role === 'admin' ? '#00787e' : u.role === 'qa' ? '#5078ff' : '#323232',
                     }}
                   >
                     <option value="agent">Agent</option>
@@ -629,7 +629,7 @@ export default function Users() {
                     value={u.operator_id ?? ''}
                     onChange={e => handleOperatorChange(u, e.target.value)}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12,
+                      fontFamily: 'var(--font-body)', fontSize: 12,
                       padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
                       border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none', background: '#fff', color: '#000',
                     }}
@@ -644,7 +644,7 @@ export default function Users() {
                     value={u.operator_team ?? ''}
                     onChange={e => handleTeamChange(u, e.target.value)}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12,
+                      fontFamily: 'var(--font-body)', fontSize: 12,
                       padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
                       border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none', background: '#fff', color: '#000',
                     }}
@@ -659,7 +659,7 @@ export default function Users() {
                     const orgTeamOptions = orgTeams.filter(t => t.operator_id === u.operator_id)
                     if (!isSuperAdmin) {
                       const current = orgTeams.find(t => t.id === u.org_team_id)
-                      return <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: current ? '#000' : '#aaa' }}>{current?.name ?? '—'}</span>
+                      return <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: current ? '#000' : 'rgba(0,0,0,0.35)' }}>{current?.name ?? '—'}</span>
                     }
                     return (
                       <select
@@ -668,7 +668,7 @@ export default function Users() {
                         disabled={!u.operator_id}
                         title={!u.operator_id ? 'Assign an operator first' : undefined}
                         style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 12,
+                          fontFamily: 'var(--font-body)', fontSize: 12,
                           padding: '6px 10px', borderRadius: 8, cursor: u.operator_id ? 'pointer' : 'not-allowed',
                           border: '1.5px solid rgba(0,0,0,0.12)', outline: 'none',
                           background: u.operator_id ? '#fff' : 'rgba(0,0,0,0.03)', color: '#000',
@@ -688,11 +688,11 @@ export default function Users() {
                       <button
                         onClick={() => openManageAccess(u)}
                         style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                           padding: '5px 12px', borderRadius: 100, cursor: 'pointer',
-                          border: `1.5px solid ${grantCount > 0 ? 'rgba(155,89,208,0.3)' : 'rgba(0,0,0,0.12)'}`,
-                          background: grantCount > 0 ? 'rgba(155,89,208,0.08)' : '#fff',
-                          color: grantCount > 0 ? '#9B59D0' : '#58595B',
+                          border: `1.5px solid ${grantCount > 0 ? 'rgba(0,168,176,0.3)' : 'rgba(0,0,0,0.12)'}`,
+                          background: grantCount > 0 ? 'rgba(0,168,176,0.08)' : '#fff',
+                          color: grantCount > 0 ? '#00a8b0' : '#323232',
                           transition: 'all 0.15s',
                         }}
                       >
@@ -711,11 +711,11 @@ export default function Users() {
                         title="Which gated pages (e.g. Product Roadmap) this person can open"
                         style={{
                           marginLeft: 6,
-                          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                           padding: '5px 12px', borderRadius: 100, cursor: 'pointer',
-                          border: `1.5px solid ${on ? 'rgba(155,89,208,0.3)' : 'rgba(0,0,0,0.12)'}`,
-                          background: on ? 'rgba(155,89,208,0.08)' : '#fff',
-                          color: on ? '#9B59D0' : '#58595B',
+                          border: `1.5px solid ${on ? 'rgba(0,168,176,0.3)' : 'rgba(0,0,0,0.12)'}`,
+                          background: on ? 'rgba(0,168,176,0.08)' : '#fff',
+                          color: on ? '#00a8b0' : '#323232',
                           transition: 'all 0.15s',
                         }}
                       >
@@ -726,7 +726,7 @@ export default function Users() {
                 </td>
 
                 <td style={{ padding: '14px 16px' }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                     {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </td>
@@ -735,7 +735,7 @@ export default function Users() {
                   <button
                     onClick={() => openEdit(u)}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12,
+                      fontFamily: 'var(--font-body)', fontSize: 12,
                       padding: '5px 12px', borderRadius: 8, cursor: 'pointer',
                       border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
                       transition: 'all 0.15s',
@@ -750,7 +750,7 @@ export default function Users() {
         </table>
         {filtered.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No users match your search</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No users match your search</p>
           </div>
         )}
       </div>
@@ -766,34 +766,34 @@ export default function Users() {
             style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Add user</h2>
-              <button onClick={() => setAddOpen(false)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>Add user</h2>
+              <button onClick={() => setAddOpen(false)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Name <span style={{ color: '#e53e3e' }}>*</span></label>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Name <span style={{ color: '#e53e3e' }}>*</span></label>
                 <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="Full name" style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </div>
               <div>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Email <span style={{ color: '#e53e3e' }}>*</span></label>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Email <span style={{ color: '#e53e3e' }}>*</span></label>
                 <input type="email" value={addEmail} onChange={e => setAddEmail(e.target.value)} placeholder="name@company.com" style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </div>
               <div>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Password <span style={{ color: '#e53e3e' }}>*</span></label>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Password <span style={{ color: '#e53e3e' }}>*</span></label>
                 <input type="text" value={addPassword} onChange={e => setAddPassword(e.target.value)} placeholder="Min. 6 characters — share with user securely" style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Role</label>
+                  <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Role</label>
                   <select value={addRole} onChange={e => setAddRole(e.target.value as 'admin' | 'agent' | 'qa' | 'operator' | 'superadmin')} style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
                     <option value="agent">Agent</option>
                     <option value="qa">QA</option>
@@ -803,9 +803,9 @@ export default function Users() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Operator</label>
+                  <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Operator</label>
                   <select value={addOperatorId} onChange={e => setAddOperatorId(e.target.value)} style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
                     <option value="">No operator</option>
                     {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
@@ -813,26 +813,26 @@ export default function Users() {
                 </div>
               </div>
               <div>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Team</label>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Team</label>
                 <select value={addTeam} onChange={e => setAddTeam(e.target.value)} style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
                   <option value="">No team</option>
                   {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                 </select>
               </div>
 
-              {addError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{addError}</p>}
+              {addError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{addError}</p>}
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
                 <button onClick={() => setAddOpen(false)} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
                 }}>Cancel</button>
                 <button onClick={handleAddUser} disabled={addSaving} style={{
                   background: '#000', color: '#fff',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, border: 'none',
                   cursor: addSaving ? 'not-allowed' : 'pointer', opacity: addSaving ? 0.6 : 1, transition: 'opacity 0.15s',
                 }}>{addSaving ? 'Creating…' : 'Create user'}</button>
@@ -853,30 +853,30 @@ export default function Users() {
             style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Edit user</h2>
-              <button onClick={closeEdit} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>Edit user</h2>
+              <button onClick={closeEdit} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Name</label>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Name</label>
                 <input value={editName} onChange={e => setEditName(e.target.value)} style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </div>
               <div>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Email</label>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Email</label>
                 <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </div>
 
-              {saveError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{saveError}</p>}
+              {saveError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{saveError}</p>}
 
               {/* Reset password */}
               <div style={{ paddingTop: 8, marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Reset password</label>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>Reset password</label>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginBottom: 8 }}>
                   Sets a new password directly without sending an email. Share with the user securely.
                 </p>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -886,7 +886,7 @@ export default function Users() {
                     onKeyDown={e => { if (e.key === 'Enter') handleSetPassword() }}
                     placeholder="Min. 6 characters"
                     style={{ ...inputStyle, flex: 1 }}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                   />
                   <button
@@ -895,7 +895,7 @@ export default function Users() {
                     style={{
                       background: pwSaving || newPassword.trim().length < 1 ? 'rgba(0,0,0,0.1)' : '#000',
                       color: pwSaving || newPassword.trim().length < 1 ? 'rgba(0,0,0,0.35)' : '#fff',
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       padding: '9px 16px', borderRadius: 10, border: 'none',
                       cursor: pwSaving || newPassword.trim().length < 1 ? 'default' : 'pointer',
                       transition: 'opacity 0.15s', whiteSpace: 'nowrap',
@@ -907,7 +907,7 @@ export default function Users() {
                   </button>
                 </div>
                 {pwMessage && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: pwMessage.ok ? '#166534' : '#e53e3e', marginTop: 6 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: pwMessage.ok ? '#00787e' : '#e53e3e', marginTop: 6 }}>
                     {pwMessage.ok ? '✓ ' : '✗ '}{pwMessage.text}
                   </p>
                 )}
@@ -919,7 +919,7 @@ export default function Users() {
                   <button
                     onClick={() => setDeleteConfirm(true)}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       color: '#e53e3e', background: 'none', border: 'none',
                       cursor: 'pointer', padding: 0, textDecoration: 'underline',
                     }}
@@ -928,19 +928,19 @@ export default function Users() {
                   </button>
                 ) : (
                   <div style={{ background: 'rgba(229,62,62,0.06)', border: '1px solid rgba(229,62,62,0.2)', borderRadius: 10, padding: '12px 14px' }}>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#e53e3e', marginBottom: 4 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#e53e3e', marginBottom: 4 }}>
                       Delete {editTarget.name}?
                     </p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 12 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginBottom: 12 }}>
                       This removes their login access permanently. Their submitted tickets are retained.
                     </p>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         onClick={() => setDeleteConfirm(false)}
                         style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                           padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
-                          border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                          border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
                         }}
                       >
                         Cancel
@@ -950,7 +950,7 @@ export default function Users() {
                         disabled={deleting}
                         style={{
                           background: '#e53e3e', color: '#fff',
-                          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                           padding: '7px 14px', borderRadius: 8, border: 'none',
                           cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1,
                         }}
@@ -964,13 +964,13 @@ export default function Users() {
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
                 <button onClick={closeEdit} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
                 }}>Cancel</button>
                 <button onClick={handleEditSave} disabled={saving} style={{
                   background: '#000', color: '#fff',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, border: 'none',
                   cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, transition: 'opacity 0.15s',
                 }}>{saving ? 'Saving…' : 'Save changes'}</button>
@@ -991,17 +991,17 @@ export default function Users() {
             style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage access</h2>
-              <button onClick={() => setAccessTarget(null)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage access</h2>
+              <button onClick={() => setAccessTarget(null)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 18 }}>
               Operators {accessTarget.name} can switch into, on top of their home operator
               {accessTarget.operator_id ? ` (${operators.find(o => o.id === accessTarget.operator_id)?.name ?? '—'})` : ''}.
               Useful for QA covering more than one client, or agents dual-logging tickets across operators.
             </p>
 
             {accessLoading ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
                 {operators.filter(o => o.id !== accessTarget.operator_id).map(o => {
@@ -1011,35 +1011,35 @@ export default function Users() {
                       key={o.id}
                       type="button"
                       onClick={() => toggleAccess(o.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: checked ? 'rgba(155,89,208,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: checked ? 'rgba(0,168,176,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                     >
                       <span style={{
                         width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                        border: checked ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
-                        background: checked ? '#9B59D0' : '#fff',
+                        border: checked ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.25)',
+                        background: checked ? '#00a8b0' : '#fff',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
                         {checked && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                       </span>
-                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{o.name}</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{o.name}</span>
                     </button>
                   )
                 })}
                 {operators.filter(o => o.id !== accessTarget.operator_id).length === 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No other operators exist yet.</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No other operators exist yet.</p>
                 )}
               </div>
             )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 18 }}>
               <button onClick={() => setAccessTarget(null)} disabled={accessSaving} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
               }}>Cancel</button>
               <button onClick={handleSaveAccess} disabled={accessSaving || accessLoading} style={{
                 background: '#000', color: '#fff',
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, border: 'none',
                 cursor: accessSaving ? 'not-allowed' : 'pointer', opacity: accessSaving ? 0.6 : 1, transition: 'opacity 0.15s',
               }}>{accessSaving ? 'Saving…' : 'Save access'}</button>
@@ -1059,18 +1059,18 @@ export default function Users() {
             style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Page access</h2>
-              <button onClick={() => setPagesTarget(null)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>Page access</h2>
+              <button onClick={() => setPagesTarget(null)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 18 }}>
               Gated pages {pagesTarget.name} can open, on top of their role. SuperAdmins always have every gated page.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {GATED_PAGES.map(pg => (
                 <div key={pg.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{pg.label}</p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{pg.description}</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{pg.label}</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{pg.description}</p>
                   </div>
                   <select
                     value={pagesTarget.role === 'superadmin' ? 'edit' : (pagesSel[pg.key] ?? 'none')}
@@ -1086,7 +1086,7 @@ export default function Users() {
               ))}
             </div>
             {pagesError && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 14 }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 14 }}>
                 {/page_access/i.test(pagesError) && /does not exist|schema cache/i.test(pagesError)
                   ? 'The page_access table does not exist yet. Run supabase/migrations/20261104_roadmap.sql first.'
                   : pagesError}
@@ -1094,13 +1094,13 @@ export default function Users() {
             )}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 18 }}>
               <button onClick={() => setPagesTarget(null)} disabled={pagesSaving} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
               }}>Cancel</button>
               <button onClick={handleSavePages} disabled={pagesSaving || pagesTarget.role === 'superadmin'} style={{
                 background: '#000', color: '#fff',
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, border: 'none',
                 cursor: pagesSaving ? 'not-allowed' : 'pointer', opacity: pagesSaving || pagesTarget.role === 'superadmin' ? 0.6 : 1, transition: 'opacity 0.15s',
               }}>{pagesSaving ? 'Saving…' : 'Save'}</button>
@@ -1120,25 +1120,25 @@ export default function Users() {
             style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage teams</h2>
-              <button onClick={() => setTeamsModalOpen(false)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage teams</h2>
+              <button onClick={() => setTeamsModalOpen(false)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 18 }}>
               Sub-teams within an operator (e.g. "Manila", "Cebu"). The lead you set here is who gets to filter
               Submissions, Leaderboard, and Analytics down to just that team.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto', marginBottom: 18 }}>
               {orgTeams.length === 0 && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No teams created yet.</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No teams created yet.</p>
               )}
               {orgTeams.map(t => {
                 const opName = operators.find(o => o.id === t.operator_id)?.name ?? '—'
                 return (
                   <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{t.name}</p>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>{opName}</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{t.name}</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>{opName}</p>
                     </div>
                     {(() => {
                       const leadCount = leadsByTeam.get(t.id)?.length ?? 0
@@ -1146,11 +1146,11 @@ export default function Users() {
                         <button
                           onClick={() => openManageLeads(t)}
                           style={{
-                            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                            fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                             padding: '5px 12px', borderRadius: 100, cursor: 'pointer',
-                            border: leadCount > 0 ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
-                            background: leadCount > 0 ? 'rgba(155,89,208,0.06)' : '#fff',
-                            color: leadCount > 0 ? '#9B59D0' : '#58595B',
+                            border: leadCount > 0 ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.12)',
+                            background: leadCount > 0 ? 'rgba(0,168,176,0.06)' : '#fff',
+                            color: leadCount > 0 ? '#00a8b0' : '#323232',
                             transition: 'all 0.15s', flexShrink: 0, whiteSpace: 'nowrap',
                           }}
                         >
@@ -1161,7 +1161,7 @@ export default function Users() {
                     <button
                       onClick={() => handleDeleteOrgTeam(t)}
                       title="Delete team"
-                      style={{ color: '#aaa', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
+                      style={{ color: 'rgba(0,0,0,0.35)', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
                     >×</button>
                   </div>
                 )
@@ -1169,34 +1169,34 @@ export default function Users() {
             </div>
 
             <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>New team</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em' }}>New team</p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   value={newTeamName}
                   onChange={e => setNewTeamName(e.target.value)}
                   placeholder="Team name (e.g. Manila)"
                   style={{ ...inputStyle, flex: 1 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
                 <select
                   value={newTeamOpId}
                   onChange={e => setNewTeamOpId(e.target.value)}
                   style={{ ...inputStyle, width: 150 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 >
                   {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </div>
-              {teamsError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{teamsError}</p>}
+              {teamsError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{teamsError}</p>}
               <button
                 onClick={handleCreateOrgTeam}
                 disabled={teamsSaving}
                 style={{
                   alignSelf: 'flex-end',
                   background: '#000', color: '#fff',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, border: 'none',
                   cursor: teamsSaving ? 'not-allowed' : 'pointer', opacity: teamsSaving ? 0.6 : 1, transition: 'opacity 0.15s',
                 }}
@@ -1217,10 +1217,10 @@ export default function Users() {
             style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage leads — {leadsTarget.name}</h2>
-              <button onClick={() => setLeadsTarget(null)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>Manage leads — {leadsTarget.name}</h2>
+              <button onClick={() => setLeadsTarget(null)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 18 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 18 }}>
               Anyone selected here (managers or leads) can filter Submissions, Leaderboard, and Analytics
               down to just this team.
             </p>
@@ -1233,34 +1233,34 @@ export default function Users() {
                     key={u.profileId}
                     type="button"
                     onClick={() => toggleLead(u.profileId!)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: checked ? 'rgba(155,89,208,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, background: checked ? 'rgba(0,168,176,0.06)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
                   >
                     <span style={{
                       width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                      border: checked ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
-                      background: checked ? '#9B59D0' : '#fff',
+                      border: checked ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.25)',
+                      background: checked ? '#00a8b0' : '#fff',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       {checked && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                     </span>
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{u.name}</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{u.name}</span>
                   </button>
                 )
               })}
               {users.filter(u => u.operator_id === leadsTarget.operator_id && u.profileId).length === 0 && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No eligible users in this operator yet.</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No eligible users in this operator yet.</p>
               )}
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 18 }}>
               <button onClick={() => setLeadsTarget(null)} disabled={leadsSaving} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
               }}>Cancel</button>
               <button onClick={handleSaveLeads} disabled={leadsSaving} style={{
                 background: '#000', color: '#fff',
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, border: 'none',
                 cursor: leadsSaving ? 'not-allowed' : 'pointer', opacity: leadsSaving ? 0.6 : 1, transition: 'opacity 0.15s',
               }}>{leadsSaving ? 'Saving…' : 'Save leads'}</button>

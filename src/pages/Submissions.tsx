@@ -4,9 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
 
 const ISSUE_CONFIG: Record<string, { bg: string; color: string }> = {
-  'Perfect':       { bg: 'rgba(22,101,52,0.09)',  color: '#166534' },
+  'Perfect':       { bg: 'rgba(0,168,176,0.09)',  color: '#00787e' },
   'Majority edit': { bg: 'rgba(234,179,8,0.12)',  color: '#854d0e' },
-  'Partial edit':  { bg: 'rgba(206,164,255,0.2)', color: '#6b21a8' },
+  'Partial edit':  { bg: 'rgba(120,42,255,0.1)', color: '#6a1ff0' },
   'No response':   { bg: 'rgba(229,62,62,0.09)',  color: '#e53e3e' },
 }
 
@@ -454,10 +454,10 @@ export default function Submissions() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
             Submissions
           </h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
             View and manage all ticket submissions
           </p>
         </div>
@@ -465,31 +465,31 @@ export default function Submissions() {
           <button
             onClick={() => setViewMode('full_auto')}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '9px 16px', borderRadius: 10,
-              border: '1.5px solid rgba(155,89,208,0.35)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0',
+              border: '1.5px solid rgba(0,168,176,0.35)', background: 'rgba(0,168,176,0.06)', color: '#00a8b0',
               transition: 'all 0.15s', cursor: 'pointer',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.06)')}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.12)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.06)')}
           >
             View Full Auto
           </button>
           {checkedRows.size > 0 && (
             <>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
                 {checkedRows.size} selected
               </span>
               <button
                 onClick={clearChecked}
-                style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px' }}
+                style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px' }}
               >
                 Clear
               </button>
               <button
                 onClick={exportChecked}
                 style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, border: 'none',
                   background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s',
                 }}
@@ -503,12 +503,12 @@ export default function Submissions() {
           <button
             onClick={exportCSV}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '9px 16px', borderRadius: 10,
               border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
               transition: 'all 0.15s', cursor: 'pointer',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+            onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
             onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
           >
             Export CSV
@@ -531,7 +531,7 @@ export default function Submissions() {
             padding: '8px 12px', fontSize: 13, color: '#000',
             outline: 'none', width: 200, transition: 'border-color 0.15s',
           }}
-          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+          onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
           onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
         />
         {[
@@ -546,11 +546,11 @@ export default function Submissions() {
             onChange={e => f.setter(e.target.value)}
             style={{
               border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
-              padding: '8px 12px', fontSize: 13, color: '#58595B',
+              padding: '8px 12px', fontSize: 13, color: '#323232',
               outline: 'none', background: '#fff', transition: 'border-color 0.15s',
               cursor: 'pointer',
             }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           >
             {f.options.map(o => <option key={o}>{o}</option>)}
@@ -565,13 +565,13 @@ export default function Submissions() {
             title="From date"
             style={{
               border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
-              padding: '7px 10px', fontSize: 13, color: dateFrom ? '#000' : '#58595B',
+              padding: '7px 10px', fontSize: 13, color: dateFrom ? '#000' : '#323232',
               outline: 'none', background: '#fff', transition: 'border-color 0.15s', cursor: 'pointer',
             }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           />
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.25)' }}>–</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.25)' }}>–</span>
           <input
             type="date"
             value={dateTo}
@@ -580,10 +580,10 @@ export default function Submissions() {
             title="To date"
             style={{
               border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
-              padding: '7px 10px', fontSize: 13, color: dateTo ? '#000' : '#58595B',
+              padding: '7px 10px', fontSize: 13, color: dateTo ? '#000' : '#323232',
               outline: 'none', background: '#fff', transition: 'border-color 0.15s', cursor: 'pointer',
             }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           />
         </div>
@@ -591,7 +591,7 @@ export default function Submissions() {
           <button
             onClick={clearFilters}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0',
+              fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e',
               fontWeight: 500, background: 'none', border: 'none', padding: '4px 2px',
               transition: 'opacity 0.15s', cursor: 'pointer',
             }}
@@ -606,15 +606,15 @@ export default function Submissions() {
       {/* Count */}
       <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
         {loading ? (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
         ) : (
           <>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
               <span style={{ fontWeight: 600, color: '#000' }}>{ticketCount.toLocaleString()}</span>
               {' '}{hasFilters ? 'matching tickets' : 'total tickets'}
             </p>
             <span style={{ color: 'rgba(0,0,0,0.15)', fontSize: 16 }}>·</span>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
               <span style={{ fontWeight: 600, color: '#000' }}>{total.toLocaleString()}</span>
               {' '}{hasFilters ? 'matching submissions' : 'total submissions'}
             </p>
@@ -635,12 +635,12 @@ export default function Submissions() {
             checked={rows.length > 0 && rows.every(r => checkedRows.has(r.id))}
             onChange={toggleCheckAllVisible}
             title="Select all on this page"
-            style={{ cursor: 'pointer', accentColor: '#9B59D0' }}
+            style={{ cursor: 'pointer', accentColor: '#00a8b0' }}
           />
           {['Ticket', 'Agent', 'Issue type', 'Category', 'Date'].map(h => (
             <span key={h} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
-              color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em',
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
+              color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em',
             }}>
               {h}
             </span>
@@ -659,13 +659,13 @@ export default function Submissions() {
           </div>
         ) : rows.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
               No submissions match your filters
             </p>
           </div>
         ) : (
           rows.map((s, i) => {
-            const cfg = ISSUE_CONFIG[s.issueType] ?? { bg: 'rgba(0,0,0,0.06)', color: '#58595B' }
+            const cfg = ISSUE_CONFIG[s.issueType] ?? { bg: 'rgba(0,0,0,0.06)', color: '#323232' }
             const isHovered = hoveredId === s.id
             return (
               <div
@@ -679,7 +679,7 @@ export default function Submissions() {
                   padding: '13px 20px', alignItems: 'center',
                   borderBottom: i < rows.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                   transition: 'background 0.1s', cursor: 'pointer',
-                  background: isHovered ? 'rgba(206,164,255,0.06)' : 'transparent',
+                  background: isHovered ? 'rgba(0,168,176,0.06)' : 'transparent',
                 }}
               >
                 <input
@@ -687,29 +687,29 @@ export default function Submissions() {
                   checked={checkedRows.has(s.id)}
                   onClick={e => e.stopPropagation()}
                   onChange={() => toggleChecked(s)}
-                  style={{ cursor: 'pointer', accentColor: '#9B59D0' }}
+                  style={{ cursor: 'pointer', accentColor: '#00a8b0' }}
                 />
                 <span style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-                  color: '#9B59D0', textDecoration: 'underline',
-                  textDecorationColor: 'rgba(155,89,208,0.3)',
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
+                  color: '#00a8b0', textDecoration: 'underline',
+                  textDecorationColor: 'rgba(0,168,176,0.3)',
                 }}>
                   {s.ticket}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>
                   {s.agent}
                 </span>
                 <span style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                   padding: '3px 9px', borderRadius: 100, width: 'fit-content',
                   background: cfg.bg, color: cfg.color,
                 }}>
                   {s.issueType}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
                   {s.category}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
                   {s.date}
                 </span>
 
@@ -724,7 +724,7 @@ export default function Submissions() {
                   >
                     <RowActionBtn
                       title="Edit submission"
-                      color="#58595B"
+                      color="#323232"
                       hoverColor="#000"
                       onClick={() => setSelected(s)}
                     >
@@ -732,7 +732,7 @@ export default function Submissions() {
                     </RowActionBtn>
                     <RowActionBtn
                       title="Delete submission"
-                      color="#aaa"
+                      color="rgba(0,0,0,0.35)"
                       hoverColor="#e53e3e"
                       onClick={async () => {
                         if (!window.confirm(`Delete submission for ticket ${s.ticket}? This cannot be undone.`)) return
@@ -756,7 +756,7 @@ export default function Submissions() {
           <PageBtn disabled={page === 1} onClick={() => setPage(p => p - 1)}>←</PageBtn>
           {paginationRange(page, totalPages).map((n, idx) =>
             n === '…' ? (
-              <span key={`e-${idx}`} style={{ width: 32, textAlign: 'center', color: '#aaa', fontSize: 13 }}>…</span>
+              <span key={`e-${idx}`} style={{ width: 32, textAlign: 'center', color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>…</span>
             ) : (
               <PageBtn key={n} active={n === page} onClick={() => setPage(n as number)}>{n}</PageBtn>
             )
@@ -831,7 +831,7 @@ function SubmissionModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, mode])
 
-  const cfg = ISSUE_CONFIG[row.issueType] ?? { bg: 'rgba(0,0,0,0.06)', color: '#58595B' }
+  const cfg = ISSUE_CONFIG[row.issueType] ?? { bg: 'rgba(0,0,0,0.06)', color: '#323232' }
 
   const meta: { label: string; value: string }[] = [
     { label: 'Ticket',    value: row.ticket },
@@ -865,12 +865,12 @@ function SubmissionModal({
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>
                   {mode === 'edit' ? 'Edit Submission' : `Ticket ${row.ticket}`}
                 </h2>
                 {mode === 'view' && (
                   <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                    fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                     padding: '3px 10px', borderRadius: 100,
                     background: cfg.bg, color: cfg.color,
                   }}>
@@ -878,7 +878,7 @@ function SubmissionModal({
                   </span>
                 )}
               </div>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 3 }}>
                 {mode === 'edit'
                   ? `Ticket ${row.ticket} · ${row.agent}`
                   : `${row.category} · ${row.loggedAt ? formatDate(row.loggedAt) : 'No timestamp'}`}
@@ -893,12 +893,12 @@ function SubmissionModal({
                     onClick={() => setMode('edit')}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       padding: '7px 13px', borderRadius: 10,
                       border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
                       cursor: 'pointer', transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
                     onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
                   >
                     <EditIcon /> Edit
@@ -907,7 +907,7 @@ function SubmissionModal({
                     onClick={() => setMode('confirmDelete')}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       padding: '7px 13px', borderRadius: 10,
                       border: '1.5px solid rgba(229,62,62,0.25)', background: 'rgba(229,62,62,0.04)', color: '#e53e3e',
                       cursor: 'pointer', transition: 'all 0.15s',
@@ -921,9 +921,9 @@ function SubmissionModal({
               )}
               <button
                 onClick={() => { if (mode !== 'view') setMode('view'); else onClose() }}
-                style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 1 }}
+                style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', padding: 4, lineHeight: 1 }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#000')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#aaa')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.35)')}
               >
                 ×
               </button>
@@ -963,11 +963,11 @@ function SubmissionModal({
             }}>
               {meta.map(m => (
                 <div key={m.label}>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
                     {m.label}
                   </p>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', wordBreak: 'break-word' }}>
-                    {m.value || <span style={{ color: '#aaa' }}>—</span>}
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', wordBreak: 'break-word' }}>
+                    {m.value || <span style={{ color: 'rgba(0,0,0,0.35)' }}>—</span>}
                   </p>
                 </div>
               ))}
@@ -982,20 +982,20 @@ function SubmissionModal({
               { label: 'Notes',              value: row.notes },
             ].map(s => (
               <div key={s.label}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                   {s.label}
                 </p>
                 {s.value ? (
                   <p style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55,
+                    fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55,
                     whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                    background: '#fafafa', border: '1px solid rgba(0,0,0,0.06)',
+                    background: '#fbfaf9', border: '1px solid rgba(0,0,0,0.06)',
                     borderRadius: 10, padding: '12px 14px',
                   }}>
                     {s.value}
                   </p>
                 ) : (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', fontStyle: 'italic' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>
                     Not provided
                   </p>
                 )}
@@ -1028,22 +1028,22 @@ function DeleteConfirm({
   return (
     <div style={{ padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'flex-start' }}>
       <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(229,62,62,0.05)', border: '1px solid rgba(229,62,62,0.15)', width: '100%' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 600, color: '#e53e3e', marginBottom: 6 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: '#e53e3e', marginBottom: 6 }}>
           Delete this submission?
         </p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.5 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', lineHeight: 1.5 }}>
           This will permanently remove the submission for ticket <strong>{ticket}</strong>. The action cannot be undone.
         </p>
       </div>
       {err && (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{err}</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{err}</p>
       )}
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           onClick={handleConfirm}
           disabled={busy}
           style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
             padding: '8px 16px', borderRadius: 10,
             background: busy ? 'rgba(229,62,62,0.5)' : '#e53e3e', color: '#fff',
             border: 'none', cursor: busy ? 'default' : 'pointer', transition: 'all 0.15s',
@@ -1055,12 +1055,12 @@ function DeleteConfirm({
           onClick={onCancel}
           disabled={busy}
           style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
             padding: '8px 16px', borderRadius: 10,
             border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
             cursor: 'pointer', transition: 'all 0.15s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+          onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
           onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
         >
           Cancel
@@ -1110,7 +1110,7 @@ function EditForm({
     width: '100%', boxSizing: 'border-box',
     border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
     padding: '10px 12px', fontSize: 13, color: '#000',
-    fontFamily: 'Inter, sans-serif', lineHeight: 1.5,
+    fontFamily: 'var(--font-body)', lineHeight: 1.5,
     outline: 'none', resize: 'vertical', transition: 'border-color 0.15s',
   }
 
@@ -1119,14 +1119,14 @@ function EditForm({
 
       {/* Issue type */}
       <div>
-        <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
+        <label style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
           Issue Type
         </label>
         <select
           value={issueType}
           onChange={e => setIssueType(e.target.value)}
           style={{ ...fieldStyle, resize: undefined, cursor: 'pointer' }}
-          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+          onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
           onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
         >
           {ISSUE_TYPE_VALUES.map(t => <option key={t}>{t}</option>)}
@@ -1142,7 +1142,7 @@ function EditForm({
         { label: 'Notes',              value: notes,             setter: setNotes,             rows: 2 },
       ].map(f => (
         <div key={f.label}>
-          <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
+          <label style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
             {f.label}
           </label>
           <textarea
@@ -1151,14 +1151,14 @@ function EditForm({
             rows={f.rows}
             placeholder={`Enter ${f.label.toLowerCase()}…`}
             style={fieldStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           />
         </div>
       ))}
 
       {err && (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{err}</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{err}</p>
       )}
 
       {/* Actions */}
@@ -1167,7 +1167,7 @@ function EditForm({
           onClick={handleSave}
           disabled={saving}
           style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
             padding: '9px 20px', borderRadius: 10,
             background: saving ? 'rgba(0,0,0,0.4)' : '#000', color: '#fff',
             border: 'none', cursor: saving ? 'default' : 'pointer', transition: 'all 0.15s',
@@ -1181,12 +1181,12 @@ function EditForm({
           onClick={onCancel}
           disabled={saving}
           style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
             padding: '9px 16px', borderRadius: 10,
             border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
             cursor: 'pointer', transition: 'all 0.15s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+          onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
           onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
         >
           Cancel
@@ -1314,10 +1314,10 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
             Full Auto Submissions
           </h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
             Ticket references logged for Full Auto — no draft-to-edit grading, just the submission record
           </p>
         </div>
@@ -1325,12 +1325,12 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
           <button
             onClick={onBackToCopilot}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '9px 16px', borderRadius: 10,
               border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
               transition: 'all 0.15s', cursor: 'pointer',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+            onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
             onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
           >
             View CoPilot
@@ -1338,12 +1338,12 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
           <button
             onClick={exportCSV}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '9px 16px', borderRadius: 10,
               border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
               transition: 'all 0.15s', cursor: 'pointer',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+            onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
             onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
           >
             Export CSV
@@ -1362,16 +1362,16 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
           onChange={e => setSearch(e.target.value)}
           placeholder="Search ticket number…"
           style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 12px',
+            fontFamily: 'var(--font-body)', fontSize: 13, padding: '8px 12px',
             borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', minWidth: 200,
           }}
         />
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)' }} />
-        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>to</span>
+          style={{ fontFamily: 'var(--font-body)', fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)' }} />
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)' }} />
-        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginLeft: 'auto' }}>
+          style={{ fontFamily: 'var(--font-body)', fontSize: 13, padding: '8px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)' }} />
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginLeft: 'auto' }}>
           {total.toLocaleString()} submission{total === 1 ? '' : 's'}
         </span>
       </div>
@@ -1383,16 +1383,16 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
           padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)',
         }}>
           {['Ticket #', 'Ticket ID', 'Category', 'Scenario', 'Scenario Type', 'Agent', 'Date'].map(h => (
-            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
         {loading ? (
           <div style={{ padding: 32, textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
           </div>
         ) : rows.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No Full Auto submissions yet</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No Full Auto submissions yet</p>
           </div>
         ) : (
           rows.map(r => (
@@ -1400,21 +1400,21 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
               display: 'grid', gridTemplateColumns: '90px 110px 110px 1fr 130px 110px 110px',
               padding: '11px 20px', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.05)',
             }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.ticketId || '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.scenario}>{r.scenario || '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{r.ticketNumber}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.ticketId || '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.scenario}>{r.scenario || '—'}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.scenarioType || '—'}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.scenarioType || '—'}</span>
                   {r.outcome && (
                     <span title={r.outcome} style={{
                       width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                      background: r.outcome === 'Fully Automated' ? '#166534' : r.outcome === 'Failed' ? '#e53e3e' : '#b45309',
+                      background: r.outcome === 'Fully Automated' ? '#00787e' : r.outcome === 'Failed' ? '#e53e3e' : '#b45309',
                     }} />
                   )}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{formatDate(r.createdAt)}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.agent || '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{formatDate(r.createdAt)}</span>
             </div>
           ))
         )}
@@ -1424,17 +1424,17 @@ function FullAutoSubmissions({ operatorId, onBackToCopilot }: { operatorId: stri
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
           {paginationRange(page, totalPages).map((p, i) => p === '…' ? (
-            <span key={`e${i}`} style={{ padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>…</span>
+            <span key={`e${i}`} style={{ padding: '6px 4px', fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>…</span>
           ) : (
             <button
               key={p}
               onClick={() => setPage(p)}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: p === page ? 600 : 400,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: p === page ? 600 : 400,
                 padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
-                border: p === page ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.1)',
-                background: p === page ? 'rgba(155,89,208,0.08)' : '#fff',
-                color: p === page ? '#9B59D0' : '#58595B',
+                border: p === page ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.1)',
+                background: p === page ? 'rgba(0,168,176,0.08)' : '#fff',
+                color: p === page ? '#00a8b0' : '#323232',
               }}
             >{p}</button>
           ))}
@@ -1456,9 +1456,9 @@ function PageBtn({ children, onClick, disabled, active }: {
       disabled={disabled}
       style={{
         width: 32, height: 32, borderRadius: 8, fontSize: 13,
-        fontFamily: 'Inter, sans-serif', fontWeight: active ? 600 : 400,
-        background: active ? '#9B59D0' : '#fff',
-        color: active ? '#fff' : disabled ? 'rgba(0,0,0,0.25)' : '#58595B',
+        fontFamily: 'var(--font-body)', fontWeight: active ? 600 : 400,
+        background: active ? '#00a8b0' : '#fff',
+        color: active ? '#fff' : disabled ? 'rgba(0,0,0,0.25)' : '#323232',
         border: '1.5px solid rgba(0,0,0,0.09)',
         cursor: disabled ? 'default' : 'pointer',
         transition: 'all 0.15s',

@@ -48,7 +48,7 @@ interface NavItem {
 
 // Nav icons — lucide-react (modern, consistent open-source set). Wrapper names kept
 // stable so the NAV arrays below don't change. 18px / 1.8 stroke matches the prior look.
-const ICON = { size: 18, strokeWidth: 1.8 } as const
+const ICON = { size: 18, strokeWidth: 1.5 } as const
 const TicketIcon      = () => <Ticket {...ICON} />
 const BulletinIcon    = () => <Megaphone {...ICON} />
 const SubmissionsIcon = () => <Inbox {...ICON} />
@@ -61,10 +61,10 @@ const ReportCardIcon  = () => <ClipboardCheck {...ICON} />
 const BugTrackerIcon  = () => <Bug {...ICON} />
 const EvalReportsIcon = () => <FileSearch {...ICON} />
 const RoadmapIcon     = () => <Milestone {...ICON} />
-const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.8} />
+const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.5} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
-  return <ChevronLeft size={16} strokeWidth={1.8} style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }} />
+  return <ChevronLeft size={16} strokeWidth={1.5} style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }} />
 }
 
 const AGENT_NAV: NavItem[] = [
@@ -160,6 +160,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
       height: '100%',
       background: '#fff',
       borderRadius: 20,
+      boxShadow: 'var(--shadow-light)',
       display: 'flex',
       flexDirection: 'column',
       padding: '20px 12px',
@@ -179,10 +180,9 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
       }}>
         {!collapsed && (
           <div>
-            <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', lineHeight: 1 }}>
-              raphie<span style={{ color: '#14B8A6' }}>.</span>
-            </div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 3 }}>
+            {/* Official brandmark (design system: never typeset the logo). 22px high, left-aligned. */}
+            <img src="/brand/raphie-logo-black.png" alt="Raphie" style={{ height: 22, width: 'auto', display: 'block' }} />
+            <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 3 }}>
               CS Command Center
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#58595B',
+            color: '#323232',
             transition: 'background 0.15s',
             flexShrink: 0,
           }}
@@ -222,12 +222,12 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
           width: 32,
           height: 32,
           borderRadius: 10,
-          background: '#9B59D0',
+          background: '#00a8b0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          fontFamily: 'Manrope, sans-serif',
+          fontFamily: 'var(--font-display)',
           fontSize: 13,
           fontWeight: 600,
           color: '#fff',
@@ -236,10 +236,10 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
         </div>
         {!collapsed && (
           <div style={{ overflow: 'hidden' }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.name ?? '—'}
             </div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', textTransform: 'capitalize' }}>
+            <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', textTransform: 'capitalize' }}>
               {user?.role ?? ''}
             </div>
           </div>
@@ -264,9 +264,9 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
                 padding: collapsed ? '9px 0' : '9px 10px',
                 borderRadius: 10,
                 justifyContent: collapsed ? 'center' : 'flex-start',
-                background: active ? '#CEA4FF' : 'transparent',
-                color: active ? '#000' : '#58595B',
-                fontFamily: 'Inter, sans-serif',
+                background: active ? '#cceef0' : 'transparent',
+                color: active ? '#000' : '#323232',
+                fontFamily: 'var(--font-body)',
                 fontSize: 14,
                 fontWeight: active ? 500 : 400,
                 transition: 'all 0.15s',
@@ -314,7 +314,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '8px 10px', borderRadius: 10,
                 border: '1.5px solid rgba(0,0,0,0.09)',
-                background: operatorDropOpen ? 'rgba(206,164,255,0.08)' : 'rgba(0,0,0,0.02)',
+                background: operatorDropOpen ? 'rgba(0,168,176,0.08)' : 'rgba(0,0,0,0.02)',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}
               onMouseEnter={e => { if (!operatorDropOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
@@ -323,21 +323,21 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 <div style={{
                   width: 20, height: 20, borderRadius: 6,
-                  background: '#9B59D0',
+                  background: '#00a8b0',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
-                  fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700, color: '#fff',
+                  fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, color: '#fff',
                 }}>
                   {selectedOperator?.name?.[0]?.toUpperCase() ?? 'O'}
                 </div>
                 <span style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                   color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {selectedOperator?.name ?? 'Select operator'}
                 </span>
               </div>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#58595B', transform: operatorDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#323232', transform: operatorDropOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
                 <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>}
@@ -348,25 +348,25 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
                 width: '100%',
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '8px 10px', borderRadius: 10,
-                border: '1.5px solid rgba(155,89,208,0.2)',
-                background: 'rgba(155,89,208,0.05)',
+                border: '1.5px solid rgba(0,168,176,0.2)',
+                background: 'rgba(0,168,176,0.05)',
               }}>
                 <div style={{
                   width: 20, height: 20, borderRadius: 6,
-                  background: '#9B59D0',
+                  background: '#00a8b0',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
-                  fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700, color: '#fff',
+                  fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700, color: '#fff',
                 }}>
                   {selectedOperator.name[0].toUpperCase()}
                 </div>
                 <span style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                   color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
                 }}>
                   {selectedOperator.name}
                 </span>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#9B59D0' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#00a8b0' }}>
                   <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2"/>
                   <path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
@@ -388,7 +388,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                       padding: '9px 12px',
-                      background: selectedOperator?.id === op.id ? 'rgba(206,164,255,0.1)' : 'transparent',
+                      background: selectedOperator?.id === op.id ? 'rgba(0,168,176,0.1)' : 'transparent',
                       borderBottom: '1px solid rgba(0,0,0,0.05)',
                       cursor: 'pointer', transition: 'background 0.15s',
                     }}
@@ -396,21 +396,21 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
                     onMouseLeave={e => { if (selectedOperator?.id !== op.id) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div style={{
-                      width: 20, height: 20, borderRadius: 6, background: selectedOperator?.id === op.id ? '#9B59D0' : 'rgba(0,0,0,0.1)',
+                      width: 20, height: 20, borderRadius: 6, background: selectedOperator?.id === op.id ? '#00a8b0' : 'rgba(0,0,0,0.1)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                      fontFamily: 'Manrope, sans-serif', fontSize: 9, fontWeight: 700,
-                      color: selectedOperator?.id === op.id ? '#fff' : '#58595B',
+                      fontFamily: 'var(--font-display)', fontSize: 9, fontWeight: 700,
+                      color: selectedOperator?.id === op.id ? '#fff' : '#323232',
                     }}>
                       {op.name[0].toUpperCase()}
                     </div>
                     <span style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: selectedOperator?.id === op.id ? 500 : 400,
-                      color: selectedOperator?.id === op.id ? '#9B59D0' : '#000',
+                      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: selectedOperator?.id === op.id ? 500 : 400,
+                      color: selectedOperator?.id === op.id ? '#00a8b0' : '#000',
                     }}>
                       {op.name}
                     </span>
                     {selectedOperator?.id === op.id && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', color: '#9B59D0' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', color: '#00a8b0' }}>
                         <path d="M5 12l5 5L20 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     )}
@@ -431,9 +431,9 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             padding: collapsed ? '9px 0' : '9px 10px',
             borderRadius: 10,
             justifyContent: collapsed ? 'center' : 'flex-start',
-            background: (activePage === 'settings' || activePage === 'users') ? '#CEA4FF' : 'transparent',
-            color: (activePage === 'settings' || activePage === 'users') ? '#000' : '#58595B',
-            fontFamily: 'Inter, sans-serif',
+            background: (activePage === 'settings' || activePage === 'users') ? '#cceef0' : 'transparent',
+            color: (activePage === 'settings' || activePage === 'users') ? '#000' : '#323232',
+            fontFamily: 'var(--font-body)',
             fontSize: 14,
             fontWeight: (activePage === 'settings' || activePage === 'users') ? 500 : 400,
             transition: 'all 0.15s',
@@ -477,8 +477,8 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             padding: collapsed ? '9px 0' : '9px 10px',
             borderRadius: 10,
             justifyContent: collapsed ? 'center' : 'flex-start',
-            color: '#58595B',
-            fontFamily: 'Inter, sans-serif',
+            color: '#323232',
+            fontFamily: 'var(--font-body)',
             fontSize: 14,
             transition: 'all 0.15s',
             cursor: 'pointer',

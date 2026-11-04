@@ -176,7 +176,7 @@ const MAX_EVIDENCE_SIZE  = 25 * 1024 * 1024 // 25MB per file
 const EVIDENCE_ACCEPT    = 'image/*,video/*,.pdf'
 
 const SEVERITY_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  low:      { label: 'Low',      color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
+  low:      { label: 'Low',      color: '#323232', bg: 'rgba(0,0,0,0.06)' },
   medium:   { label: 'Medium',   color: '#b45309', bg: 'rgba(180,83,9,0.08)' },
   high:     { label: 'High',     color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
   critical: { label: 'Critical', color: '#fff',    bg: '#e53e3e' },
@@ -185,26 +185,26 @@ const SEVERITY_CONFIG: Record<string, { label: string; color: string; bg: string
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   open:          { label: 'Open',          color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
   investigating: { label: 'Investigating', color: '#b45309', bg: 'rgba(180,83,9,0.08)' },
-  resolved:      { label: 'Resolved',      color: '#166534', bg: 'rgba(22,101,52,0.08)' },
-  wont_fix:      { label: "Won't Fix",     color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
+  resolved:      { label: 'Resolved',      color: '#00787e', bg: 'rgba(0,168,176,0.08)' },
+  wont_fix:      { label: "Won't Fix",     color: '#323232', bg: 'rgba(0,0,0,0.06)' },
   // Being addressed via another ticket, not sitting open on its own --
   // duplicate matches the purple already used for the "Linked as duplicate"
   // badge; related gets its own color (not investigating's amber) so the
   // two don't read as the same thing in the Status column.
-  duplicate:     { label: 'Duplicate',     color: '#9B59D0', bg: 'rgba(155,89,208,0.09)' },
-  related:       { label: 'Related',       color: '#0e7490', bg: 'rgba(8,145,178,0.1)' },
+  duplicate:     { label: 'Duplicate',     color: '#6a1ff0', bg: 'rgba(120,42,255,0.09)' },
+  related:       { label: 'Related',       color: '#5078ff', bg: 'rgba(8,145,178,0.1)' },
 }
 
 const MODE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  copilot:   { label: 'CoPilot',   color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
-  full_auto: { label: 'Full Auto', color: '#9B59D0', bg: 'rgba(155,89,208,0.09)' },
+  copilot:   { label: 'CoPilot',   color: '#323232', bg: 'rgba(0,0,0,0.06)' },
+  full_auto: { label: 'Full Auto', color: '#6a1ff0', bg: 'rgba(120,42,255,0.09)' },
 }
 
 const TRIAGE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  new:                 { label: 'New',                 color: '#166534', bg: 'rgba(22,101,52,0.08)' },
+  new:                 { label: 'New',                 color: '#00787e', bg: 'rgba(0,168,176,0.08)' },
   related:             { label: 'Related',              color: '#b45309', bg: 'rgba(180,83,9,0.08)' },
-  duplicate:           { label: 'Duplicate',            color: '#9B59D0', bg: 'rgba(155,89,208,0.09)' },
-  possible_non_issue:  { label: 'Possible Non-Issue',   color: '#58595B', bg: 'rgba(0,0,0,0.06)' },
+  duplicate:           { label: 'Duplicate',            color: '#6a1ff0', bg: 'rgba(120,42,255,0.09)' },
+  possible_non_issue:  { label: 'Possible Non-Issue',   color: '#323232', bg: 'rgba(0,0,0,0.06)' },
 }
 
 const EMPTY_FORM: FormState = {
@@ -217,7 +217,7 @@ const EMPTY_FORM: FormState = {
 function Badge({ label, color, bg }: { label: string; color: string; bg: string }) {
   return (
     <span style={{
-      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+      fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
       padding: '3px 9px', borderRadius: 100, color, background: bg,
       whiteSpace: 'nowrap',
     }}>{label}</span>
@@ -260,7 +260,7 @@ function CopyIconButton({ value, title = 'Copy' }: { value: string; title?: stri
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 18, height: 18, flexShrink: 0, padding: 0, marginLeft: 4,
         border: 'none', background: 'none', cursor: 'pointer', borderRadius: 4,
-        color: justCopied ? '#166534' : 'rgba(0,0,0,0.35)', transition: 'color 0.15s',
+        color: justCopied ? '#00787e' : 'rgba(0,0,0,0.35)', transition: 'color 0.15s',
       }}
     >
       {justCopied ? (
@@ -268,7 +268,7 @@ function CopyIconButton({ value, title = 'Copy' }: { value: string; title?: stri
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       ) : (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
         </svg>
       )}
@@ -407,14 +407,14 @@ function parseFiledTicketInput(raw: string): { filed_ticket_id: string | null; f
 
 // ── Input styles ─────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
-  width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 13,
+  width: '100%', fontFamily: 'var(--font-body)', fontSize: 13,
   padding: '9px 12px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)',
   background: '#fff', outline: 'none', boxSizing: 'border-box', resize: 'vertical',
   transition: 'border-color 0.15s',
 }
 const labelStyle: React.CSSProperties = {
-  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-  color: '#58595B', marginBottom: 5, display: 'block',
+  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+  color: '#323232', marginBottom: 5, display: 'block',
 }
 const requiredDot = <span style={{ color: '#e53e3e', marginLeft: 2 }}>*</span>
 
@@ -1096,8 +1096,8 @@ export default function BugTracker() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#000', margin: 0 }}>Bug Tracker</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: '#000', margin: 0 }}>Bug Tracker</h1>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 3 }}>
             Report gameLM issues to engineering
           </p>
         </div>
@@ -1107,10 +1107,10 @@ export default function BugTracker() {
       <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: 3, width: 'fit-content' }}>
         {tabs.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: activeTab === t.id ? 500 : 400,
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: activeTab === t.id ? 500 : 400,
             padding: '7px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
             background: activeTab === t.id ? '#000' : 'transparent',
-            color: activeTab === t.id ? '#fff' : '#58595B',
+            color: activeTab === t.id ? '#fff' : '#323232',
             transition: 'all 0.15s',
           }}>{t.label}</button>
         ))}
@@ -1119,7 +1119,7 @@ export default function BugTracker() {
       {/* ── Log Bug tab ─────────────────────────────────────────────────── */}
       {activeTab === 'log' && (
         <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28, maxWidth: 760 }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 24 }}>Bug Report</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 24 }}>Bug Report</p>
 
           {/* Row 1: Mode + Severity */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -1128,11 +1128,11 @@ export default function BugTracker() {
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['copilot', 'full_auto'] as const).map(m => (
                   <button key={m} onClick={() => setForm(f => ({ ...f, mode: m }))} style={{
-                    flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    flex: 1, fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                     padding: '9px 12px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
-                    border: form.mode === m ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
-                    background: form.mode === m ? 'rgba(155,89,208,0.06)' : '#fff',
-                    color: form.mode === m ? '#9B59D0' : '#58595B',
+                    border: form.mode === m ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.12)',
+                    background: form.mode === m ? 'rgba(0,168,176,0.06)' : '#fff',
+                    color: form.mode === m ? '#00a8b0' : '#323232',
                   }}>{MODE_CONFIG[m].label}</button>
                 ))}
               </div>
@@ -1145,11 +1145,11 @@ export default function BugTracker() {
                   const sel = form.severity === s
                   return (
                     <button key={s} onClick={() => setForm(f => ({ ...f, severity: s }))} style={{
-                      flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                      flex: 1, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                       padding: '9px 4px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
                       border: sel ? `1.5px solid ${cfg.color}` : '1.5px solid rgba(0,0,0,0.12)',
                       background: sel ? cfg.bg : '#fff',
-                      color: sel ? (s === 'critical' ? '#e53e3e' : cfg.color) : '#58595B',
+                      color: sel ? (s === 'critical' ? '#e53e3e' : cfg.color) : '#323232',
                     }}>{cfg.label}</button>
                   )
                 })}
@@ -1274,7 +1274,7 @@ export default function BugTracker() {
           {/* Evidence upload */}
           <div style={{ marginBottom: 20 }}>
             <label style={labelStyle}>
-              Evidence <span style={{ fontWeight: 400, color: '#aaa' }}>(screenshots, screen recordings, PDFs — up to {MAX_EVIDENCE_FILES})</span>
+              Evidence <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)' }}>(screenshots, screen recordings, PDFs — up to {MAX_EVIDENCE_FILES})</span>
             </label>
 
             {evidence.length > 0 && (
@@ -1282,23 +1282,23 @@ export default function BugTracker() {
                 {evidence.map((ev, idx) => (
                   <div key={ev.url} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    border: '1.5px solid rgba(22,101,52,0.3)', borderRadius: 10,
-                    padding: '8px 12px', background: 'rgba(22,101,52,0.04)',
+                    border: '1.5px solid rgba(0,168,176,0.3)', borderRadius: 10,
+                    padding: '8px 12px', background: 'rgba(0,168,176,0.04)',
                   }}>
                     {isImageType(ev.type) ? (
                       <img src={ev.url} alt={ev.name} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
                     ) : (
-                      <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(22,101,52,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(0,168,176,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00787e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                         </svg>
                       </div>
                     )}
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {ev.name}
                     </span>
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(22,101,52,0.6)', flexShrink: 0 }}>{fmtBytes(ev.size)}</span>
-                    <button onClick={() => removeEvidence(idx)} style={{ color: '#aaa', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }} title="Remove">×</button>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,168,176,0.6)', flexShrink: 0 }}>{fmtBytes(ev.size)}</span>
+                    <button onClick={() => removeEvidence(idx)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }} title="Remove">×</button>
                   </div>
                 ))}
               </div>
@@ -1308,31 +1308,31 @@ export default function BugTracker() {
               <div
                 onClick={() => !evidenceUploading && evidenceInputRef.current?.click()}
                 style={{
-                  border: '1.5px dashed rgba(206,164,255,0.6)', borderRadius: 10,
-                  padding: '18px 20px', background: 'rgba(206,164,255,0.04)',
+                  border: '1.5px dashed rgba(0,168,176,0.6)', borderRadius: 10,
+                  padding: '18px 20px', background: 'rgba(0,168,176,0.04)',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   cursor: evidenceUploading ? 'default' : 'pointer', transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { if (!evidenceUploading) e.currentTarget.style.background = 'rgba(206,164,255,0.09)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(206,164,255,0.04)' }}
+                onMouseEnter={e => { if (!evidenceUploading) e.currentTarget.style.background = 'rgba(0,168,176,0.09)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,168,176,0.04)' }}
               >
                 {evidenceUploading ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', margin: 0 }}>Uploading…</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', margin: 0 }}>Uploading…</p>
                 ) : (
                   <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#CEA4FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00a8b0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
                       <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
                     </svg>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', margin: 0 }}>Click to attach files</p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', margin: 0 }}>Images, video, or PDF — max 25MB each</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', margin: 0 }}>Click to attach files</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', margin: 0 }}>Images, video, or PDF — max 25MB each</p>
                   </>
                 )}
               </div>
             )}
 
             {evidenceError && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 6 }}>{evidenceError}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 6 }}>{evidenceError}</p>
             )}
 
             <input
@@ -1351,7 +1351,7 @@ export default function BugTracker() {
               onClick={submitBug}
               disabled={!formValid || submitting || evidenceUploading}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
                 padding: '10px 24px', borderRadius: 10, border: 'none', cursor: formValid && !submitting && !evidenceUploading ? 'pointer' : 'not-allowed',
                 background: formValid && !submitting && !evidenceUploading ? '#000' : 'rgba(0,0,0,0.25)',
                 color: '#fff', transition: 'opacity 0.15s',
@@ -1362,12 +1362,12 @@ export default function BugTracker() {
               {submitting ? 'Submitting…' : evidenceUploading ? 'Uploading evidence…' : 'Submit Bug Report'}
             </button>
             {success && (
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>
                 ✓ Submitted
               </span>
             )}
             {!formValid && (
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
                 Mode, severity, expected outcome and actual outcome are required
               </span>
             )}
@@ -1379,15 +1379,15 @@ export default function BugTracker() {
       {activeTab === 'log' && !isAdmin && (
         <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>My Submissions</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>My Submissions</p>
           </div>
           {loading ? (
             <div style={{ padding: 32, textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
             </div>
           ) : myBugs.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No bug reports submitted yet</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No bug reports submitted yet</p>
             </div>
           ) : (
             <BugList bugs={myBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} triage={triageBundle} />
@@ -1399,8 +1399,8 @@ export default function BugTracker() {
       {activeTab === 'tracker' && (
         <>
           <BugThemeDistribution bugs={bugs} />
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
-            <strong style={{ color: '#58595B' }}>{bugs.length.toLocaleString()}</strong> total bug{bugs.length === 1 ? '' : 's'} logged
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
+            <strong style={{ color: '#323232' }}>{bugs.length.toLocaleString()}</strong> total bug{bugs.length === 1 ? '' : 's'} logged
           </p>
         </>
       )}
@@ -1423,14 +1423,14 @@ export default function BugTracker() {
                 ...Object.entries(MODE_CONFIG).map(([v, c]) => ({ value: v, label: c.label })),
               ]} />
               {!isAdmin && (
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>View only</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>View only</span>
               )}
             </div>
             {isAdmin && (
               <button
                 onClick={exportCSV}
                 style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                   padding: '6px 14px', borderRadius: 8, border: 'none',
                   background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s',
                 }}
@@ -1442,11 +1442,11 @@ export default function BugTracker() {
 
           {loading ? (
             <div style={{ padding: 32, textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
             </div>
           ) : filteredBugs.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No bug reports match the current filters</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No bug reports match the current filters</p>
             </div>
           ) : (
             <BugList bugs={filteredBugs} expanded={expanded} onExpand={setExpanded} onCopy={copyBug} copied={copied} onStatusChange={isAdmin ? updateStatus : undefined} triage={triageBundle} />
@@ -1460,8 +1460,8 @@ export default function BugTracker() {
           <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
               <div>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>Engineering Report</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6, maxWidth: 620 }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>Engineering Report</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', lineHeight: 1.6, maxWidth: 620 }}>
                   AI-drafted resolution briefs for every bug {reportFrom === reportTo ? `from ${fmtDateStr(reportFrom)}` : `from ${fmtDateStr(reportFrom)} to ${fmtDateStr(reportTo)}`} not marked Won't Fix — description, steps to reproduce, suggested fix, expected/actual behavior, and impact —
                   plus a cross-cutting pass looking for shared root causes across bugs tagged under different components. Filtered by date, not status, so nothing recent falls through if a status wasn't kept up to date.
                 </p>
@@ -1471,7 +1471,7 @@ export default function BugTracker() {
                   <button
                     onClick={toggleReportHistory}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B',
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#323232',
                       padding: '8px 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)',
                       background: reportHistoryOpen ? 'rgba(0,0,0,0.04)' : '#fff', cursor: 'pointer', transition: 'all 0.15s',
                     }}
@@ -1481,7 +1481,7 @@ export default function BugTracker() {
                   onClick={generateReport}
                   disabled={reportLoading || !selectedOperator?.id}
                   style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+                    fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
                     padding: '10px 20px', borderRadius: 10, border: 'none', cursor: reportLoading ? 'not-allowed' : 'pointer',
                     background: reportLoading ? 'rgba(0,0,0,0.25)' : '#000', color: '#fff', transition: 'opacity 0.15s',
                   }}
@@ -1492,21 +1492,21 @@ export default function BugTracker() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#58595B' }}>Range</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#323232' }}>Range</span>
               <input
                 type="date"
                 value={reportFrom}
                 max={reportTo}
                 onChange={e => setReportFrom(e.target.value)}
-                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none' }}
+                style={{ fontFamily: 'var(--font-body)', fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none' }}
               />
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>to</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>to</span>
               <input
                 type="date"
                 value={reportTo}
                 min={reportFrom}
                 onChange={e => setReportTo(e.target.value)}
-                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none' }}
+                style={{ fontFamily: 'var(--font-body)', fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none' }}
               />
               <div style={{ display: 'flex', gap: 6, marginLeft: 4 }}>
                 {([['today', 'Today'], ['yesterday', 'Yesterday'], ['last7', 'Last 7 days'], ['last30', 'Last 30 days']] as const).map(([preset, label]) => (
@@ -1514,8 +1514,8 @@ export default function BugTracker() {
                     key={preset}
                     onClick={() => setReportRange(preset)}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 10px', borderRadius: 8,
-                      border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '6px 10px', borderRadius: 8,
+                      border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer', transition: 'all 0.15s',
                     }}
                   >{label}</button>
                 ))}
@@ -1525,9 +1525,9 @@ export default function BugTracker() {
             {reportHistoryOpen && (
               <div style={{ marginTop: 14, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 14 }}>
                 {reportHistoryLoading ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading history…</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading history…</p>
                 ) : !reportHistory?.length ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No past reports yet.</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No past reports yet.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {reportHistory.map(h => {
@@ -1539,15 +1539,15 @@ export default function BugTracker() {
                           style={{
                             display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left',
                             padding: '8px 10px', borderRadius: 8, border: 'none', cursor: isCurrent ? 'default' : 'pointer',
-                            background: isCurrent ? 'rgba(206,164,255,0.1)' : 'transparent', transition: 'background 0.15s',
+                            background: isCurrent ? 'rgba(0,168,176,0.1)' : 'transparent', transition: 'background 0.15s',
                           }}
                           onMouseEnter={e => { if (!isCurrent) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
                           onMouseLeave={e => { if (!isCurrent) e.currentTarget.style.background = 'transparent' }}
                         >
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>
                             {new Date(h.generated_at).toLocaleString()}{isCurrent ? ' (viewing)' : ''}
                           </span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                             {h.bug_count} bug{h.bug_count === 1 ? '' : 's'}{h.generated_by ? ` · ${h.generated_by}` : ''}
                           </span>
                         </button>
@@ -1559,18 +1559,18 @@ export default function BugTracker() {
             )}
 
             {reportError && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginTop: 12 }}>{reportError}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e', marginTop: 12 }}>{reportError}</p>
             )}
 
             {triageReport && !reportError && (
               <div style={{ marginTop: 14, borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
                       {triageReport.isHistorical ? 'Generated' : 'Last generated'} {new Date(triageReport.generated_at).toLocaleString()}
                       {triageReport.generated_by ? ` · by ${triageReport.generated_by}` : ''}
                     </p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.4)' }}>
                       {triageReport.meta?.analyzed ?? triageReport.bug_count} new bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'} to review
                       {triageReport.meta?.truncated ? ` (of ${triageReport.meta.total_open} eligible — highest severity + most recent kept)` : ''}
                       {!!triageReport.meta?.excluded_handled && ` — ${triageReport.meta.excluded_handled} more already linked or filed, not shown below`}
@@ -1580,9 +1580,9 @@ export default function BugTracker() {
                     <button
                       onClick={exportTriageReportCSV}
                       style={{
-                        flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                        flexShrink: 0, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                         padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
-                        background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                        background: '#fff', color: '#323232', cursor: 'pointer', transition: 'all 0.15s',
                       }}
                     >Export CSV</button>
                   )}
@@ -1591,7 +1591,7 @@ export default function BugTracker() {
                   <button
                     onClick={backToLatestReport}
                     style={{
-                      alignSelf: 'flex-start', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#9B59D0',
+                      alignSelf: 'flex-start', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#00787e',
                       background: 'none', border: 'none', padding: 0, cursor: 'pointer',
                     }}
                   >← Back to latest</button>
@@ -1602,7 +1602,7 @@ export default function BugTracker() {
 
           {reportLoading && (
             <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
                 Reading every bug from {reportFrom === reportTo ? fmtDateStr(reportFrom) : `${fmtDateStr(reportFrom)} to ${fmtDateStr(reportTo)}`} not marked Won't Fix (and any attached evidence) and drafting resolution briefs — this can take a minute for a large backlog…
               </p>
             </div>
@@ -1611,13 +1611,13 @@ export default function BugTracker() {
           {triageReport && !reportLoading && (
             <>
               <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>Root Cause Themes</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>Root Cause Themes</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
                   Among this pass's {triageReport.meta?.analyzed ?? triageReport.bug_count} new bug{(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'} -- bugs that likely share one deeper cause, even where they were tagged under different components
                   {!!triageReport.meta?.excluded_handled && `. ${triageReport.meta.excluded_handled} other${triageReport.meta.excluded_handled === 1 ? '' : 's'} from this window ${triageReport.meta.excluded_handled === 1 ? 'is' : 'are'} already linked or filed, so ${triageReport.meta.excluded_handled === 1 ? "it's" : "they're"} left out of this pass entirely.`}
                 </p>
                 {triageReport.themes.length === 0 ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.4)' }}>
                     {triageReport.meta?.themes_error
                       ? `Theme generation failed: ${triageReport.meta.themes_error}`
                       : `No shared root cause found across this pass's ${triageReport.meta?.analyzed ?? triageReport.bug_count} bug${(triageReport.meta?.analyzed ?? triageReport.bug_count) === 1 ? '' : 's'} — nothing was forced into a grouping it didn't genuinely share.`}
@@ -1627,38 +1627,38 @@ export default function BugTracker() {
                     {triageReport.themes.map((t, i) => {
                       const selected = themeSelectedIds(i, t)
                       return (
-                        <div key={i} style={{ borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)', padding: '12px 14px' }}>
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>{t.title}</p>
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
+                        <div key={i} style={{ borderRadius: 10, border: '1.5px solid rgba(120,42,255,0.2)', background: 'rgba(120,42,255,0.03)', padding: '12px 14px' }}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: '#6a1ff0', marginBottom: 4 }}>{t.title}</p>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55, marginBottom: 8 }}>{t.explanation}</p>
                           {(themeFiledSummary(t).length > 0 || themeOutOfScopeCount(t) > 0 || themeResolvedCount(t) > 0) && (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
                               {themeFiledSummary(t).map(f => f.url ? (
                                 <a key={f.ref} href={f.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
-                                  color: '#166534', background: 'rgba(22,101,52,0.1)', padding: '4px 10px', borderRadius: 100, textDecoration: 'none',
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
+                                  color: '#00787e', background: 'rgba(0,168,176,0.1)', padding: '4px 10px', borderRadius: 100, textDecoration: 'none',
                                 }}>Filed: {f.ref} ↗ ({f.count})</a>
                               ) : (
                                 <span key={f.ref} style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
-                                  color: '#166534', background: 'rgba(22,101,52,0.1)', padding: '4px 10px', borderRadius: 100,
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
+                                  color: '#00787e', background: 'rgba(0,168,176,0.1)', padding: '4px 10px', borderRadius: 100,
                                 }}>Filed: {f.ref} ({f.count})</span>
                               ))}
                               {themeResolvedCount(t) > 0 && (
                                 <span style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
-                                  color: '#166534', background: 'rgba(22,101,52,0.1)', padding: '4px 10px', borderRadius: 100,
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
+                                  color: '#00787e', background: 'rgba(0,168,176,0.1)', padding: '4px 10px', borderRadius: 100,
                                 }}>✓ {themeResolvedCount(t)} resolved — ready to re-test</span>
                               )}
                               {themeOutOfScopeCount(t) > 0 && (
                                 <span style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
-                                  color: '#58595B', background: 'rgba(0,0,0,0.06)', padding: '4px 10px', borderRadius: 100,
+                                  display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
+                                  color: '#323232', background: 'rgba(0,0,0,0.06)', padding: '4px 10px', borderRadius: 100,
                                 }}>✕ {themeOutOfScopeCount(t)} out of scope</span>
                               )}
                             </div>
                           )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', margin: 0 }}>Click a bug to toggle it before an action</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', margin: 0 }}>Click a bug to toggle it before an action</p>
                             {t.bugs.some(b => {
                               const lb = bugs.find(bb => bb.id === b.bug_id)
                               return lb?.filed_ticket_id && lb.status !== 'resolved' && !selected.has(b.bug_id)
@@ -1671,7 +1671,7 @@ export default function BugTracker() {
                                     return lb?.filed_ticket_id && lb.status !== 'resolved'
                                   }).map(b => b.bug_id)),
                                 }))}
-                                style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#166534', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#00787e', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                               >Select filed bugs (to mark resolved)</button>
                             )}
                           </div>
@@ -1687,8 +1687,8 @@ export default function BugTracker() {
                               // the NORMAL post-filing state, not a dismissal). Only a plain,
                               // never-actioned bug that's been manually deselected gets the
                               // muted/struck "not included in the next action" treatment.
-                              const color = isOutOfScope ? 'rgba(0,0,0,0.3)' : isResolved || isFiled ? '#166534' : !isSelected ? 'rgba(0,0,0,0.35)' : '#9B59D0'
-                              const background = isOutOfScope ? 'rgba(0,0,0,0.05)' : isResolved || isFiled ? 'rgba(22,101,52,0.1)' : !isSelected ? 'rgba(0,0,0,0.04)' : 'rgba(155,89,208,0.1)'
+                              const color = isOutOfScope ? 'rgba(0,0,0,0.3)' : isResolved || isFiled ? '#00787e' : !isSelected ? 'rgba(0,0,0,0.35)' : '#00a8b0'
+                              const background = isOutOfScope ? 'rgba(0,0,0,0.05)' : isResolved || isFiled ? 'rgba(0,168,176,0.1)' : !isSelected ? 'rgba(0,0,0,0.04)' : 'rgba(0,168,176,0.1)'
                               const strike = isOutOfScope || (!isFiled && !isResolved && !isSelected)
                               const prefix = isOutOfScope ? '✕ ' : isResolved ? '✓✓ ' : isFiled ? '✓ ' : ''
                               return (
@@ -1697,7 +1697,7 @@ export default function BugTracker() {
                                   onClick={() => toggleThemeBug(i, t, b.bug_id)}
                                   title={isOutOfScope ? "Marked out of scope (Won't Fix)" : isResolved ? 'Resolved' : isFiled ? 'Already logged as filed' : undefined}
                                   style={{
-                                    display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
+                                    display: 'inline-flex', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
                                     color, background, padding: '2px 8px', borderRadius: 100, cursor: 'pointer',
                                     textDecoration: strike ? 'line-through' : 'none',
                                     boxShadow: isSelected ? '0 0 0 1.5px currentColor' : 'none',
@@ -1715,7 +1715,7 @@ export default function BugTracker() {
                               onClick={() => draftTicketFromTheme(i, t)}
                               disabled={draftingTheme === i || selected.size === 0}
                               style={{
-                                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
                                 border: 'none', background: '#000', color: '#fff', transition: 'opacity 0.15s',
                                 cursor: draftingTheme === i || selected.size === 0 ? 'not-allowed' : 'pointer',
                                 opacity: draftingTheme === i || selected.size === 0 ? 0.5 : 1,
@@ -1731,8 +1731,8 @@ export default function BugTracker() {
                                 disabled={selected.size === 0}
                                 title="Also sets status to Investigating on these bugs"
                                 style={{
-                                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
-                                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534',
+                                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                  border: '1.5px solid rgba(0,168,176,0.4)', background: 'rgba(0,168,176,0.06)', color: '#00787e',
                                   cursor: selected.size === 0 ? 'not-allowed' : 'pointer', opacity: selected.size === 0 ? 0.5 : 1,
                                 }}
                               >{`Log filed ticket for ${selected.size} selected`}</button>
@@ -1743,8 +1743,8 @@ export default function BugTracker() {
                                 disabled={selected.size === 0}
                                 title="Mark selected bugs Resolved -- for once engineering's actually fixed it, ready for QA to re-test"
                                 style={{
-                                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
-                                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', transition: 'opacity 0.15s',
+                                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                  border: '1.5px solid rgba(0,168,176,0.4)', background: 'rgba(0,168,176,0.06)', color: '#00787e', transition: 'opacity 0.15s',
                                   cursor: selected.size === 0 ? 'not-allowed' : 'pointer',
                                   opacity: selected.size === 0 ? 0.5 : 1,
                                 }}
@@ -1752,25 +1752,25 @@ export default function BugTracker() {
                             )}
                             {confirmingResolved === i && (
                               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', fontWeight: 500 }}>
+                                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#b45309', fontWeight: 500 }}>
                                   {`Mark these ${selected.size} Resolved?`}
                                 </span>
                                 <button
                                   onClick={() => { markThemeResolved(i, t); setConfirmingResolved(null) }}
                                   disabled={markingResolved === i}
                                   style={{
-                                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-                                    border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+                                    fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                                    border: '1.5px solid rgba(0,168,176,0.4)', background: 'rgba(0,168,176,0.06)', color: '#00787e', cursor: 'pointer',
                                   }}
                                 >{markingResolved === i ? 'Marking…' : 'Confirm'}</button>
                                 <button onClick={() => setConfirmingResolved(null)} style={{
-                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-                                  border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                                  border: 'none', background: 'none', color: '#323232', cursor: 'pointer',
                                 }}>Cancel</button>
                               </span>
                             )}
                             {resolvedErrors[i] && (
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{resolvedErrors[i]}</p>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', margin: 0 }}>{resolvedErrors[i]}</p>
                             )}
                             {editingFiledTheme !== i && confirmingOutOfScope !== i && confirmingResolved !== i && (
                               <button
@@ -1778,8 +1778,8 @@ export default function BugTracker() {
                                 disabled={selected.size === 0}
                                 title="Mark selected bugs Won't Fix -- excludes them from every future report and classify run"
                                 style={{
-                                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
-                                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', transition: 'opacity 0.15s',
+                                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '5px 12px', borderRadius: 8,
+                                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', transition: 'opacity 0.15s',
                                   cursor: selected.size === 0 ? 'not-allowed' : 'pointer',
                                   opacity: selected.size === 0 ? 0.5 : 1,
                                 }}
@@ -1787,32 +1787,32 @@ export default function BugTracker() {
                             )}
                             {confirmingOutOfScope === i && (
                               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', fontWeight: 500 }}>
+                                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#b45309', fontWeight: 500 }}>
                                   {`Mark these ${selected.size} Won't Fix?`}
                                 </span>
                                 <button
                                   onClick={() => { markThemeOutOfScope(i, t); setConfirmingOutOfScope(null) }}
                                   disabled={markingOutOfScope === i}
                                   style={{
-                                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                                    fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
                                     border: '1.5px solid rgba(229,62,62,0.4)', background: 'rgba(229,62,62,0.06)', color: '#e53e3e', cursor: 'pointer',
                                   }}
                                 >{markingOutOfScope === i ? 'Marking…' : 'Confirm'}</button>
                                 <button onClick={() => setConfirmingOutOfScope(null)} style={{
-                                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-                                  border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                                  border: 'none', background: 'none', color: '#323232', cursor: 'pointer',
                                 }}>Cancel</button>
                               </span>
                             )}
                             {outOfScopeErrors[i] && (
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{outOfScopeErrors[i]}</p>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', margin: 0 }}>{outOfScopeErrors[i]}</p>
                             )}
                             {editingFiledTheme === i && (() => {
                               const existing = themeExistingFiledRefs(i, t)
                               return (
                                 <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                   {existing.length > 0 && (
-                                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#b45309', margin: 0 }}>
+                                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#b45309', margin: 0 }}>
                                       {existing.length === 1
                                         ? `Already logged as ${existing[0]} — saving will overwrite it.`
                                         : `Selected bugs already have ${existing.length} different tickets logged — saving will overwrite all of them with one value.`}
@@ -1825,24 +1825,24 @@ export default function BugTracker() {
                                       onChange={e => setFiledThemeInput(e.target.value)}
                                       placeholder="Linear URL or CON-1234"
                                       style={{
-                                        fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '4px 8px', borderRadius: 8,
+                                        fontFamily: 'var(--font-body)', fontSize: 12, padding: '4px 8px', borderRadius: 8,
                                         border: '1.5px solid rgba(0,0,0,0.12)', width: 190,
                                       }}
                                     />
                                     <button onClick={() => { logFiledTicketForTheme(i, t, filedThemeInput); setEditingFiledTheme(null) }} style={{
-                                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-                                      border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+                                      fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                                      border: '1.5px solid rgba(0,168,176,0.4)', background: 'rgba(0,168,176,0.06)', color: '#00787e', cursor: 'pointer',
                                     }}>Save</button>
                                     <button onClick={() => setEditingFiledTheme(null)} style={{
-                                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-                                      border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                                      fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                                      border: 'none', background: 'none', color: '#323232', cursor: 'pointer',
                                     }}>Cancel</button>
                                   </span>
                                 </span>
                               )
                             })()}
                             {draftThemeErrors[i] && (
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{draftThemeErrors[i]}</p>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', margin: 0 }}>{draftThemeErrors[i]}</p>
                             )}
                           </div>
                         </div>
@@ -1853,10 +1853,10 @@ export default function BugTracker() {
               </div>
 
               <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 4 }}>
                   Resolution Briefs — {triageReport.briefs.length} new
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
                   Click a bug to view its full brief and draft a ticket -- covers every new bug this pass, including ones not grouped into a theme above
                   {!!triageReport.meta?.excluded_handled && ` (${triageReport.meta.excluded_handled} already linked or filed aren't repeated here)`}
                 </p>
@@ -1874,22 +1874,22 @@ export default function BugTracker() {
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                       >
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 600 }}>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', fontWeight: 600 }}>
                           {b.ticket_number ? `#${b.ticket_number}` : shortId(b.bug_id)}
                         </span>
                         <SeverityBadge s={b.severity} />
                         <ModeBadge m={b.mode} />
                         {b.failing_component && (
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{failLabel(b.failing_component)}</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{failLabel(b.failing_component)}</span>
                         )}
-                        {isFiled && <Badge label="Filed" color="#166534" bg="rgba(22,101,52,0.08)" />}
+                        {isFiled && <Badge label="Filed" color="#00787e" bg="rgba(0,168,176,0.08)" />}
                         <span style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 12, color: b.error ? '#e53e3e' : '#000',
+                          fontFamily: 'var(--font-body)', fontSize: 12, color: b.error ? '#e53e3e' : '#000',
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 140,
                         }}>
                           {b.error ? `Brief generation failed: ${b.error}` : (b.description ?? '—')}
                         </span>
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 500, flexShrink: 0 }}>View & Draft →</span>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#6a1ff0', fontWeight: 500, flexShrink: 0 }}>View & Draft →</span>
                       </div>
                     )
                   })}
@@ -1944,18 +1944,18 @@ function BugThemeDistribution({ bugs }: { bugs: BugReport[] }) {
 
   return (
     <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px' }}>
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 4 }}>Recurring Themes</p>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 4 }}>Recurring Themes</p>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
         Failing component across all {tagged.length} tagged reports — the biggest bar is where gameLM keeps breaking
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
         {sorted.map(([theme, count]) => (
           <div key={theme} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 190, flexShrink: 0 }}>{theme}</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', width: 190, flexShrink: 0 }}>{theme}</span>
             <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
-              <div style={{ width: `${(count / max) * 100}%`, height: '100%', borderRadius: 100, background: '#9B59D0', transition: 'width 0.3s' }} />
+              <div style={{ width: `${(count / max) * 100}%`, height: '100%', borderRadius: 100, background: '#00a8b0', transition: 'width 0.3s' }} />
             </div>
-            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
           </div>
         ))}
       </div>
@@ -1974,7 +1974,7 @@ function FilterSelect({ value, onChange, options }: {
       value={value}
       onChange={e => onChange(e.target.value)}
       style={{
-        fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 10px',
+        fontFamily: 'var(--font-body)', fontSize: 12, padding: '6px 10px',
         borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
         background: '#fff', outline: 'none', cursor: 'pointer', color: '#000',
       }}
@@ -2009,7 +2009,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
         background: 'rgba(0,0,0,0.01)',
       }}>
         {['ID', 'Mode', 'Severity', 'Status', 'Failing Component', 'Reported By', 'Ticket ID', 'Ticket #', 'Filed Ticket', 'Date'].map(h => (
-          <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+          <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
         ))}
       </div>
 
@@ -2024,40 +2024,40 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                 display: 'grid', gridTemplateColumns: cols,
                 padding: '11px 20px', alignItems: 'center', cursor: 'pointer',
                 borderBottom: '1px solid rgba(0,0,0,0.05)',
-                background: isExp ? 'rgba(206,164,255,0.05)' : 'transparent',
+                background: isExp ? 'rgba(0,168,176,0.05)' : 'transparent',
                 transition: 'background 0.15s',
               }}
               onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.05)' : 'transparent' }}
+              onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(0,168,176,0.05)' : 'transparent' }}
             >
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                 {shortId(bug.id)}
               </span>
               <ModeBadge m={bug.mode} />
               <SeverityBadge s={bug.severity} />
               <StatusBadge s={bug.status} />
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {failLabel(bug.failing_component)}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {bug.reported_by ?? '—'}
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, color: '#9B59D0', overflow: 'hidden' }}>
+              <span style={{ display: 'flex', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#00787e', overflow: 'hidden' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bug.ticket_id ?? '—'}</span>
                 {bug.ticket_id && <CopyIconButton value={bug.ticket_id} title="Copy ticket ID" />}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                 {bug.ticket_number ? `#${bug.ticket_number}` : '—'}
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, overflow: 'hidden' }}>
+              <span style={{ display: 'flex', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, overflow: 'hidden' }}>
                 {bug.filed_ticket_id || bug.filed_ticket_url ? (
                   <>
                     {bug.filed_ticket_url ? (
-                      <a href={bug.filed_ticket_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#166534', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <a href={bug.filed_ticket_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#00787e', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {bug.filed_ticket_id ?? 'View'} ↗
                       </a>
                     ) : (
-                      <span style={{ color: '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bug.filed_ticket_id}</span>
+                      <span style={{ color: '#00787e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bug.filed_ticket_id}</span>
                     )}
                     {bug.filed_ticket_id && <CopyIconButton value={bug.filed_ticket_id} title="Copy filed ticket ID" />}
                   </>
@@ -2065,14 +2065,14 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                   <span style={{ color: 'rgba(0,0,0,0.35)' }}>—</span>
                 )}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                 {fmtDate(bug.created_at)}
               </span>
             </div>
 
             {/* Expanded detail */}
             {isExp && (
-              <div style={{ padding: '16px 20px 20px', background: 'rgba(206,164,255,0.025)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+              <div style={{ padding: '16px 20px 20px', background: 'rgba(0,168,176,0.025)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                 {/* Detail boxes */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                   {bug.player_input && (
@@ -2087,7 +2087,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
 
                 {bug.mode === 'full_auto' && bug.resolution_outcome && (
                   <div style={{ marginBottom: 12 }}>
-                    <Badge label={`Resolution: ${resolutionOutcomeLabel(bug.resolution_outcome)}`} color="#9B59D0" bg="rgba(155,89,208,0.09)" />
+                    <Badge label={`Resolution: ${resolutionOutcomeLabel(bug.resolution_outcome)}`} color="#00a8b0" bg="rgba(0,168,176,0.09)" />
                   </div>
                 )}
 
@@ -2109,14 +2109,14 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
 
                 {bug.additional_context && (
                   <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(0,0,0,0.03)' }}>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Additional Context</p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{bug.additional_context}</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Additional Context</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{bug.additional_context}</p>
                   </div>
                 )}
 
                 {bug.evidence?.length > 0 && (
                   <div style={{ marginBottom: 12 }}>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
                       Evidence ({bug.evidence.length})
                     </p>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -2128,13 +2128,13 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                           {isImageType(ev.type) ? (
                             <img src={ev.url} alt={ev.name} style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
                           ) : (
-                            <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(155,89,208,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9B59D0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(0,168,176,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00a8b0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                               </svg>
                             </div>
                           )}
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#000', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</span>
                         </a>
                       ))}
                     </div>
@@ -2146,10 +2146,10 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                   <button
                     onClick={() => onCopy(bug)}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                       padding: '6px 14px', borderRadius: 8,
                       border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
-                      color: copied === bug.id ? '#166534' : '#58595B',
+                      color: copied === bug.id ? '#00787e' : '#323232',
                       cursor: 'pointer', transition: 'all 0.15s',
                     }}
                   >
@@ -2164,7 +2164,7 @@ function BugList({ bugs, expanded, onExpand, onCopy, copied, onStatusChange, tri
                           key={s}
                           onClick={e => { e.stopPropagation(); onStatusChange(bug.id, s) }}
                           style={{
-                            fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                            fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                             padding: '4px 10px', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
                             border: bug.status === s ? `1.5px solid ${c.color}` : '1.5px solid rgba(0,0,0,0.10)',
                             background: bug.status === s ? c.bg : 'transparent',
@@ -2191,8 +2191,8 @@ function DetailBox({ label, value, highlight = false }: { label: string; value: 
       background: highlight ? 'rgba(229,62,62,0.03)' : '#fff',
       border: highlight ? '1px solid rgba(229,62,62,0.12)' : '1px solid rgba(0,0,0,0.09)',
     }}>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: highlight ? 'rgba(229,62,62,0.7)' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{label}</p>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{value}</p>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: highlight ? 'rgba(229,62,62,0.7)' : 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{label}</p>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{value}</p>
     </div>
   )
 }
@@ -2232,11 +2232,11 @@ function BugTriagePanel({
   return (
     <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff' }} onClick={e => e.stopPropagation()}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Triage</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Triage</p>
         {cfg && <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} />}
-        {bug.canonical_bug_id && <Badge label="Linked as duplicate" color="#9B59D0" bg="rgba(155,89,208,0.09)" />}
+        {bug.canonical_bug_id && <Badge label="Linked as duplicate" color="#6a1ff0" bg="rgba(120,42,255,0.09)" />}
         {bug.linear_issue_url && (
-          <a href={bug.linear_issue_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', textDecoration: 'none' }}>
+          <a href={bug.linear_issue_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', textDecoration: 'none' }}>
             {bug.linear_issue_id ?? 'View in Linear'} ↗
           </a>
         )}
@@ -2246,11 +2246,11 @@ function BugTriagePanel({
             link to someone ELSE's ticket). */}
         {isFiled && !editingFiled && (
           bug.filed_ticket_url ? (
-            <a href={bug.filed_ticket_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#166534', textDecoration: 'none' }}>
+            <a href={bug.filed_ticket_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', textDecoration: 'none' }}>
               Filed: {bug.filed_ticket_id ?? 'View'} ↗
             </a>
           ) : (
-            <Badge label={`Filed: ${bug.filed_ticket_id}`} color="#166534" bg="rgba(22,101,52,0.08)" />
+            <Badge label={`Filed: ${bug.filed_ticket_id}`} color="#00787e" bg="rgba(0,168,176,0.08)" />
           )
         )}
         {isAdmin && !editingFiled && (
@@ -2258,8 +2258,8 @@ function BugTriagePanel({
             onClick={() => { setFiledInput(bug.filed_ticket_url ?? bug.filed_ticket_id ?? ''); setEditingFiled(true) }}
             title={isFiled ? undefined : 'Also sets status to Investigating'}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-              border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+              border: 'none', background: 'none', color: '#323232', cursor: 'pointer',
             }}
           >{isFiled ? 'Edit filed ticket' : 'Log filed ticket'}</button>
         )}
@@ -2271,21 +2271,21 @@ function BugTriagePanel({
               onChange={e => setFiledInput(e.target.value)}
               placeholder="Linear URL or CON-1234"
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '4px 8px', borderRadius: 8,
+                fontFamily: 'var(--font-body)', fontSize: 12, padding: '4px 8px', borderRadius: 8,
                 border: '1.5px solid rgba(0,0,0,0.12)', width: 190,
               }}
             />
             <button onClick={() => { onLogFiledTicket(filedInput); setEditingFiled(false) }} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-              border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+              border: '1.5px solid rgba(0,168,176,0.4)', background: 'rgba(0,168,176,0.06)', color: '#00787e', cursor: 'pointer',
             }}>Save</button>
             <button onClick={() => setEditingFiled(false)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-              border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+              border: 'none', background: 'none', color: '#323232', cursor: 'pointer',
             }}>Cancel</button>
             {isFiled && (
               <button onClick={() => { onLogFiledTicket(''); setEditingFiled(false) }} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
                 border: 'none', background: 'none', color: '#e53e3e', cursor: 'pointer',
               }}>Clear</button>
             )}
@@ -2298,53 +2298,53 @@ function BugTriagePanel({
               onClick={onClassify}
               disabled={triaging}
               style={{
-                marginLeft: 'auto', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                marginLeft: 'auto', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                 padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
-                color: '#58595B', cursor: triaging ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+                color: '#323232', cursor: triaging ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
               }}
             >{triaging ? 'Classifying…' : bug.triage_status ? 'Re-classify' : 'Classify'}</button>
             <button
               onClick={onDraftTicket}
               disabled={drafting}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                 padding: '5px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
-                color: '#58595B', cursor: drafting ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+                color: '#323232', cursor: drafting ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
               }}
             >{drafting ? 'Drafting…' : 'Draft full ticket'}</button>
           </>
         )}
       </div>
 
-      {triageError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{triageError}</p>}
-      {draftError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{draftError}</p>}
+      {triageError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{triageError}</p>}
+      {draftError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{draftError}</p>}
 
       {bug.triage_reasoning && (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, marginTop: 8 }}>{bug.triage_reasoning}</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55, marginTop: 8 }}>{bug.triage_reasoning}</p>
       )}
 
       {hasMatch && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
           {matches.map((m, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                 Matched:{' '}
                 {m.source === 'linear' ? (
-                  <a href={m.id} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#9B59D0' }}>{m.title || 'View in Linear'} ↗</a>
+                  <a href={m.id} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#00a8b0' }}>{m.title || 'View in Linear'} ↗</a>
                 ) : (
                   <span style={{ color: '#000' }}>{m.title || `Bug ${shortId(m.id)}`}</span>
                 )}
               </span>
               {isAdmin && (m.filed_ticket_id || m.filed_ticket_url) && !alreadyLinked && (
                 <button onClick={() => onAddExample(m)} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-                  border: '1.5px solid rgba(22,101,52,0.4)', background: 'rgba(22,101,52,0.06)', color: '#166534', cursor: 'pointer',
+                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                  border: '1.5px solid rgba(0,168,176,0.4)', background: 'rgba(0,168,176,0.06)', color: '#00787e', cursor: 'pointer',
                 }}>{`Add example to ${m.filed_ticket_id ?? 'existing ticket'}`}</button>
               )}
               {isAdmin && bug.triage_status === 'duplicate' && !alreadyLinked && !(m.filed_ticket_id || m.filed_ticket_url) && (
                 <button onClick={() => onConfirmMatch(m)} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-                  border: '1.5px solid rgba(155,89,208,0.4)', background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer',
+                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                  border: '1.5px solid rgba(120,42,255,0.4)', background: 'rgba(120,42,255,0.06)', color: '#6a1ff0', cursor: 'pointer',
                 }}>Confirm as duplicate</button>
               )}
             </div>
@@ -2352,14 +2352,14 @@ function BugTriagePanel({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {isAdmin && bug.triage_status === 'related' && bug.status !== 'related' && (
               <button onClick={() => onConfirmMatch(matches[0])} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-                border: '1.5px solid rgba(8,145,178,0.4)', background: 'rgba(8,145,178,0.08)', color: '#0e7490', cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+                border: '1.5px solid rgba(8,145,178,0.4)', background: 'rgba(8,145,178,0.08)', color: '#5078ff', cursor: 'pointer',
               }}>Mark as related</button>
             )}
             {isAdmin && !(alreadyLinked || bug.status === 'related') && (
               <button onClick={onDismiss} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-                border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+                border: 'none', background: 'none', color: '#323232', cursor: 'pointer',
               }}>Not a match — dismiss</button>
             )}
           </div>
@@ -2370,13 +2370,13 @@ function BugTriagePanel({
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           {bug.status !== 'wont_fix' && (
             <button onClick={onMarkNotABug} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
-              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 8,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer',
             }}>Mark not a bug</button>
           )}
           <button onClick={onDismiss} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
-            border: 'none', background: 'none', color: '#58595B', cursor: 'pointer',
+            fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '4px 8px', borderRadius: 8,
+            border: 'none', background: 'none', color: '#323232', cursor: 'pointer',
           }}>Disagree — keep as bug</button>
         </div>
       )}
@@ -2407,20 +2407,20 @@ function DraftTicketModal({ title, text, lowConfidence, onChange, onClose, onCop
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>
             Draft Ticket{title ? ` — ${title}` : ''}
           </p>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#58595B', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#323232', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
         </div>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 18 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginBottom: 18 }}>
           AI-elaborated from the bug report — review and edit, then copy/paste the whole thing into Linear. No Suggestions section; that's a dev/PM addition made later during triage.
         </p>
 
         {lowConfidence.length > 0 && (
           <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, border: '1.5px solid rgba(180,83,9,0.25)', background: 'rgba(180,83,9,0.05)' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#b45309', marginBottom: 6 }}>Flagged for review</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#b45309', marginBottom: 6 }}>Flagged for review</p>
             {lowConfidence.map((s, i) => (
-              <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#b45309', lineHeight: 1.5, marginBottom: i < lowConfidence.length - 1 ? 4 : 0 }}>
+              <p key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#b45309', lineHeight: 1.5, marginBottom: i < lowConfidence.length - 1 ? 4 : 0 }}>
                 <strong style={{ textTransform: 'capitalize' }}>{s.section.replace(/_/g, ' ')}:</strong> {s.reason}
               </p>
             ))}
@@ -2431,14 +2431,14 @@ function DraftTicketModal({ title, text, lowConfidence, onChange, onClose, onCop
           value={text}
           onChange={e => onChange(e.target.value)}
           rows={18}
-          style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12.5, lineHeight: 1.6, flex: 1 }}
+          style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 12.5, lineHeight: 1.6, flex: 1 }}
         />
 
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button
             onClick={onCopy}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
               border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s',
             }}
             onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
@@ -2447,8 +2447,8 @@ function DraftTicketModal({ title, text, lowConfidence, onChange, onClose, onCop
           <button
             onClick={onClose}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
-              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer',
             }}
           >Close</button>
         </div>
@@ -2480,37 +2480,37 @@ function BugDetailModal({ brief, drafting, draftError, copied, onClose, onCopy, 
       >
         {!brief ? (
           <>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 16 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 16 }}>
               No brief available for this bug in the current report.
             </p>
             <button onClick={onClose} style={{
-              alignSelf: 'flex-start', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
-              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+              alignSelf: 'flex-start', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer',
             }}>Close</button>
           </>
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', margin: 0 }}>
                   {brief.ticket_number ? `#${brief.ticket_number}` : shortId(brief.bug_id)}
                 </p>
                 <SeverityBadge s={brief.severity as BugReport['severity']} />
                 <ModeBadge m={brief.mode as BugReport['mode']} />
               </div>
-              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#58595B', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#323232', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
             </div>
             {brief.ticket_id && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'monospace', fontSize: 11, color: '#58595B', marginBottom: 16 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 11, color: '#323232', marginBottom: 16 }}>
                 {brief.ticket_id}
                 <CopyIconButton value={brief.ticket_id} title="Copy ticket ID" />
               </span>
             )}
 
-            {draftError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginBottom: 12 }}>{draftError}</p>}
+            {draftError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginBottom: 12 }}>{draftError}</p>}
 
             {brief.error ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginBottom: 16 }}>Brief generation failed: {brief.error}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e', marginBottom: 16 }}>Brief generation failed: {brief.error}</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
                 <DetailBox label="Description" value={brief.description ?? '—'} />
@@ -2524,21 +2524,21 @@ function BugDetailModal({ brief, drafting, draftError, copied, onClose, onCopy, 
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={onCopy} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: copied ? '#166534' : '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: copied ? '#00787e' : '#323232', cursor: 'pointer', transition: 'all 0.15s',
               }}>{copied ? '✓ Copied' : 'Copy for Engineering'}</button>
               <button
                 onClick={onDraftTicket}
                 disabled={drafting}
                 style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
                   border: 'none', background: '#000', color: '#fff', cursor: drafting ? 'not-allowed' : 'pointer',
                   opacity: drafting ? 0.5 : 1, transition: 'opacity 0.15s',
                 }}
               >{drafting ? 'Drafting…' : 'Draft full ticket'}</button>
               <button onClick={onClose} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '9px 18px', borderRadius: 10,
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer',
               }}>Close</button>
             </div>
           </>

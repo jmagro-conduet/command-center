@@ -87,15 +87,15 @@ export default function Roadmap() {
   if (load === 'loading') return <div className="rm"><div className="rm-state">Loading the roadmap…</div></div>
   if (load === 'not_ready') {
     return <div className="rm"><div className="rm-card"><h2>Roadmap database isn't set up yet</h2>
-      <p className="rm-sub" style={{ marginTop: 8 }}>The roadmap tables don't exist in Supabase yet. Run <b>supabase/migrations/20261104_roadmap.sql</b> in the SQL Editor, then reload this page.</p>{loadError && <p className="rm-sub" style={{ marginTop: 10, fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-word' }}>{loadError}</p>}</div></div>
+      <p className="rm-sub" style={{ marginTop: 8 }}>The roadmap tables don't exist in Supabase yet. Run <b>supabase/migrations/20261104_roadmap.sql</b> in the SQL Editor, then reload this page.</p>{loadError && <p className="rm-sub" style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 12, wordBreak: 'break-word' }}>{loadError}</p>}</div></div>
   }
   if (load === 'denied') {
     return <div className="rm"><div className="rm-card"><h2>No access to the roadmap data</h2>
-      <p className="rm-sub" style={{ marginTop: 8 }}>The database rejected this account. Page access is set per user in Admin settings, Users, and checked again in the database.</p>{loadError && <p className="rm-sub" style={{ marginTop: 10, fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-word' }}>{loadError}</p>}</div></div>
+      <p className="rm-sub" style={{ marginTop: 8 }}>The database rejected this account. Page access is set per user in Admin settings, Users, and checked again in the database.</p>{loadError && <p className="rm-sub" style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 12, wordBreak: 'break-word' }}>{loadError}</p>}</div></div>
   }
   if (load === 'error') {
     return <div className="rm"><div className="rm-card"><h2>Couldn't load the roadmap</h2>
-      <p className="rm-sub" style={{ marginTop: 8 }}>Something went wrong reading the roadmap data.</p>{loadError && <p className="rm-sub" style={{ marginTop: 10, fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-word' }}>{loadError}</p>}
+      <p className="rm-sub" style={{ marginTop: 8 }}>Something went wrong reading the roadmap data.</p>{loadError && <p className="rm-sub" style={{ marginTop: 10, fontFamily: 'var(--font-mono)', fontSize: 12, wordBreak: 'break-word' }}>{loadError}</p>}
       <div style={{ marginTop: 12 }}><button type="button" className="rm-btn" onClick={() => refetch()}>Try again</button></div></div></div>
   }
 
@@ -163,7 +163,7 @@ export default function Roadmap() {
           <p className="rm-sub">ELT view of what we're building, from Linear. Visible only to people you've given access.</p>
           <div className="rm-qpick" ref={menuRef}>
             <button type="button" className="rm-qbtn" aria-haspopup="true" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>
-              {q.qLabel}{!isLive && ' · snapshot'} <ChevronDown size={14} strokeWidth={1.8} />
+              {q.qLabel}{!isLive && ' · snapshot'} <ChevronDown size={14} strokeWidth={1.5} />
             </button>
             {menuOpen && (
               <div className="rm-qmenu">

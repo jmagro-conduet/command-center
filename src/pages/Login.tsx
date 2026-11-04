@@ -8,7 +8,7 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '10px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s',
-  width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif',
+  width: '100%', boxSizing: 'border-box', fontFamily: 'var(--font-body)',
 }
 
 export default function Login() {
@@ -18,7 +18,7 @@ export default function Login() {
   return (
     <div style={{
       height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#F1F1F2',
+      background: '#f0eeec',
     }}>
       <div style={{
         background: '#fff', borderRadius: 20, padding: '40px 36px',
@@ -27,10 +27,8 @@ export default function Login() {
       }}>
         {/* Logo */}
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#000', lineHeight: 1 }}>
-            raphie<span style={{ color: '#14B8A6' }}>.</span>
-          </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 4 }}>
+          <img src="/brand/raphie-logo-black.png" alt="Raphie" style={{ height: 28, width: 'auto', display: 'block' }} />
+          <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 4 }}>
             CS Command Center
           </div>
         </div>
@@ -65,10 +63,10 @@ function SignInForm({ onForgot, onCreateAccount, signIn }: {
 
   return (
     <>
-      <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
         Sign in
       </h2>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 24 }}>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 24 }}>
         Use your Raphie account credentials.
       </p>
 
@@ -76,20 +74,20 @@ function SignInForm({ onForgot, onCreateAccount, signIn }: {
         <Field label="Email">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
             required autoFocus placeholder="you@raphie.com" style={inputStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
 
         <Field label="Password">
           <input type="password" value={password} onChange={e => setPassword(e.target.value)}
             required placeholder="••••••••" style={inputStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
 
         <div style={{ textAlign: 'right', marginTop: -6 }}>
           <button type="button" onClick={onForgot} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0',
+            fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e',
             background: 'none', border: 'none', cursor: 'pointer', padding: 0,
           }}>
             Forgot password?
@@ -101,11 +99,11 @@ function SignInForm({ onForgot, onCreateAccount, signIn }: {
         <PrimaryButton loading={loading}>{loading ? 'Signing in…' : 'Sign in'}</PrimaryButton>
       </form>
 
-      <div style={{ textAlign: 'center', marginTop: 20, fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+      <div style={{ textAlign: 'center', marginTop: 20, fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
         New to Command Center?{' '}
         <button onClick={onCreateAccount} style={{
-          color: '#9B59D0', background: 'none', border: 'none', cursor: 'pointer',
-          fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: 0,
+          color: '#00a8b0', background: 'none', border: 'none', cursor: 'pointer',
+          fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: 0,
         }}>
           Create account
         </button>
@@ -184,10 +182,10 @@ function CreateAccountForm({ onBack, signIn }: {
 
   return (
     <>
-      <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
         Create account
       </h2>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 24 }}>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 24 }}>
         Your account will be set up as an Agent. An admin can update your role.
       </p>
 
@@ -195,27 +193,27 @@ function CreateAccountForm({ onBack, signIn }: {
         <Field label="Full name">
           <input type="text" value={name} onChange={e => setName(e.target.value)}
             required autoFocus placeholder="Jane Smith" style={inputStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
 
         <Field label="Email">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
             required placeholder="you@raphie.com" style={inputStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
 
         <Field label="Team">
           <select value={teamId} onChange={e => setTeamId(e.target.value)}
-            style={{ ...inputStyle, color: teamId ? '#000' : '#aaa' }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            style={{ ...inputStyle, color: teamId ? '#000' : 'rgba(0,0,0,0.35)' }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}>
             <option value="">Select your team (optional)</option>
             {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
           {teamsError && (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 2 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 2 }}>
               Couldn't load the team list — reload the page, or continue and an admin can assign your team afterward.
             </p>
           )}
@@ -224,14 +222,14 @@ function CreateAccountForm({ onBack, signIn }: {
         <Field label="Password">
           <input type="password" value={password} onChange={e => setPassword(e.target.value)}
             required placeholder="Min 8 characters" style={inputStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
 
         <Field label="Confirm password">
           <input type="password" value={password2} onChange={e => setPassword2(e.target.value)}
             required placeholder="••••••••" style={inputStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
 
@@ -242,7 +240,7 @@ function CreateAccountForm({ onBack, signIn }: {
 
       <div style={{ textAlign: 'center', marginTop: 20 }}>
         <button onClick={onBack} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+          fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
           background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         }}>
           ← Back to sign in
@@ -275,14 +273,14 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
     return (
       <>
         <div style={{
-          background: 'rgba(22,101,52,0.06)', border: '1px solid rgba(22,101,52,0.2)',
+          background: 'rgba(0,168,176,0.06)', border: '1px solid rgba(0,168,176,0.2)',
           borderRadius: 10, padding: '14px 16px', marginBottom: 20,
-          fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
+          fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e',
         }}>
           Check your email — we sent a password reset link to <strong>{email}</strong>.
         </div>
         <button onClick={onBack} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+          fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
           background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         }}>
           ← Back to sign in
@@ -293,10 +291,10 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
   return (
     <>
-      <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
+      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
         Reset password
       </h2>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 24 }}>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 24 }}>
         Enter your email and we'll send you a reset link.
       </p>
 
@@ -304,7 +302,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
         <Field label="Email">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)}
             required autoFocus placeholder="you@raphie.com" style={inputStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
         </Field>
 
@@ -315,7 +313,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
       <div style={{ textAlign: 'center', marginTop: 20 }}>
         <button onClick={onBack} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+          fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
           background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         }}>
           ← Back to sign in
@@ -351,7 +349,7 @@ export function ResetPasswordPage({ updatePassword }: {
   return (
     <div style={{
       height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#F1F1F2',
+      background: '#f0eeec',
     }}>
       <div style={{
         background: '#fff', borderRadius: 20, padding: '40px 36px',
@@ -360,10 +358,8 @@ export function ResetPasswordPage({ updatePassword }: {
       }}>
         {/* Logo */}
         <div style={{ marginBottom: 28 }}>
-          <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#000', lineHeight: 1 }}>
-            raphie<span style={{ color: '#14B8A6' }}>.</span>
-          </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 4 }}>
+          <img src="/brand/raphie-logo-black.png" alt="Raphie" style={{ height: 28, width: 'auto', display: 'block' }} />
+          <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 4 }}>
             CS Command Center
           </div>
         </div>
@@ -371,19 +367,19 @@ export function ResetPasswordPage({ updatePassword }: {
         {done ? (
           <>
             <div style={{
-              background: 'rgba(22,101,52,0.06)', border: '1px solid rgba(22,101,52,0.2)',
+              background: 'rgba(0,168,176,0.06)', border: '1px solid rgba(0,168,176,0.2)',
               borderRadius: 10, padding: '14px 16px', marginBottom: 20,
-              fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
+              fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e',
             }}>
               Password updated successfully. You're now signed in.
             </div>
           </>
         ) : (
           <>
-            <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 6 }}>
               Set new password
             </h2>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 24 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 24 }}>
               Choose a new password for your account.
             </p>
 
@@ -391,14 +387,14 @@ export function ResetPasswordPage({ updatePassword }: {
               <Field label="New password">
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                   required autoFocus placeholder="Min 8 characters" style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </Field>
 
               <Field label="Confirm new password">
                 <input type="password" value={password2} onChange={e => setPassword2(e.target.value)}
                   required placeholder="••••••••" style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')} />
               </Field>
 
@@ -418,7 +414,7 @@ export function ResetPasswordPage({ updatePassword }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
+      <label style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#323232' }}>
         {label}
       </label>
       {children}
@@ -431,7 +427,7 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
     <div style={{
       background: 'rgba(229,62,62,0.06)', border: '1px solid rgba(229,62,62,0.2)',
       borderRadius: 10, padding: '10px 12px',
-      fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e',
+      fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e',
     }}>
       {children}
     </div>
@@ -442,7 +438,7 @@ function PrimaryButton({ loading, children }: { loading: boolean; children: Reac
   return (
     <button type="submit" disabled={loading} style={{
       background: '#000', color: '#fff', border: 'none', borderRadius: 10,
-      padding: '11px 16px', fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+      padding: '11px 16px', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
       cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1,
       transition: 'opacity 0.15s', marginTop: 4,
     }}

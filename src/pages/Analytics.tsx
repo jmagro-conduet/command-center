@@ -408,9 +408,9 @@ export default function Analytics() {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Analytics</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Analytics</h1>
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading analytics…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading analytics…</p>
         </div>
       </div>
     )
@@ -419,14 +419,14 @@ export default function Analytics() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Analytics</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Analytics</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {showTeamFilter && (
             <select
               value={team}
               onChange={e => setTeam(e.target.value)}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                fontFamily: 'var(--font-body)', fontSize: 13, color: '#000',
                 padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
                 border: '1.5px solid rgba(0,0,0,0.09)', outline: 'none', background: '#fff',
               }}
@@ -438,11 +438,11 @@ export default function Analytics() {
           <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13,
+                fontFamily: 'var(--font-body)', fontSize: 13,
                 fontWeight: tab === t.id ? 500 : 400,
                 padding: '6px 14px', borderRadius: 8,
                 background: tab === t.id ? '#000' : 'transparent',
-                color: tab === t.id ? '#fff' : '#58595B',
+                color: tab === t.id ? '#fff' : '#323232',
                 border: 'none', transition: 'all 0.15s', cursor: 'pointer',
               }}>
                 {t.label}
@@ -463,9 +463,9 @@ export default function Analytics() {
 // ── Team View ─────────────────────────────────────────────────────────────────
 
 const METRIC_CONFIG: Record<string, { color: string; goalDir: 'up' | 'down'; refValue?: number }> = {
-  'Perfect':       { color: '#166534', goalDir: 'up',   refValue: 80 },
+  'Perfect':       { color: '#00787e', goalDir: 'up',   refValue: 80 },
   'Majority edit': { color: '#854d0e', goalDir: 'down'               },
-  'Partial edit':  { color: '#6b21a8', goalDir: 'down'               },
+  'Partial edit':  { color: '#6a1ff0', goalDir: 'down'               },
   'No response':   { color: '#e53e3e', goalDir: 'down'               },
 }
 
@@ -610,8 +610,8 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           { label: 'Responses', value: kpis.issues.toString() },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0' }}>{k.value}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: '#00a8b0' }}>{k.value}</p>
           </div>
         ))}
 
@@ -619,20 +619,20 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
         {tracksZd && (
           <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ZD Live Chat Tickets</p>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: 'rgba(243,156,18,0.12)', color: '#b45309', letterSpacing: '0.05em' }}>ZENDESK</span>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ZD Live Chat Tickets</p>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 100, background: 'rgba(243,156,18,0.12)', color: '#b45309', letterSpacing: '0.05em' }}>ZENDESK</span>
             </div>
             {zdLoading ? (
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>…</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>…</p>
             ) : zdError ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 4 }}>{zdError}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 4 }}>{zdError}</p>
             ) : zdCount !== null ? (
               <>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#b45309' }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: '#b45309' }}>
                   {zdCount.toLocaleString()}
                 </p>
                 {zdCount > 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 3 }}>
                     <span style={{ fontWeight: 500, color: '#b45309' }}>
                       {((kpis.tickets / zdCount) * 100).toFixed(1)}%
                     </span>
@@ -641,7 +641,7 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                 )}
               </>
             ) : (
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>—</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'rgba(0,0,0,0.2)' }}>—</p>
             )}
           </div>
         )}
@@ -653,17 +653,17 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           { label: 'Target range / agent',   value: `${dailyTarget.min}–${dailyTarget.max}` },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0' }}>{k.value}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: '#00a8b0' }}>{k.value}</p>
           </div>
         ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {[
-          { label: 'Perfect rate',  issueKey: 'Perfect',       value: `${kpis.perfectPct}%`,  color: '#166534' },
+          { label: 'Perfect rate',  issueKey: 'Perfect',       value: `${kpis.perfectPct}%`,  color: '#00787e' },
           { label: 'Majority edit', issueKey: 'Majority edit', value: `${kpis.majorityPct}%`, color: '#854d0e' },
-          { label: 'Partial edit',  issueKey: 'Partial edit',  value: `${kpis.partialPct}%`,  color: '#6b21a8' },
+          { label: 'Partial edit',  issueKey: 'Partial edit',  value: `${kpis.partialPct}%`,  color: '#6a1ff0' },
           { label: 'No response',   issueKey: 'No response',   value: `${kpis.noRespPct}%`,   color: '#e53e3e' },
         ].map(k => {
           const isActive = selectedMetric === k.issueKey
@@ -680,10 +680,10 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                 position: 'relative',
               }}
             >
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
               {isActive && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: k.color, marginTop: 4, opacity: 0.8 }}>↓ Trend below</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: k.color, marginTop: 4, opacity: 0.8 }}>↓ Trend below</p>
               )}
             </div>
           )
@@ -696,11 +696,11 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
             {selectedMetric ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>
                     {selectedMetric} — Daily Trend
                   </p>
                   <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
+                    fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600,
                     padding: '2px 8px', borderRadius: 100,
                     background: `${METRIC_CONFIG[selectedMetric]?.color}15`,
                     color: METRIC_CONFIG[selectedMetric]?.color,
@@ -709,18 +709,18 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                     {METRIC_CONFIG[selectedMetric]?.goalDir === 'up' ? '↑ Higher is better' : '↓ Lower is better'}
                   </span>
                 </div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
                   {rangeLabel(range, customRange)} — click a day on the chart to drill in, or a metric card again to dismiss
                 </p>
               </>
             ) : (
               <>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>
                   {selectedAgent ? `${selectedAgent} – Tickets Logged` : 'Team Performance'}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 2 }}>
                   {rangeLabel(range, customRange)}
-                  <span style={{ color: '#aaa' }}> — click a day on the chart to drill in{!selectedAgent ? ', or a metric card above to see its trend' : ''}</span>
+                  <span style={{ color: 'rgba(0,0,0,0.35)' }}> — click a day on the chart to drill in{!selectedAgent ? ', or a metric card above to see its trend' : ''}</span>
                 </p>
               </>
             )}
@@ -736,20 +736,20 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={data} margin={{ top: 4, right: 28, left: -20, bottom: 0 }} onClick={e => onChartNodeClick(e, data)} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(data.length / 6)} />
-                <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
+                <XAxis dataKey="date" tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} interval={Math.floor(data.length / 6)} />
+                <YAxis tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
                 <Tooltip
-                  contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  contentStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                   formatter={(val, name) => [`${val ?? 0}%`, name === 'pct' ? 'Daily %' : '7-Day Avg'] as [string, string]}
                 />
                 {mc?.refValue && (
                   <ReferenceLine y={mc.refValue} stroke={mc.color} strokeDasharray="5 5" strokeWidth={1.5}
-                    label={{ value: `${mc.refValue}% goal`, position: 'right', fontSize: 11, fill: mc.color, fontFamily: 'Inter' }} />
+                    label={{ value: `${mc.refValue}% goal`, position: 'right', fontSize: 11, fill: mc.color, fontFamily: "'Maax', 'Outfit', sans-serif" }} />
                 )}
                 <ReferenceLine y={parseFloat(avgPct.toFixed(1))} stroke="rgba(0,0,0,0.2)" strokeDasharray="3 3" strokeWidth={1}
-                  label={{ value: `avg ${avgPct.toFixed(1)}%`, position: 'right', fontSize: 10, fill: '#aaa', fontFamily: 'Inter' }} />
-                <Line type="monotone" dataKey="pct" stroke={mc?.color ?? '#9B59D0'} strokeWidth={2} dot={{ r: 3, fill: mc?.color ?? '#9B59D0' }} activeDot={{ r: 5 }} name="pct" />
-                <Line type="monotone" dataKey="movingAvg" stroke={mc?.color ?? '#CEA4FF'} strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="movingAvg" opacity={0.6} />
+                  label={{ value: `avg ${avgPct.toFixed(1)}%`, position: 'right', fontSize: 10, fill: 'rgba(0,0,0,0.35)', fontFamily: "'Maax', 'Outfit', sans-serif" }} />
+                <Line type="monotone" dataKey="pct" stroke={mc?.color ?? '#00a8b0'} strokeWidth={2} dot={{ r: 3, fill: mc?.color ?? '#00a8b0' }} activeDot={{ r: 5 }} name="pct" />
+                <Line type="monotone" dataKey="movingAvg" stroke={mc?.color ?? '#00a8b0'} strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="movingAvg" opacity={0.6} />
               </LineChart>
             </ResponsiveContainer>
           )
@@ -757,12 +757,12 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }} onClick={e => onChartNodeClick(e, chartData)} style={{ cursor: 'pointer' }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-              <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
-              <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-              <ReferenceLine y={dailyTarget.max} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} label={{ value: 'Target', position: 'right', fontSize: 11, fill: '#9B59D0', fontFamily: 'Inter' }} />
-              <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily Count" />
-              <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
+              <XAxis dataKey="date" tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
+              <YAxis tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+              <ReferenceLine y={dailyTarget.max} stroke="#00a8b0" strokeDasharray="5 5" strokeWidth={1.5} label={{ value: 'Target', position: 'right', fontSize: 11, fill: '#00a8b0', fontFamily: "'Maax', 'Outfit', sans-serif" }} />
+              <Line type="monotone" dataKey="count" stroke="#00a8b0" strokeWidth={2} dot={{ r: 3, fill: '#00a8b0' }} activeDot={{ r: 5 }} name="Daily Count" />
+              <Line type="monotone" dataKey="movingAvg" stroke="#00a8b0" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="7-Day Avg" />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -770,20 +770,20 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Agent Performance Summary</p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Click an agent row to view their chart above</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>Agent Performance Summary</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>Click an agent row to view their chart above</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: agentTableGridCols, padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
           {agentTableColumns.map(h => (
-            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
         {agents.map((a, i) => {
           const onTrack = a.avg >= dailyTarget.min
           const almost  = !onTrack && a.avg >= dailyTarget.min * 0.5
           const statusLabel = onTrack ? 'ON TRACK' : almost ? 'ALMOST' : 'OFF TRACK'
-          const statusColor = onTrack ? '#166534' : almost ? '#854d0e' : '#854d0e'
-          const statusBg    = onTrack ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)'
+          const statusColor = onTrack ? '#00787e' : almost ? '#854d0e' : '#854d0e'
+          const statusBg    = onTrack ? 'rgba(0,168,176,0.09)' : 'rgba(234,179,8,0.12)'
 
           // ZD data is now keyed by email — direct lookup, no name matching needed
           const zdMatch = zdAgents?.find(z =>
@@ -805,36 +805,36 @@ function TeamView({ allRows }: { allRows: DataRow[] }) {
                 display: 'grid', gridTemplateColumns: agentTableGridCols,
                 padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
                 borderBottom: i < agents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
-                background: selectedAgent === a.name ? 'rgba(206,164,255,0.07)' : 'transparent',
+                background: selectedAgent === a.name ? 'rgba(0,168,176,0.07)' : 'transparent',
                 transition: 'background 0.15s',
               }}
               onMouseEnter={e => { if (selectedAgent !== a.name) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = selectedAgent === a.name ? 'rgba(206,164,255,0.07)' : 'transparent' }}
+              onMouseLeave={e => { e.currentTarget.style.background = selectedAgent === a.name ? 'rgba(0,168,176,0.07)' : 'transparent' }}
             >
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.total}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.avg}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{a.perfect}%</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#854d0e' }}>{a.majority}%</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#6b21a8' }}>{a.partial}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{a.total}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{a.avg}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>{a.perfect}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#854d0e' }}>{a.majority}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#6a1ff0' }}>{a.partial}%</span>
               {tracksZd && (
                 <>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: zdLoading ? 'rgba(0,0,0,0.2)' : '#b45309' }}>
                     {zdLoading ? '…' : zdTickets !== null ? zdTickets : '—'}
                   </span>
                   <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 13,
+                    fontFamily: 'var(--font-body)', fontSize: 13,
                     color: zdLoading ? 'rgba(0,0,0,0.2)'
                       : adoptionPct !== null && parseFloat(adoptionPct) > 100 ? '#e53e3e'
                       : adoptionPct !== null ? '#b45309'
-                      : '#aaa',
+                      : 'rgba(0,0,0,0.35)',
                     fontWeight: adoptionPct !== null ? 500 : 400,
                   }}>
                     {zdLoading ? '…' : adoptionPct !== null ? `${adoptionPct}%` : '—'}
                   </span>
                 </>
               )}
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusBg, color: statusColor }}>{statusLabel}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: statusBg, color: statusColor }}>{statusLabel}</span>
             </div>
           )
         })}
@@ -883,7 +883,7 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
 
   const onTrack = agent.avg >= dailyTarget.min
   const statusLabel = onTrack ? 'On Track' : agent.avg >= dailyTarget.min * 0.5 ? 'Almost' : 'Off Track'
-  const statusColor = onTrack ? '#166534' : '#854d0e'
+  const statusColor = onTrack ? '#00787e' : '#854d0e'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -891,23 +891,23 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
         {agents.map(a => (
           <button key={a.email || a.name} onClick={() => setSelected(a.name)} style={{
             background: '#fff', borderRadius: 14, textAlign: 'left',
-            border: agentName === a.name ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.09)',
+            border: agentName === a.name ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.09)',
             padding: '14px 16px', transition: 'all 0.15s', cursor: 'pointer',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: a.avg >= dailyTarget.min ? 'rgba(22,101,52,0.09)' : 'rgba(234,179,8,0.12)', color: a.avg >= dailyTarget.min ? '#166534' : '#854d0e' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: a.avg >= dailyTarget.min ? 'rgba(0,168,176,0.09)' : 'rgba(234,179,8,0.12)', color: a.avg >= dailyTarget.min ? '#00787e' : '#854d0e' }}>
                 {a.avg >= dailyTarget.min ? 'ON TRACK' : 'OFF TRACK'}
               </span>
             </div>
             <div style={{ display: 'flex', gap: 16 }}>
               <div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg/day</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>{a.avg}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg/day</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>{a.avg}</p>
               </div>
               <div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tickets</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>{a.total}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tickets</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>{a.total}</p>
               </div>
             </div>
           </button>
@@ -915,25 +915,25 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 16 }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 16 }}>
           {agent.name} – Performance Details
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
           {[
-            { label: 'Tickets',           value: agent.total.toString(),  color: '#9B59D0' },
-            { label: 'Avg Tickets/Day',   value: agent.avg.toString(),    color: '#9B59D0' },
-            { label: 'Perfect Rate',      value: `${agent.perfect}%`,     color: '#166534' },
+            { label: 'Tickets',           value: agent.total.toString(),  color: '#00a8b0' },
+            { label: 'Avg Tickets/Day',   value: agent.avg.toString(),    color: '#00a8b0' },
+            { label: 'Perfect Rate',      value: `${agent.perfect}%`,     color: '#00787e' },
             { label: `Status vs Target (${dailyTarget.min}–${dailyTarget.max})`, value: statusLabel, color: statusColor },
           ].map(k => (
             <div key={k.label} style={{ padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
             </div>
           ))}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
             {rangeLabel(range, customRange)} — click a day on the chart to pin the range to it
           </p>
           <TimeRangeFilter value={range} onChange={setRange} customRange={customRange} onCustomChange={setCustomRange} />
@@ -942,18 +942,18 @@ function PerAgent({ allRows }: { allRows: DataRow[] }) {
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 0 }} onClick={onChartNodeClick} style={{ cursor: 'pointer' }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-            <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
-            <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} />
-            <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)' }} />
-            <ReferenceLine y={dailyTarget.max} stroke="#CEA4FF" strokeDasharray="5 5" strokeWidth={1.5} />
-            <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Daily" />
-            <Line type="monotone" dataKey="movingAvg" stroke="#CEA4FF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="5-Day Avg" />
+            <XAxis dataKey="date" tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} interval={Math.floor(chartData.length / 6)} />
+            <YAxis tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)' }} />
+            <ReferenceLine y={dailyTarget.max} stroke="#00a8b0" strokeDasharray="5 5" strokeWidth={1.5} />
+            <Line type="monotone" dataKey="count" stroke="#00a8b0" strokeWidth={2} dot={{ r: 3, fill: '#00a8b0' }} activeDot={{ r: 5 }} name="Daily" />
+            <Line type="monotone" dataKey="movingAvg" stroke="#00a8b0" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="5-Day Avg" />
           </LineChart>
         </ResponsiveContainer>
 
-        <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(206,164,255,0.06)', border: '1px solid rgba(206,164,255,0.2)' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', marginBottom: 4 }}>Insights</p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6 }}>
+        <div style={{ marginTop: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(0,168,176,0.06)', border: '1px solid rgba(0,168,176,0.2)' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#00787e', marginBottom: 4 }}>Insights</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', lineHeight: 1.6 }}>
             {agent.name} is logging {agent.avg} tickets/day vs target of {dailyTarget.min}–{dailyTarget.max}.{' '}
             {onTrack
               ? 'Volume is on track. '
@@ -1001,19 +1001,19 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
   const upcoming = eventsWithStats.filter(e => !e.isPast)
 
   const severityColor = (s: string) =>
-    s === 'high' ? '#e53e3e' : s === 'medium' ? '#854d0e' : '#58595B'
+    s === 'high' ? '#e53e3e' : s === 'medium' ? '#854d0e' : '#323232'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {past.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Past Events — Actual Performance</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Ticket volume and quality metrics logged during each event window</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>Past Events — Actual Performance</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>Ticket volume and quality metrics logged during each event window</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 120px 100px 90px 110px 110px', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
             {['Event', 'Dates', 'Severity', 'Tickets', 'Perfect %', 'No Resp %'].map(h => (
-              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+              <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
             ))}
           </div>
           {past.map((e, i) => (
@@ -1026,16 +1026,16 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
               onMouseEnter={ev => (ev.currentTarget.style.background = 'rgba(0,0,0,0.02)')}
               onMouseLeave={ev => (ev.currentTarget.style.background = 'transparent')}
             >
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{e.name}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{e.name}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
                 {new Date(e.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(e.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, width: 'fit-content', background: `${severityColor(e.severity)}15`, color: severityColor(e.severity), textTransform: 'capitalize' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, width: 'fit-content', background: `${severityColor(e.severity)}15`, color: severityColor(e.severity), textTransform: 'capitalize' }}>
                 {e.severity}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{e.tickets || '—'}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>{e.issues ? `${e.perfectPct}%` : '—'}</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: e.noRespPct > 20 ? '#e53e3e' : '#58595B' }}>{e.issues ? `${e.noRespPct}%` : '—'}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{e.tickets || '—'}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>{e.issues ? `${e.perfectPct}%` : '—'}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: e.noRespPct > 20 ? '#e53e3e' : '#323232' }}>{e.issues ? `${e.noRespPct}%` : '—'}</span>
             </div>
           ))}
         </div>
@@ -1044,7 +1044,7 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
       {upcoming.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Upcoming Events</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>Upcoming Events</p>
           </div>
           {upcoming.map((e, i) => (
             <div key={e.id} style={{
@@ -1053,12 +1053,12 @@ function EventAnalyticsTab({ allRows, events }: { allRows: DataRow[]; events: Ho
               borderBottom: i < upcoming.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
             }}>
               <div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500, color: '#000' }}>{e.name}</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 2 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500, color: '#000' }}>{e.name}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 2 }}>
                   {new Date(e.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(e.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: `${severityColor(e.severity)}15`, color: severityColor(e.severity), textTransform: 'capitalize' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: `${severityColor(e.severity)}15`, color: severityColor(e.severity), textTransform: 'capitalize' }}>
                 {e.severity}
               </span>
             </div>
@@ -1102,10 +1102,10 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
   const totalVol = cats.reduce((s, c) => s + c.vol, 0)
 
   const pieData = [
-    { name: 'Autopilot Ready', value: ready,    color: '#166534' },
+    { name: 'Autopilot Ready', value: ready,    color: '#00787e' },
     { name: 'Almost (70%+)',   value: almost,   color: '#854d0e' },
     { name: 'Not Ready',       value: notReady, color: '#e53e3e' },
-    { name: 'Low Data',        value: lowData,  color: '#d1d5db' },
+    { name: 'Low Data',        value: lowData,  color: 'rgba(0,0,0,0.10)' },
   ].filter(d => d.value > 0)
 
   return (
@@ -1114,8 +1114,8 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showInfo ? 16 : 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>Autopilot Readiness</p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000' }}>Autopilot Readiness</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 2 }}>
                 Track each category toward the 80% perfect rate needed for full gameLM automation
               </p>
             </div>
@@ -1124,10 +1124,10 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
               title="How to read this"
               style={{
                 width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                border: showInfo ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.15)',
-                background: showInfo ? 'rgba(155,89,208,0.08)' : 'transparent',
-                color: showInfo ? '#9B59D0' : '#58595B',
-                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                border: showInfo ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.15)',
+                background: showInfo ? 'rgba(0,168,176,0.08)' : 'transparent',
+                color: showInfo ? '#00a8b0' : '#323232',
+                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
                 cursor: 'pointer', transition: 'all 0.15s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 marginTop: 2,
@@ -1142,13 +1142,13 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
         {showInfo && (
           <div style={{
             marginBottom: 20, padding: 16, borderRadius: 12,
-            background: 'rgba(155,89,208,0.04)', border: '1.5px solid rgba(155,89,208,0.15)',
+            background: 'rgba(0,168,176,0.04)', border: '1.5px solid rgba(0,168,176,0.15)',
           }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
               {[
                 {
                   title: 'Perfect / Majority / Partial',
-                  color: '#166534',
+                  color: '#00787e',
                   body: 'These three always sum to 100%. They measure how well gameLM responded on interactions it actually attempted — No Response is excluded from the denominator. The 80% Perfect threshold is the Full Auto readiness target.',
                 },
                 {
@@ -1158,13 +1158,13 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                 },
                 {
                   title: 'Full Auto Readiness',
-                  color: '#9B59D0',
+                  color: '#00a8b0',
                   body: 'A category needs both signals healthy before going live: quality score ≥ 80% and a low escalation rate. High quality + high escalation means gameLM is strong on what it knows but still hits too many gaps. Both must clear the bar.',
                 },
               ].map(s => (
                 <div key={s.title}>
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: s.color, marginBottom: 5 }}>{s.title}</p>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.6 }}>{s.body}</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: s.color, marginBottom: 5 }}>{s.title}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.6 }}>{s.body}</p>
                 </div>
               ))}
             </div>
@@ -1174,42 +1174,42 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <PieChart width={110} height={110}>
-              <Pie data={pieData.length ? pieData : [{ name: 'empty', value: 1, color: '#e5e5e5' }]}
+              <Pie data={pieData.length ? pieData : [{ name: 'empty', value: 1, color: 'rgba(0,0,0,0.10)' }]}
                 cx={50} cy={50} innerRadius={32} outerRadius={50} dataKey="value" paddingAngle={2}>
-                {(pieData.length ? pieData : [{ color: '#e5e5e5' }]).map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                {(pieData.length ? pieData : [{ color: 'rgba(0,0,0,0.10)' }]).map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
             </PieChart>
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 700, color: '#000', lineHeight: 1 }}>{ready}/{total}</p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa' }}>Ready</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, color: '#000', lineHeight: 1 }}>{ready}/{total}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>Ready</p>
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {[
-              { label: 'Autopilot Ready', color: '#166534', count: ready    },
+              { label: 'Autopilot Ready', color: '#00787e', count: ready    },
               { label: 'Almost (70%+)',   color: '#854d0e', count: almost   },
               { label: 'Not Ready',       color: '#e53e3e', count: notReady },
-              { label: 'Low Data',        color: '#d1d5db', count: lowData  },
+              { label: 'Low Data',        color: 'rgba(0,0,0,0.10)', count: lowData  },
             ].map(l => (
               <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, flexShrink: 0 }} />
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{l.count} {l.label}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{l.count} {l.label}</span>
               </div>
             ))}
           </div>
 
           <div style={{ display: 'flex', gap: 1, flex: 1, borderLeft: '1px solid rgba(0,0,0,0.07)', paddingLeft: 32 }}>
             {[
-              { label: 'Perfect rate',    value: `${overallPerfect}%`,         color: overallPerfect >= 80 ? '#166534' : overallPerfect >= 70 ? '#854d0e' : '#e53e3e', note: 'of responses' },
+              { label: 'Perfect rate',    value: `${overallPerfect}%`,         color: overallPerfect >= 80 ? '#00787e' : overallPerfect >= 70 ? '#854d0e' : '#e53e3e', note: 'of responses' },
               { label: 'Majority edit',   value: `${overallMajority}%`,        color: '#854d0e',                                                                        note: 'of responses' },
               { label: 'Partial edit',    value: `${overallPartial}%`,         color: '#f97316',                                                                        note: 'of responses' },
-              { label: 'Escalation rate', value: `${overallEscalationRate}%`,  color: overallEscalationRate > 20 ? '#e53e3e' : '#58595B',                              note: 'of tickets' },
+              { label: 'Escalation rate', value: `${overallEscalationRate}%`,  color: overallEscalationRate > 20 ? '#e53e3e' : '#323232',                              note: 'of tickets' },
             ].map(k => (
               <div key={k.label} style={{ flex: 1, padding: '0 16px', borderRight: '1px solid rgba(0,0,0,0.07)' }}>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 1 }}>{k.note}</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: k.color }}>{k.value}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 1 }}>{k.note}</p>
               </div>
             ))}
           </div>
@@ -1219,14 +1219,14 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 90px 90px 90px 80px 1fr', padding: '10px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
           {['Category', 'Vol', '% of Total', 'Perfect', 'Majority', 'Partial', 'Escalation', 'Progress to 80%'].map(h => (
-            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
 
         {cats.map(cat => {
           const isExpanded = expanded === cat.name
           const gap = Math.max(0, Math.round(80 - cat.perfect))
-          const barColor = cat.perfect >= 80 ? '#166534' : cat.perfect >= 70 ? '#854d0e' : cat.perfect >= 50 ? '#f97316' : '#e53e3e'
+          const barColor = cat.perfect >= 80 ? '#00787e' : cat.perfect >= 70 ? '#854d0e' : cat.perfect >= 50 ? '#f97316' : '#e53e3e'
 
           // Per-agent breakdown for this category — roster must be built from THIS
           // category's rows, not allRows, otherwise every agent in the system is
@@ -1241,59 +1241,59 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
                   display: 'grid', gridTemplateColumns: '1.6fr 60px 80px 90px 90px 90px 80px 1fr',
                   padding: '12px 20px', alignItems: 'center', cursor: 'pointer',
                   borderBottom: '1px solid rgba(0,0,0,0.05)',
-                  background: isExpanded ? 'rgba(206,164,255,0.06)' : 'transparent',
+                  background: isExpanded ? 'rgba(0,168,176,0.06)' : 'transparent',
                   transition: 'background 0.15s',
                 }}
                 onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = isExpanded ? 'rgba(206,164,255,0.06)' : 'transparent' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isExpanded ? 'rgba(0,168,176,0.06)' : 'transparent' }}
               >
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#9B59D0', fontSize: 10 }}>{isExpanded ? '▼' : '▶'}</span>{cat.name}
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#00787e', fontSize: 10 }}>{isExpanded ? '▼' : '▶'}</span>{cat.name}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{cat.vol}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{totalVol ? (cat.vol / totalVol * 100).toFixed(1) : '0.0'}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: barColor }}>{cat.perfect}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.majority > 10 ? '#e53e3e' : '#58595B' }}>{cat.majority}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.partial > 10 ? '#e53e3e' : '#58595B' }}>{cat.partial}%</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: cat.escalationRate > 20 ? '#e53e3e' : '#58595B' }}>{cat.escalationRate}%</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{cat.vol}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{totalVol ? (cat.vol / totalVol * 100).toFixed(1) : '0.0'}%</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: barColor }}>{cat.perfect}%</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: cat.majority > 10 ? '#e53e3e' : '#323232' }}>{cat.majority}%</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: cat.partial > 10 ? '#e53e3e' : '#323232' }}>{cat.partial}%</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: cat.escalationRate > 20 ? '#e53e3e' : '#323232' }}>{cat.escalationRate}%</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
                     <div style={{ width: `${Math.min(100, (cat.perfect / 80) * 100)}%`, height: '100%', background: barColor, borderRadius: 100, transition: 'width 0.4s' }} />
                   </div>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: gap === 0 ? '#166534' : '#e53e3e', fontWeight: 500, flexShrink: 0 }}>{gap === 0 ? '✓ Ready' : `−${gap}pp`}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: gap === 0 ? '#00787e' : '#e53e3e', fontWeight: 500, flexShrink: 0 }}>{gap === 0 ? '✓ Ready' : `−${gap}pp`}</span>
                 </div>
               </div>
 
               {isExpanded && catAgents.length > 0 && (
-                <div style={{ padding: '0 20px 16px', background: 'rgba(206,164,255,0.03)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', padding: '14px 0 10px' }}>
+                <div style={{ padding: '0 20px 16px', background: 'rgba(0,168,176,0.03)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', padding: '14px 0 10px' }}>
                     Agent breakdown — {cat.name}
                   </p>
                   <div style={{ borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 1fr', padding: '8px 14px', background: 'rgba(0,0,0,0.03)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
                       {['Agent', 'Issues', 'Perfect', 'Majority', 'Partial', 'Progress'].map(h => (
-                        <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+                        <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
                       ))}
                     </div>
                     {catAgents.map((a, ai) => {
                       const agentGap = Math.max(0, Math.round(80 - a.perfect))
-                      const agentBarColor = a.perfect >= 80 ? '#166534' : a.perfect >= 70 ? '#854d0e' : a.perfect >= 50 ? '#f97316' : '#e53e3e'
+                      const agentBarColor = a.perfect >= 80 ? '#00787e' : a.perfect >= 70 ? '#854d0e' : a.perfect >= 50 ? '#f97316' : '#e53e3e'
                       return (
                         <div key={a.email || a.name} style={{
                           display: 'grid', gridTemplateColumns: '1.5fr 80px 100px 90px 90px 1fr',
                           padding: '10px 14px', alignItems: 'center',
                           borderBottom: ai < catAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                         }}>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{a.name}</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.issueTotal}</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: agentBarColor, fontWeight: 500 }}>{a.perfect}%</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.majority > 10 ? '#e53e3e' : '#58595B' }}>{a.majority}%</span>
-                          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.partial > 10 ? '#e53e3e' : '#58595B' }}>{a.partial}%</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{a.name}</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{a.issueTotal}</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: agentBarColor, fontWeight: 500 }}>{a.perfect}%</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: a.majority > 10 ? '#e53e3e' : '#323232' }}>{a.majority}%</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: a.partial > 10 ? '#e53e3e' : '#323232' }}>{a.partial}%</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                               <div style={{ width: `${Math.min(100, (a.perfect / 80) * 100)}%`, height: '100%', background: agentBarColor, borderRadius: 100 }} />
                             </div>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: agentGap === 0 ? '#166534' : '#e53e3e', flexShrink: 0 }}>{agentGap === 0 ? '✓' : `−${agentGap}pp`}</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: agentGap === 0 ? '#00787e' : '#e53e3e', flexShrink: 0 }}>{agentGap === 0 ? '✓' : `−${agentGap}pp`}</span>
                           </div>
                         </div>
                       )
@@ -1307,20 +1307,20 @@ function CategoryPerformance({ allRows }: { allRows: DataRow[] }) {
 
         <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Perfect rate:</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Perfect rate:</span>
             {[
-              { color: '#166534', label: 'Ready', range: '80%+' },
+              { color: '#00787e', label: 'Ready', range: '80%+' },
               { color: '#854d0e', label: 'Almost', range: '70–80%' },
               { color: '#f97316', label: 'Getting there', range: '50–70%' },
               { color: '#e53e3e', label: 'Not ready', range: '<50%' },
             ].map(l => (
-              <span key={l.label} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span key={l.label} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, display: 'inline-block', flexShrink: 0 }} />
                 <strong style={{ color: l.color }}>{l.label}</strong> {l.range}
               </span>
             ))}
           </div>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic' }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic' }}>
             * Quality % excludes No Response. Categories are assigned at the ticket level — a small margin of error exists where a ticket may contain inputs across multiple categories.
           </span>
         </div>
@@ -1373,10 +1373,10 @@ function TimeRangeFilter({ value, onChange, customRange, onCustomChange }: {
       <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
         {opts.map(o => (
           <button key={o.id} onClick={() => { onChange(o.id); setPickerOpen(false) }} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: value === o.id ? 500 : 400,
+            fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: value === o.id ? 500 : 400,
             padding: '5px 12px', borderRadius: 6,
             background: value === o.id ? '#fff' : 'transparent',
-            color: value === o.id ? '#000' : '#58595B',
+            color: value === o.id ? '#000' : '#323232',
             border: 'none', transition: 'all 0.15s', cursor: 'pointer',
             boxShadow: value === o.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
           }}>
@@ -1384,10 +1384,10 @@ function TimeRangeFilter({ value, onChange, customRange, onCustomChange }: {
           </button>
         ))}
         <button onClick={openPicker} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: value === 'custom' ? 500 : 400,
+          fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: value === 'custom' ? 500 : 400,
           padding: '5px 12px', borderRadius: 6, whiteSpace: 'nowrap',
           background: value === 'custom' || pickerOpen ? '#fff' : 'transparent',
-          color: value === 'custom' ? '#9B59D0' : '#58595B',
+          color: value === 'custom' ? '#00a8b0' : '#323232',
           border: 'none', transition: 'all 0.15s', cursor: 'pointer',
           boxShadow: value === 'custom' || pickerOpen ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
         }}>
@@ -1404,22 +1404,22 @@ function TimeRangeFilter({ value, onChange, customRange, onCustomChange }: {
         }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'block', marginBottom: 4 }}>From</label>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', display: 'block', marginBottom: 4 }}>From</label>
               <input type="date" value={draftStart} max={draftEnd} onChange={e => setDraftStart(e.target.value)} style={{
-                width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 8px',
+                width: '100%', fontFamily: 'var(--font-body)', fontSize: 12, padding: '6px 8px',
                 borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box',
               }} />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', display: 'block', marginBottom: 4 }}>To</label>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', display: 'block', marginBottom: 4 }}>To</label>
               <input type="date" value={draftEnd} min={draftStart} onChange={e => setDraftEnd(e.target.value)} style={{
-                width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '6px 8px',
+                width: '100%', fontFamily: 'var(--font-body)', fontSize: 12, padding: '6px 8px',
                 borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box',
               }} />
             </div>
           </div>
           <button onClick={apply} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
             padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
             background: '#000', color: '#fff', transition: 'opacity 0.15s',
           }}
@@ -1506,12 +1506,12 @@ function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
     return Object.entries(counts).sort((a, b) => b[1] - a[1])
   }, [rows])
 
-  const BAR_COLORS = ['#9B59D0', '#CEA4FF', '#0e7490', '#b45309', '#166534', '#e53e3e', '#58595B']
+  const BAR_COLORS = ['#00a8b0', '#5078ff', '#002896', '#ff8c78', '#b45309', '#e53e3e', '#323232']
 
   if (loading) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
       </div>
     )
   }
@@ -1519,7 +1519,7 @@ function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
   if (rows.length === 0) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No Full Auto submissions logged yet</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No Full Auto submissions logged yet</p>
       </div>
     )
   }
@@ -1527,31 +1527,31 @@ function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 2 }}>Full Auto Submissions</p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginBottom: 14 }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 2 }}>Full Auto Submissions</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginBottom: 14 }}>
           Day-over-day submission volume ({rows.length.toLocaleString()} total logged) — activity tracking, not quality grading
         </p>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={byDay} margin={{ top: 4, right: 12, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-            <XAxis dataKey="date" tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(byDay.length / 8))} />
-            <YAxis tick={{ fontFamily: 'Inter', fontSize: 11, fill: '#aaa' }} tickLine={false} axisLine={false} allowDecimals={false} />
-            <Tooltip contentStyle={{ fontFamily: 'Inter', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-            <Line type="monotone" dataKey="count" stroke="#9B59D0" strokeWidth={2} dot={{ r: 3, fill: '#9B59D0' }} activeDot={{ r: 5 }} name="Submissions" />
+            <XAxis dataKey="date" tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} interval={Math.max(0, Math.floor(byDay.length / 8))} />
+            <YAxis tick={{ fontFamily: "'Maax', 'Outfit', sans-serif", fontSize: 11, fill: 'rgba(0,0,0,0.35)' }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip contentStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+            <Line type="monotone" dataKey="count" stroke="#00a8b0" strokeWidth={2} dot={{ r: 3, fill: '#00a8b0' }} activeDot={{ r: 5 }} name="Submissions" />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 14 }}>By Category</p>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 14 }}>By Category</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {byCategory.map(([cat, count], i) => (
             <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 190, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', width: 190, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
               <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                 <div style={{ width: `${(count / byCategory[0][1]) * 100}%`, height: '100%', borderRadius: 100, background: BAR_COLORS[i % BAR_COLORS.length] }} />
               </div>
-              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 30, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000', width: 30, textAlign: 'right', flexShrink: 0 }}>{count}</span>
             </div>
           ))}
         </div>
@@ -1559,18 +1559,18 @@ function FullAutoAnalytics({ operatorId }: { operatorId: string | null }) {
 
       {byScenarioType.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 2 }}>By Scenario Type</p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 2 }}>By Scenario Type</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginBottom: 14 }}>
             Whether coverage spans happy paths, edge cases, out-of-scope handling, and cross-cutting scenarios, not just one repeated
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             {byScenarioType.map(([type, count], i) => (
               <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 190, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', width: 190, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
                 <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                   <div style={{ width: `${(count / byScenarioType[0][1]) * 100}%`, height: '100%', borderRadius: 100, background: BAR_COLORS[i % BAR_COLORS.length] }} />
                 </div>
-                <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 30, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000', width: 30, textAlign: 'right', flexShrink: 0 }}>{count}</span>
               </div>
             ))}
           </div>

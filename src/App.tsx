@@ -73,9 +73,9 @@ function AppShell() {
     return (
       <div style={{
         height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#F1F1F2',
+        background: '#f0eeec',
       }}>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+        <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
           Loading…
         </div>
       </div>
@@ -114,7 +114,7 @@ function AppShell() {
   return (
     <div className="app-layout" style={{
       height: '100vh', display: 'flex', gap: 16, padding: 16,
-      background: '#F1F1F2', overflow: 'hidden', boxSizing: 'border-box',
+      background: '#f0eeec', overflow: 'hidden', boxSizing: 'border-box',
     }}>
       <Sidebar activePage={activePage} onNavigate={handleNavigate} />
       <main ref={mainRef} className="app-main" style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>

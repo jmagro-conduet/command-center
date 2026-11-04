@@ -449,13 +449,13 @@ export default function LogTicket() {
     <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
           Log ticket
         </h1>
         {active.operatorName && (
           <span style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
-            color: operatorMismatch ? '#b45309' : '#58595B',
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
+            color: operatorMismatch ? '#b45309' : '#323232',
             background: operatorMismatch ? 'rgba(243,156,18,0.1)' : 'transparent',
             padding: operatorMismatch ? '4px 10px' : 0, borderRadius: 8,
           }}>
@@ -474,11 +474,11 @@ export default function LogTicket() {
             onClick={() => setActiveTabId(tab.id)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              fontFamily: 'Inter, sans-serif', fontSize: 13,
+              fontFamily: 'var(--font-body)', fontSize: 13,
               fontWeight: activeTabId === tab.id ? 500 : 400,
-              color: activeTabId === tab.id ? '#9B59D0' : '#58595B',
+              color: activeTabId === tab.id ? '#00a8b0' : '#323232',
               padding: '8px 12px',
-              borderBottom: activeTabId === tab.id ? '2px solid #9B59D0' : '2px solid transparent',
+              borderBottom: activeTabId === tab.id ? '2px solid #00a8b0' : '2px solid transparent',
               marginBottom: -1.5,
               background: 'none',
               transition: 'all 0.15s',
@@ -491,7 +491,7 @@ export default function LogTicket() {
                 style={{
                   width: 14, height: 14, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, color: '#aaa', cursor: 'pointer',
+                  fontSize: 10, color: 'rgba(0,0,0,0.35)', cursor: 'pointer',
                 }}
               >
                 ×
@@ -504,7 +504,7 @@ export default function LogTicket() {
           style={{
             width: 28, height: 28, borderRadius: 8,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, color: '#58595B', transition: 'background 0.15s',
+            fontSize: 16, color: '#323232', transition: 'background 0.15s',
           }}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -515,7 +515,7 @@ export default function LogTicket() {
 
       {/* Ticket details */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
-        <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
           Ticket details
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -524,18 +524,18 @@ export default function LogTicket() {
               mode goes straight to that mode's fields, no choice to make. */}
           {!!selectedOperator?.copilotEnabled && !!selectedOperator?.fullAutoEnabled && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>Mode</label>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}>Mode</label>
               <div style={{ display: 'flex', gap: 8, maxWidth: 320 }}>
                 {(['copilot', 'full_auto'] as const).map(m => (
                   <button
                     key={m}
                     onClick={() => updateActive({ mode: m })}
                     style={{
-                      flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      flex: 1, fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       padding: '9px 12px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
-                      border: active.mode === m ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
-                      background: active.mode === m ? 'rgba(155,89,208,0.06)' : '#fff',
-                      color: active.mode === m ? '#9B59D0' : '#58595B',
+                      border: active.mode === m ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.12)',
+                      background: active.mode === m ? 'rgba(0,168,176,0.06)' : '#fff',
+                      color: active.mode === m ? '#00a8b0' : '#323232',
                     }}
                   >{m === 'copilot' ? 'CoPilot' : 'Full Auto'}</button>
                 ))}
@@ -545,7 +545,7 @@ export default function LogTicket() {
 
           <div style={{ display: 'grid', gridTemplateColumns: active.mode === 'full_auto' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}>
                 Ticket number <span style={{ color: '#e53e3e' }}>*</span>
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -557,13 +557,13 @@ export default function LogTicket() {
                     placeholder="e.g. 10482"
                     maxLength={TICKET_MAX}
                     style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                   />
                   {active.ticketNumber.length > 0 && (
                     <span style={{
                       position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                      fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
+                      fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)',
                       pointerEvents: 'none',
                     }}>
                       {active.ticketNumber.length}/{TICKET_MAX}
@@ -579,12 +579,12 @@ export default function LogTicket() {
                     onClick={generateTicketNumber}
                     title="Generate a guaranteed-unique placeholder number"
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap',
-                      padding: '0 14px', borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.35)',
-                      background: 'rgba(155,89,208,0.06)', color: '#9B59D0', cursor: 'pointer', transition: 'all 0.15s',
+                      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap',
+                      padding: '0 14px', borderRadius: 10, border: '1.5px solid rgba(0,168,176,0.35)',
+                      background: 'rgba(0,168,176,0.06)', color: '#00a8b0', cursor: 'pointer', transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.06)')}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.12)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.06)')}
                   >
                     Auto-generate
                   </button>
@@ -592,14 +592,14 @@ export default function LogTicket() {
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}>
                 Contact / ticket category <span style={{ color: '#e53e3e' }}>*</span>
               </label>
               <select
                 value={active.category}
                 onChange={e => updateActive({ category: e.target.value, otherDetail: '' })}
-                style={{ ...inputStyle, color: active.category ? '#000' : '#aaa' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                style={{ ...inputStyle, color: active.category ? '#000' : 'rgba(0,0,0,0.35)' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 disabled={catsLoading}
               >
@@ -632,7 +632,7 @@ export default function LogTicket() {
             </div>
             {active.mode === 'full_auto' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}>
                   Ticket ID <span style={{ color: '#e53e3e' }}>*</span>
                 </label>
                 <input
@@ -640,7 +640,7 @@ export default function LogTicket() {
                   onChange={e => updateActive({ fullAutoExternalId: e.target.value })}
                   placeholder="gameLM conversation / ticket ID…"
                   style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
               </div>
@@ -650,7 +650,7 @@ export default function LogTicket() {
           {/* "Other" detail — required when Other is selected */}
           {active.category === 'Other' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}>
                 Please describe what this ticket is about <span style={{ color: '#e53e3e' }}>*</span>
               </label>
               <input
@@ -658,10 +658,10 @@ export default function LogTicket() {
                 onChange={e => updateActive({ otherDetail: e.target.value })}
                 placeholder="e.g. Settlement delay inquiry, wager cancellation request…"
                 style={inputStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>
                 This helps us identify new use cases and improve categorisation over time.
               </span>
             </div>
@@ -672,25 +672,25 @@ export default function LogTicket() {
       {/* Add gameLM response — CoPilot only; Full Auto has no draft-to-edit
           step, so there's nothing here to grade (see the Mode toggle above). */}
       {active.mode === 'copilot' && (
-      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #CEA4FF', padding: 24 }}>
-        <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
+      <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #00a8b0', padding: 24 }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
           Add gameLM response
         </h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>
                 Ticket ID
               </label>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
             </div>
             <input
               value={active.draftTicketId ?? ''}
               onChange={e => updateActive({ draftTicketId: e.target.value })}
               placeholder="gameLM ticket / conversation ID for this response…"
               style={inputStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
             />
           </div>
@@ -702,7 +702,7 @@ export default function LogTicket() {
               placeholder="Paste the original customer message or query…"
               rows={4}
               style={textareaStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
             />
           </Field>
@@ -714,13 +714,13 @@ export default function LogTicket() {
               placeholder="Paste the original gameLM response here…"
               rows={4}
               style={textareaStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
             />
           </Field>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500 }}>
+            <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}>
               Issue type <span style={{ color: '#e53e3e' }}>*</span>
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
@@ -731,13 +731,13 @@ export default function LogTicket() {
                     key={opt.value}
                     onClick={() => updateActive({ draftIssueType: opt.value })}
                     style={{
-                      border: selected ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.12)',
+                      border: selected ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.12)',
                       borderRadius: 10,
                       padding: '14px 8px',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                      background: selected ? 'rgba(155,89,208,0.06)' : '#fff',
-                      fontFamily: 'Inter, sans-serif', fontSize: 12,
-                      color: selected ? '#9B59D0' : '#58595B',
+                      background: selected ? 'rgba(0,168,176,0.06)' : '#fff',
+                      fontFamily: 'var(--font-body)', fontSize: 12,
+                      color: selected ? '#00a8b0' : '#323232',
                       fontWeight: selected ? 500 : 400,
                       transition: 'all 0.15s',
                     }}
@@ -758,7 +758,7 @@ export default function LogTicket() {
                 placeholder="Why did gameLM require editing or fail to respond?"
                 rows={3}
                 style={textareaStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
             </Field>
@@ -772,7 +772,7 @@ export default function LogTicket() {
                 placeholder="Paste the final response you sent to the customer…"
                 rows={3}
                 style={textareaStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
             </Field>
@@ -781,10 +781,10 @@ export default function LogTicket() {
           {showEnhancementNote && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+                <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>
                   Suggested improvements
                 </label>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>Optional</span>
               </div>
               <textarea
                 value={active.draftEnhancementNote}
@@ -792,10 +792,10 @@ export default function LogTicket() {
                 placeholder="Even though the response was good, what could have made it better? e.g. tone, specificity, phrasing…"
                 rows={3}
                 style={textareaStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', lineHeight: 1.45 }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', lineHeight: 1.45 }}>
                 This helps us reduce the urge to tweak good responses — your feedback trains gameLM to get there on its own.
               </span>
             </div>
@@ -805,9 +805,9 @@ export default function LogTicket() {
             onClick={addResponse}
             disabled={!canAddResponse}
             style={{
-              background: canAddResponse ? '#9B59D0' : 'rgba(0,0,0,0.1)',
+              background: canAddResponse ? '#00a8b0' : 'rgba(0,0,0,0.1)',
               color: canAddResponse ? '#fff' : 'rgba(0,0,0,0.35)',
-              fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
               padding: '12px', borderRadius: 10, width: '100%',
               transition: 'opacity 0.15s',
               cursor: canAddResponse ? 'pointer' : 'default',
@@ -829,7 +829,7 @@ export default function LogTicket() {
           style={{
             width: '100%', padding: '16px 24px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000',
+            fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000',
             background: 'none', transition: 'background 0.15s',
           }}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.02)')}
@@ -839,9 +839,9 @@ export default function LogTicket() {
             gameLM responses logged
             {active.responses.length > 0 && (
               <span style={{
-                marginLeft: 8, background: '#9B59D0', color: '#fff',
+                marginLeft: 8, background: '#00a8b0', color: '#fff',
                 borderRadius: 100, fontSize: 11, fontWeight: 600,
-                padding: '1px 7px', fontFamily: 'Inter, sans-serif',
+                padding: '1px 7px', fontFamily: 'var(--font-body)',
               }}>
                 {active.responses.length}
               </span>
@@ -849,7 +849,7 @@ export default function LogTicket() {
           </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
             style={{ transform: responsesExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-            <path d="M6 9l6 6 6-6" stroke="#58595B" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M6 9l6 6 6-6" stroke="#323232" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
 
@@ -857,10 +857,10 @@ export default function LogTicket() {
           <div style={{ padding: '0 24px 20px', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
             {active.responses.length === 0 ? (
               <div style={{ padding: '24px 0', textAlign: 'center' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
                   No issues added yet.
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.25)', marginTop: 4 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.25)', marginTop: 4 }}>
                   Fill in the issue description, select a type, and click "Add gameLM response".
                 </p>
               </div>
@@ -876,7 +876,7 @@ export default function LogTicket() {
                     }}>
                       <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{type?.emoji}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#9B59D0', marginBottom: 2 }}>
+                        <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#00787e', marginBottom: 2 }}>
                           Response {i + 1} · {type?.label}
                           {r.ticketId?.trim() && (
                             <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.5)', marginLeft: 6 }}>
@@ -889,13 +889,13 @@ export default function LogTicket() {
                             </span>
                           )}
                         </div>
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {r.customerInput}
                         </p>
                       </div>
                       <button
                         onClick={() => removeResponse(r.id)}
-                        style={{ color: '#aaa', fontSize: 16, flexShrink: 0, lineHeight: 1 }}
+                        style={{ color: 'rgba(0,0,0,0.35)', fontSize: 16, flexShrink: 0, lineHeight: 1 }}
                       >
                         ×
                       </button>
@@ -919,8 +919,8 @@ export default function LogTicket() {
           same `notes` field CoPilot's Supporting detail card writes to
           (below), just surfaced here as the primary, required field. */}
       {active.mode === 'full_auto' && (
-        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #CEA4FF', padding: 24 }}>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid #00a8b0', padding: 24 }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 20 }}>
             Scenario
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 180px', gap: 16 }}>
@@ -932,13 +932,13 @@ export default function LogTicket() {
                   placeholder="e.g. Trustly redemption error, AMOE question…"
                   maxLength={SCENARIO_MAX}
                   style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
                 {active.notes.length > 0 && (
                   <span style={{
                     position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                    fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)',
+                    fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)',
                     pointerEvents: 'none',
                   }}>
                     {active.notes.length}/{SCENARIO_MAX}
@@ -950,8 +950,8 @@ export default function LogTicket() {
               <select
                 value={active.scenarioType}
                 onChange={e => updateActive({ scenarioType: e.target.value })}
-                style={{ ...inputStyle, color: active.scenarioType ? '#000' : '#aaa', cursor: 'pointer' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                style={{ ...inputStyle, color: active.scenarioType ? '#000' : 'rgba(0,0,0,0.35)', cursor: 'pointer' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               >
                 <option value="">Select type</option>
@@ -964,8 +964,8 @@ export default function LogTicket() {
               <select
                 value={active.outcome}
                 onChange={e => updateActive({ outcome: e.target.value })}
-                style={{ ...inputStyle, color: active.outcome ? '#000' : '#aaa', cursor: 'pointer' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                style={{ ...inputStyle, color: active.outcome ? '#000' : 'rgba(0,0,0,0.35)', cursor: 'pointer' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               >
                 <option value="">— optional —</option>
@@ -982,7 +982,7 @@ export default function LogTicket() {
           already collects `notes` as its primary field. */}
       {active.mode === 'copilot' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
-        <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 16 }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 16 }}>
           Supporting detail
         </h2>
         <Field label="Notes / context">
@@ -992,7 +992,7 @@ export default function LogTicket() {
             placeholder="Additional context or notes at the ticket level…"
             rows={3}
             style={textareaStyle}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           />
         </Field>
@@ -1004,7 +1004,7 @@ export default function LogTicket() {
         <div style={{
           background: 'rgba(229,62,62,0.06)', border: '1px solid rgba(229,62,62,0.2)',
           borderRadius: 10, padding: '12px 16px',
-          fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e',
+          fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e',
         }}>
           {submitError}
         </div>
@@ -1012,9 +1012,9 @@ export default function LogTicket() {
 
       {submitSuccess && (
         <div style={{
-          background: 'rgba(22,101,52,0.07)', border: '1px solid rgba(22,101,52,0.2)',
+          background: 'rgba(0,168,176,0.07)', border: '1px solid rgba(0,168,176,0.2)',
           borderRadius: 10, padding: '12px 16px',
-          fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
+          fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e',
         }}>
           Ticket submitted successfully.
         </div>
@@ -1025,7 +1025,7 @@ export default function LogTicket() {
         disabled={!canSubmit || submitting}
         style={{
           background: canSubmit ? '#000' : 'rgba(0,0,0,0.2)', color: '#fff',
-          fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+          fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
           padding: '13px', borderRadius: 10, width: '100%',
           transition: 'opacity 0.15s', cursor: canSubmit && !submitting ? 'pointer' : 'default',
           opacity: submitting ? 0.6 : 1,
@@ -1063,20 +1063,20 @@ export default function LogTicket() {
               padding: '24px 24px 20px',
             }}
           >
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 8 }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 8 }}>
               Close {label}?
             </p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.5, marginBottom: 20 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', lineHeight: 1.5, marginBottom: 20 }}>
               Any unsaved work on this ticket will be lost. Make sure you've submitted before closing.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setClosePending(null)}
                 style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '8px 18px', borderRadius: 10,
                   border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff',
-                  color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                  color: '#323232', cursor: 'pointer', transition: 'all 0.15s',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
@@ -1086,7 +1086,7 @@ export default function LogTicket() {
               <button
                 onClick={() => doCloseTab(closePending)}
                 style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '8px 18px', borderRadius: 10,
                   border: 'none', background: '#e53e3e',
                   color: '#fff', cursor: 'pointer', transition: 'all 0.15s',
@@ -1108,7 +1108,7 @@ export default function LogTicket() {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+      <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>
         {label}{required && <span style={{ color: '#e53e3e' }}> *</span>}
       </label>
       {children}
@@ -1120,12 +1120,12 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '10px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s', background: '#fff', width: '100%',
-  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
 }
 
 const textareaStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '10px 12px', fontSize: 13, color: '#000',
   outline: 'none', resize: 'vertical', transition: 'border-color 0.15s',
-  width: '100%', fontFamily: 'Inter, sans-serif',
+  width: '100%', fontFamily: 'var(--font-body)',
 }

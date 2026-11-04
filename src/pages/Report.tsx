@@ -200,11 +200,11 @@ export default function Report() {
     if (format.startsWith('PDF')) {
       // Open a minimal print window with the rendered content
       const html = `<!DOCTYPE html><html><head><title>gameLM Report ${date}</title>
-        <style>body{font-family:Inter,sans-serif;max-width:800px;margin:40px auto;color:#000;line-height:1.7}
-        h2{font-family:Manrope,sans-serif;font-size:1.4em;margin-top:1.8em}
-        h3{font-family:Manrope,sans-serif;font-size:1.1em;margin-top:1.4em}
-        table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px 12px;font-size:0.9em}
-        th{background:#f5f5f5;font-weight:600}hr{border:none;border-top:1px solid #eee}
+        <style>body{font-family:'Maax','Outfit',-apple-system,BlinkMacSystemFont,sans-serif;max-width:800px;margin:40px auto;color:#000;line-height:1.7}
+        h2{font-family:'Maax','Outfit',sans-serif;font-size:1.4em;margin-top:1.8em}
+        h3{font-family:'Maax','Outfit',sans-serif;font-size:1.1em;margin-top:1.4em}
+        table{border-collapse:collapse;width:100%}td,th{border:1px solid rgba(0,0,0,0.10);padding:8px 12px;font-size:0.9em}
+        th{background:#fbfaf9;font-weight:600}hr{border:none;border-top:1px solid rgba(0,0,0,0.10)}
         </style></head><body>${markdownToHtml(content)}<script>window.print();window.onafterprint=()=>window.close()</script></body></html>`
       const w = window.open('', '_blank')
       if (w) { w.document.write(html); w.document.close() }
@@ -251,23 +251,23 @@ export default function Report() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Report</h1>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Report</h1>
 
       {/* Settings card */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000' }}>
             Report Settings
           </h2>
           <button
             onClick={() => setShowHistory(h => !h)}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '7px 14px', borderRadius: 10, cursor: 'pointer',
-              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+              border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
               transition: 'all 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+            onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
             onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
           >
             {showHistory ? 'Hide history' : 'View history'}
@@ -288,7 +288,7 @@ export default function Report() {
             style={{
               background: loading ? 'rgba(0,0,0,0.1)' : '#000',
               color: loading ? 'rgba(0,0,0,0.35)' : '#fff',
-              fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
               padding: '10px 22px', borderRadius: 10, border: 'none',
               transition: 'opacity 0.15s',
               cursor: loading ? 'default' : 'pointer',
@@ -302,12 +302,12 @@ export default function Report() {
             <button
               onClick={() => exportReport(output, exportFormat)}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
                 padding: '10px 22px', borderRadius: 10, cursor: 'pointer',
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
                 transition: 'all 0.15s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
               onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
             >
               Export as {exportFormat.split(' ')[0]}
@@ -319,13 +319,13 @@ export default function Report() {
       {/* History panel */}
       {showHistory && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 24 }}>
-          <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 14 }}>
-            Report History {isAdmin && <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 400, fontSize: 13, color: '#aaa' }}>(all users)</span>}
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 14 }}>
+            Report History {isAdmin && <span style={{ fontFamily: 'var(--font-body)', fontWeight: 400, fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>(all users)</span>}
           </h2>
           {historyLoading ? (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
           ) : history.length === 0 ? (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No reports generated yet.</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No reports generated yet.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {history.map(h => (
@@ -345,36 +345,36 @@ export default function Report() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                       {[h.period, h.audience, h.focus_area].filter(Boolean).map(tag => (
                         <span key={tag!} style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                           padding: '2px 8px', borderRadius: 100,
-                          background: 'rgba(206,164,255,0.15)', color: '#6b21a8',
+                          background: 'rgba(0,168,176,0.14)', color: '#00787e',
                         }}>
                           {tag}
                         </span>
                       ))}
                       {h.issue_count > 0 && (
                         <span style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                           padding: '2px 8px', borderRadius: 100,
-                          background: 'rgba(0,0,0,0.06)', color: '#58595B',
+                          background: 'rgba(0,0,0,0.06)', color: '#323232',
                         }}>
                           {h.issue_count.toLocaleString()} responses
                         </span>
                       )}
                     </div>
                     <p style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+                      fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
                       {h.report_content.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').split('\n').find(l => l.trim()) ?? ''}
                     </p>
                     {isAdmin && h.generated_by_email && (
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 3 }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 3 }}>
                         by {h.generated_by_email}
                       </p>
                     )}
                   </div>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', flexShrink: 0 }}>
                     {new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 </div>
@@ -387,7 +387,7 @@ export default function Report() {
       {/* Output card */}
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>
             Report output
           </span>
         </div>
@@ -399,13 +399,13 @@ export default function Report() {
                 {[0, 1, 2].map(i => (
                   <div key={i} style={{
                     width: 8, height: 8, borderRadius: '50%',
-                    background: '#9B59D0', opacity: 0.3,
+                    background: '#00a8b0', opacity: 0.3,
                     animation: 'bounce 1.2s ease-in-out infinite',
                     animationDelay: `${i * 0.2}s`,
                   }} />
                 ))}
               </div>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>
                 Claude is analysing your data…
               </p>
               <style>{`@keyframes bounce { 0%,80%,100%{opacity:0.3;transform:scale(1)} 40%{opacity:1;transform:scale(1.3)} }`}</style>
@@ -414,7 +414,7 @@ export default function Report() {
             <ReportMarkdown content={output} />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 180 }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
                 Configure settings above and click "Run report" to generate analysis.
               </p>
             </div>
@@ -432,10 +432,10 @@ function ReportMarkdown({ content }: { content: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {content.split('\n\n').map((block, i) => {
         if (block.startsWith('## ')) {
-          return <h2 key={i} style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>{block.replace('## ', '')}</h2>
+          return <h2 key={i} style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>{block.replace('## ', '')}</h2>
         }
         if (block.startsWith('### ')) {
-          return <h3 key={i} style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginTop: 4 }}>{block.replace('### ', '')}</h3>
+          return <h3 key={i} style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginTop: 4 }}>{block.replace('### ', '')}</h3>
         }
         if (block.startsWith('---')) {
           return <hr key={i} style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.08)' }} />
@@ -456,9 +456,9 @@ function ReportMarkdown({ content }: { content: string }) {
                   }}>
                     {cells.map((cell, ci) => (
                       <span key={ci} style={{
-                        fontFamily: 'Inter, sans-serif', fontSize: 13,
+                        fontFamily: 'var(--font-body)', fontSize: 13,
                         fontWeight: ri === 0 ? 600 : 400,
-                        color: ri === 0 ? '#58595B' : '#000',
+                        color: ri === 0 ? '#323232' : '#000',
                       }}>{cell}</span>
                     ))}
                   </div>
@@ -471,7 +471,7 @@ function ReportMarkdown({ content }: { content: string }) {
           return (
             <ol key={i} style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {block.split('\n').filter(Boolean).map((line, li) => (
-                <li key={li} style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', lineHeight: 1.6 }}>
+                <li key={li} style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', lineHeight: 1.6 }}>
                   {line.replace(/^\d+\.\s/, '')}
                 </li>
               ))}
@@ -479,7 +479,7 @@ function ReportMarkdown({ content }: { content: string }) {
           )
         }
         return (
-          <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', lineHeight: 1.7 }}>
+          <p key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', lineHeight: 1.7 }}>
             {block.replace(/\*\*(.*?)\*\*/g, '$1')}
           </p>
         )
@@ -493,7 +493,7 @@ function SelectField({ label, value, options, onChange }: {
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{label}</label>
+      <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{label}</label>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -501,9 +501,9 @@ function SelectField({ label, value, options, onChange }: {
           border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
           padding: '9px 12px', fontSize: 13, color: '#000',
           outline: 'none', background: '#fff', transition: 'border-color 0.15s',
-          fontFamily: 'Inter, sans-serif',
+          fontFamily: 'var(--font-body)',
         }}
-        onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+        onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
         onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
       >
         {options.map(o => <option key={o}>{o}</option>)}

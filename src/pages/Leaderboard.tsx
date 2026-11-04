@@ -81,7 +81,7 @@ function Medal({ rank }: { rank: number }) {
   if (rank > 3) {
     return (
       <span style={{
-        fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600,
+        fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600,
         color: 'rgba(0,0,0,0.25)', width: 28, textAlign: 'center', display: 'inline-block',
       }}>
         {rank}
@@ -90,7 +90,7 @@ function Medal({ rank }: { rank: number }) {
   }
   const configs = [
     { bg: 'linear-gradient(135deg, #F59E0B, #D97706)', shadow: 'rgba(245,158,11,0.4)', label: '1' },
-    { bg: 'linear-gradient(135deg, #9CA3AF, #6B7280)', shadow: 'rgba(156,163,175,0.4)', label: '2' },
+    { bg: 'linear-gradient(135deg, rgba(0,0,0,0.35), rgba(0,0,0,0.55))', shadow: 'rgba(156,163,175,0.4)', label: '2' },
     { bg: 'linear-gradient(135deg, #C47722, #A36210)', shadow: 'rgba(196,119,34,0.4)', label: '3' },
   ]
   const c = configs[rank - 1]
@@ -100,7 +100,7 @@ function Medal({ rank }: { rank: number }) {
       width: 24, height: 24, borderRadius: '50%',
       background: c.bg,
       boxShadow: `0 2px 6px ${c.shadow}`,
-      fontFamily: 'Manrope, sans-serif', fontSize: 11, fontWeight: 700, color: '#fff',
+      fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 700, color: '#fff',
     }}>
       {c.label}
     </span>
@@ -111,7 +111,7 @@ function Medal({ rank }: { rank: number }) {
 function AdoptionPill({ pct }: { pct: number | null }) {
   if (pct === null) {
     return (
-      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.25)' }}>—</span>
+      <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.25)' }}>—</span>
     )
   }
 
@@ -120,11 +120,11 @@ function AdoptionPill({ pct }: { pct: number | null }) {
   if (pct > 100) {
     bg = 'rgba(229,62,62,0.08)'; color = '#e53e3e'; border = 'rgba(229,62,62,0.2)'
   } else if (clamped >= 80) {
-    bg = 'rgba(22,101,52,0.08)'; color = '#166534'; border = 'rgba(22,101,52,0.2)'
+    bg = 'rgba(0,168,176,0.08)'; color = '#00787e'; border = 'rgba(0,168,176,0.2)'
   } else if (clamped >= 55) {
     bg = 'rgba(180,83,9,0.08)'; color = '#b45309'; border = 'rgba(180,83,9,0.2)'
   } else {
-    bg = 'rgba(220,38,38,0.08)'; color = '#dc2626'; border = 'rgba(220,38,38,0.15)'
+    bg = 'rgba(220,38,38,0.08)'; color = '#e53e3e'; border = 'rgba(220,38,38,0.15)'
   }
 
   return (
@@ -132,7 +132,7 @@ function AdoptionPill({ pct }: { pct: number | null }) {
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '3px 10px', borderRadius: 100,
       background: bg, border: `1px solid ${border}`,
-      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color,
+      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color,
     }}>
       {pct.toFixed(1)}%
       {pct > 100 && <span style={{ fontSize: 10 }}>↑</span>}
@@ -158,7 +158,7 @@ function TeamAdoptionCard({
 
   let barColor = '#e53e3e'
   if (adoptionPct !== null) {
-    if (adoptionPct >= 80) barColor = '#166534'
+    if (adoptionPct >= 80) barColor = '#00787e'
     else if (adoptionPct >= 55) barColor = '#b45309'
   }
 
@@ -175,26 +175,26 @@ function TeamAdoptionCard({
       {/* Left: big number */}
       <div style={{ flexShrink: 0 }}>
         <p style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
-          color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8,
+          fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
+          color: '#323232', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8,
         }}>
           Team Adoption Rate
         </p>
         {zdLoading ? (
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 40, fontWeight: 700, color: 'rgba(0,0,0,0.15)', lineHeight: 1 }}>—</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 40, fontWeight: 700, color: 'rgba(0,0,0,0.15)', lineHeight: 1 }}>—</p>
         ) : zdError ? (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{zdError}</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{zdError}</p>
         ) : adoptionPct !== null ? (
           <p style={{
-            fontFamily: 'Manrope, sans-serif', fontSize: 40, fontWeight: 700, lineHeight: 1,
+            fontFamily: 'var(--font-display)', fontSize: 40, fontWeight: 700, lineHeight: 1,
             color: barColor,
           }}>
             {adoptionPct.toFixed(1)}%
           </p>
         ) : (
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 40, fontWeight: 700, color: 'rgba(0,0,0,0.15)', lineHeight: 1 }}>—</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 40, fontWeight: 700, color: 'rgba(0,0,0,0.15)', lineHeight: 1 }}>—</p>
         )}
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 6 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 6 }}>
           {gameLMTotal} logged of {zdTotal?.toLocaleString() ?? '…'} Zendesk chat tickets ({rangeLabel})
         </p>
       </div>
@@ -202,8 +202,8 @@ function TeamAdoptionCard({
       {/* Center: progress bar */}
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>0%</span>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>100%</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>0%</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>100%</span>
         </div>
         <div style={{
           height: 10, borderRadius: 100,
@@ -219,12 +219,12 @@ function TeamAdoptionCard({
           }} />
         </div>
         {remaining !== null && remaining > 0 && (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: barColor, marginTop: 8, fontWeight: 500 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: barColor, marginTop: 8, fontWeight: 500 }}>
             {remaining.toLocaleString()} more tickets to reach 100%
           </p>
         )}
         {remaining === 0 && adoptionPct !== null && (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#166534', marginTop: 8, fontWeight: 500 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', marginTop: 8, fontWeight: 500 }}>
             ✓ 100% adoption reached!
           </p>
         )}
@@ -233,17 +233,17 @@ function TeamAdoptionCard({
       {/* Right: stats */}
       <div style={{ display: 'flex', gap: 24, flexShrink: 0 }}>
         <div style={{ textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 700, color: '#9B59D0', lineHeight: 1 }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: '#00a8b0', lineHeight: 1 }}>
             {gameLMTotal.toLocaleString()}
           </p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Logged</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Logged</p>
         </div>
         <div style={{ width: 1, background: 'rgba(0,0,0,0.08)', alignSelf: 'stretch' }} />
         <div style={{ textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 700, color: '#b45309', lineHeight: 1 }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: '#b45309', lineHeight: 1 }}>
             {zdLoading ? '…' : (zdTotal?.toLocaleString() ?? '—')}
           </p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Zendesk total</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Zendesk total</p>
         </div>
       </div>
     </div>
@@ -481,9 +481,9 @@ export default function Leaderboard() {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600 }}>Leaderboard</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600 }}>Leaderboard</h1>
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading leaderboard…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading leaderboard…</p>
         </div>
       </div>
     )
@@ -502,10 +502,10 @@ export default function Leaderboard() {
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
             Leaderboard
           </h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 3 }}>
             {tracksZd ? 'Drive towards 100% adoption — log every Zendesk ticket' : 'Ranked by tickets logged'}
           </p>
         </div>
@@ -516,7 +516,7 @@ export default function Leaderboard() {
               value={team}
               onChange={e => setTeam(e.target.value)}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                fontFamily: 'var(--font-body)', fontSize: 13, color: '#000',
                 padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
                 border: '1.5px solid rgba(0,0,0,0.09)', outline: 'none', background: '#fff',
               }}
@@ -530,11 +530,11 @@ export default function Leaderboard() {
           <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
             {rangeOpts.map(o => (
               <button key={o.id} onClick={() => setRange(o.id)} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13,
+                fontFamily: 'var(--font-body)', fontSize: 13,
                 fontWeight: range === o.id ? 500 : 400,
                 padding: '6px 14px', borderRadius: 8,
                 background: range === o.id ? '#000' : 'transparent',
-                color: range === o.id ? '#fff' : '#58595B',
+                color: range === o.id ? '#fff' : '#323232',
                 border: 'none', cursor: 'pointer', transition: 'all 0.15s',
               }}>
                 {o.label}
@@ -564,22 +564,22 @@ export default function Leaderboard() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>
               Agent Performance —{' '}
-              <span style={{ color: '#9B59D0' }}>
+              <span style={{ color: '#00a8b0' }}>
                 {range === 'last7' ? 'Last 7' : range === 'last14' ? 'Last 14' : range === 'last30' ? 'Last 30' : 'Last Quarter'}
               </span>
             </p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>
               Ranked by tickets logged
             </p>
           </div>
           {tracksZd && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 100, background: 'rgba(243,156,18,0.1)', color: '#b45309', letterSpacing: '0.04em' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '3px 8px', borderRadius: 100, background: 'rgba(243,156,18,0.1)', color: '#b45309', letterSpacing: '0.04em' }}>
                 ZENDESK
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                 {zdLoading ? 'Loading ZD data…' : zdError ? 'ZD unavailable' : `${zdAgents?.length ?? 0} agents matched`}
               </span>
             </div>
@@ -596,8 +596,8 @@ export default function Leaderboard() {
         }}>
           {columnLabels.map(h => (
             <span key={h} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
-              color: '#aaa', letterSpacing: '0.08em',
+              fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600,
+              color: 'rgba(0,0,0,0.35)', letterSpacing: '0.08em',
             }}>
               {h}
             </span>
@@ -620,9 +620,9 @@ export default function Leaderboard() {
                 alignItems: 'center',
                 borderBottom: i < rankedAgents.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                 background: isMe
-                  ? 'linear-gradient(90deg, rgba(206,164,255,0.10) 0%, rgba(206,164,255,0.04) 100%)'
+                  ? 'linear-gradient(90deg, rgba(0,168,176,0.10) 0%, rgba(0,168,176,0.04) 100%)'
                   : 'transparent',
-                borderLeft: isMe ? '3px solid #9B59D0' : '3px solid transparent',
+                borderLeft: isMe ? '3px solid #00a8b0' : '3px solid transparent',
                 transition: 'background 0.15s',
               }}
               onMouseEnter={e => {
@@ -630,7 +630,7 @@ export default function Leaderboard() {
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = isMe
-                  ? 'linear-gradient(90deg, rgba(206,164,255,0.10) 0%, rgba(206,164,255,0.04) 100%)'
+                  ? 'linear-gradient(90deg, rgba(0,168,176,0.10) 0%, rgba(0,168,176,0.04) 100%)'
                   : 'transparent'
               }}
             >
@@ -643,32 +643,32 @@ export default function Leaderboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 12 }}>
                 <div style={{
                   width: 30, height: 30, borderRadius: 10, flexShrink: 0,
-                  background: isMe ? '#9B59D0' : 'rgba(155,89,208,0.10)',
+                  background: isMe ? '#00a8b0' : 'rgba(0,168,176,0.10)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 700,
-                  color: isMe ? '#fff' : '#9B59D0',
+                  fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700,
+                  color: isMe ? '#fff' : '#00a8b0',
                 }}>
                   {a.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
                 <div>
                   <p style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: isMe ? 600 : 500,
+                    fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: isMe ? 600 : 500,
                     color: '#000', lineHeight: 1.2,
                   }}>
                     {a.name}
                   </p>
                   {isMe && (
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#9B59D0', fontWeight: 500 }}>You</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#00787e', fontWeight: 500 }}>You</p>
                   )}
                 </div>
               </div>
 
               {/* Tickets */}
               <div>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 700, color: '#000', lineHeight: 1 }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: '#000', lineHeight: 1 }}>
                   {a.tickets}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', marginTop: 2 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.35)', marginTop: 2 }}>
                   {a.avg}/day
                 </p>
               </div>
@@ -677,12 +677,12 @@ export default function Leaderboard() {
               {tracksZd && (
                 <div>
                   {zdLoading ? (
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.2)' }}>…</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.2)' }}>…</span>
                   ) : (
                     <AdoptionPill pct={adoptionRaw} />
                   )}
                   {zdTickets !== null && !zdLoading && (
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', marginTop: 3 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.35)', marginTop: 3 }}>
                       of {zdTickets} ZD
                     </p>
                   )}
@@ -700,7 +700,7 @@ export default function Leaderboard() {
 
         {agents.length === 0 && (
           <div style={{ padding: '40px 24px', textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
               No data for this time range
             </p>
           </div>
@@ -715,27 +715,27 @@ export default function Leaderboard() {
       }}>
         {tracksZd && (
           <>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
               Adoption rate
             </p>
             {[
-              { color: '#166534', bg: 'rgba(22,101,52,0.08)',   label: 'Great',   range: '80–100%' },
+              { color: '#00787e', bg: 'rgba(0,168,176,0.08)',   label: 'Great',   range: '80–100%' },
               { color: '#b45309', bg: 'rgba(180,83,9,0.08)',    label: 'Good',    range: '55–80%'  },
-              { color: '#dc2626', bg: 'rgba(220,38,38,0.08)',   label: 'Low',     range: '<55%'    },
+              { color: '#e53e3e', bg: 'rgba(220,38,38,0.08)',   label: 'Low',     range: '<55%'    },
               { color: '#e53e3e', bg: 'rgba(229,62,62,0.08)',   label: 'Overcounted', range: '>100%' },
             ].map(l => (
               <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 100, background: l.bg, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: l.color }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 100, background: l.bg, fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: l.color }}>
                   {l.range}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{l.label}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>{l.label}</span>
               </div>
             ))}
           </>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 3, height: 18, background: '#9B59D0', borderRadius: 2 }} />
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>Highlighted row = you</span>
+          <div style={{ width: 3, height: 18, background: '#00a8b0', borderRadius: 2 }} />
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>Highlighted row = you</span>
         </div>
       </div>
 
@@ -747,10 +747,10 @@ export default function Leaderboard() {
 // ── Quality cell ───────────────────────────────────────────────────────────────
 type QualityType = 'perfect' | 'majority' | 'partial' | 'noResp'
 const QUALITY_COLORS: Record<QualityType, { good: string; bad: string; threshold: number; higherIsBetter: boolean }> = {
-  perfect:  { good: '#166534', bad: '#58595B', threshold: 60,  higherIsBetter: true  },
-  majority: { good: '#58595B', bad: '#854d0e', threshold: 25,  higherIsBetter: false },
-  partial:  { good: '#58595B', bad: '#6b21a8', threshold: 20,  higherIsBetter: false },
-  noResp:   { good: '#58595B', bad: '#e53e3e', threshold: 20,  higherIsBetter: false },
+  perfect:  { good: '#00787e', bad: '#323232', threshold: 60,  higherIsBetter: true  },
+  majority: { good: '#323232', bad: '#854d0e', threshold: 25,  higherIsBetter: false },
+  partial:  { good: '#323232', bad: '#6a1ff0', threshold: 20,  higherIsBetter: false },
+  noResp:   { good: '#323232', bad: '#e53e3e', threshold: 20,  higherIsBetter: false },
 }
 
 function QualityCell({ value, type }: { value: number; type: QualityType }) {
@@ -758,7 +758,7 @@ function QualityCell({ value, type }: { value: number; type: QualityType }) {
   const isBad = cfg.higherIsBetter ? value < cfg.threshold : value > cfg.threshold
   return (
     <span style={{
-      fontFamily: 'Inter, sans-serif', fontSize: 13,
+      fontFamily: 'var(--font-body)', fontSize: 13,
       color: isBad ? cfg.bad : cfg.good,
       fontWeight: isBad ? 500 : 400,
     }}>

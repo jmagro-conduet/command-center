@@ -41,7 +41,7 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '10px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s', background: '#fff', width: '100%',
-  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
 }
 
 
@@ -220,17 +220,17 @@ export default function Bulletin() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
               {view === 'edit' ? 'Edit Bulletin' : 'Create Daily Bulletin'}
             </h1>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
               Create a daily bulletin for the CS team with important updates and insights
             </p>
           </div>
           <button
             onClick={() => { setView('list'); setEditTarget(null) }}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '9px 16px', borderRadius: 10,
               border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000', cursor: 'pointer',
             }}
@@ -240,13 +240,13 @@ export default function Bulletin() {
         </div>
 
         {/* Quick Insert panel */}
-        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(206,164,255,0.4)', padding: 24 }}>
+        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,168,176,0.4)', padding: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>
                 Quick Insert — Automated Data
               </p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>
                 Based on the last 7 days of logged tickets
               </p>
             </div>
@@ -261,13 +261,13 @@ export default function Bulletin() {
                   } as any,
                 }))}
                 style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                  padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(155,89,208,0.3)',
-                  background: 'rgba(155,89,208,0.06)', color: '#9B59D0',
+                  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+                  padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,168,176,0.3)',
+                  background: 'rgba(0,168,176,0.06)', color: '#00a8b0',
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.06)')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.06)')}
               >
                 Use metrics in viewer
               </button>
@@ -275,7 +275,7 @@ export default function Bulletin() {
           </div>
 
           {quickLoading ? (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading data…</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading data…</p>
           ) : !quickStats ? null : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {/* Team Metrics strip */}
@@ -287,18 +287,18 @@ export default function Bulletin() {
                 {[
                   { label: 'Tickets logged', value: quickStats.ticketsLogged.toString() },
                   { label: 'Avg / agent',    value: `${quickStats.avgPerAgent}` },
-                  { label: 'vs prev week',   value: `${quickStats.vsPrev >= 0 ? '+' : ''}${quickStats.vsPrev}%`, color: quickStats.vsPrev >= 0 ? '#166534' : '#e53e3e' },
+                  { label: 'vs prev week',   value: `${quickStats.vsPrev >= 0 ? '+' : ''}${quickStats.vsPrev}%`, color: quickStats.vsPrev >= 0 ? '#00787e' : '#e53e3e' },
                 ].map(s => (
                   <div key={s.label}>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>{s.label}</p>
-                    <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: s.color ?? '#000' }}>{s.value}</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>{s.label}</p>
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: s.color ?? '#000' }}>{s.value}</p>
                   </div>
                 ))}
               </div>
 
               {/* Trending issues */}
               <div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
                   Trending Issues
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -311,15 +311,15 @@ export default function Bulletin() {
                     <div key={r.label} style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '8px 12px', borderRadius: 8,
-                      border: '1px solid rgba(0,0,0,0.07)', background: '#fafafa',
+                      border: '1px solid rgba(0,0,0,0.07)', background: '#fbfaf9',
                     }}>
                       <span style={{ fontSize: 14 }}>{r.emoji}</span>
-                      <span style={{ flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                      <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>
                         {r.label}
                       </span>
                       <span style={{
-                        fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600,
-                        color: '#58595B', minWidth: 36, textAlign: 'right',
+                        fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+                        color: '#323232', minWidth: 36, textAlign: 'right',
                       }}>
                         {r.count}
                       </span>
@@ -331,12 +331,12 @@ export default function Bulletin() {
                             : `${r.label}: ${r.count} occurrences`,
                         }))}
                         style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                           padding: '4px 10px', borderRadius: 6,
-                          border: '1.5px solid rgba(0,0,0,0.1)', background: '#fff', color: '#58595B',
+                          border: '1.5px solid rgba(0,0,0,0.1)', background: '#fff', color: '#323232',
                           cursor: 'pointer', transition: 'all 0.15s',
                         }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#f0f0f0')}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#fbfaf9')}
                         onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
                       >
                         Insert
@@ -351,13 +351,13 @@ export default function Bulletin() {
 
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Bulletin Date</label>
+            <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Bulletin Date</label>
             <input
               type="date"
               value={form.bulletin_date}
               onChange={e => setForm(f => ({ ...f, bulletin_date: e.target.value }))}
               style={inputStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
             />
           </div>
@@ -384,7 +384,7 @@ export default function Bulletin() {
               onClick={() => handleSave(true)}
               style={{
                 background: '#000', color: '#fff',
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '10px 20px', borderRadius: 10, border: 'none',
                 cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, transition: 'opacity 0.15s',
               }}
@@ -397,8 +397,8 @@ export default function Bulletin() {
               disabled={saving}
               onClick={() => handleSave(false)}
               style={{
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '10px 20px', borderRadius: 10, cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
               }}
             >
@@ -414,10 +414,10 @@ export default function Bulletin() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
             Daily Bulletin Board
           </h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
             {isAdmin ? 'Manage daily bulletins for your CS team' : 'Stay up to date with the latest team updates'}
           </p>
         </div>
@@ -426,7 +426,7 @@ export default function Bulletin() {
             onClick={openCreate}
             style={{
               background: '#000', color: '#fff',
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '10px 18px', borderRadius: 10, border: 'none',
               cursor: 'pointer', transition: 'opacity 0.15s',
             }}
@@ -440,17 +440,17 @@ export default function Bulletin() {
 
       {loading ? (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'flex-start' }}>
           {/* Left list */}
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 14 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 14 }}>
               {isAdmin ? 'All Bulletins' : 'Published Bulletins'}
             </p>
             {bulletins.length === 0 ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '20px 0' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '20px 0' }}>
                 No bulletins yet
               </p>
             ) : (
@@ -463,28 +463,28 @@ export default function Bulletin() {
                       onClick={() => handleSelectBulletin(b)}
                       style={{
                         textAlign: 'left', padding: 14, borderRadius: 12, cursor: 'pointer',
-                        border: selected?.id === b.id ? '1.5px solid #CEA4FF' : '1.5px solid rgba(0,0,0,0.08)',
-                        background: selected?.id === b.id ? 'rgba(206,164,255,0.06)' : '#fff',
+                        border: selected?.id === b.id ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.08)',
+                        background: selected?.id === b.id ? 'rgba(0,168,176,0.06)' : '#fff',
                         transition: 'all 0.15s',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 11, fontWeight: 600, color: '#00787e' }}>
                           {formatShortDate(b.bulletin_date)}
                         </span>
                         <span style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
+                          fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600,
                           padding: '2px 8px', borderRadius: 100,
-                          background: b.is_published ? 'rgba(22,101,52,0.1)' : 'rgba(0,0,0,0.06)',
-                          color: b.is_published ? '#166534' : '#58595B',
+                          background: b.is_published ? 'rgba(0,168,176,0.1)' : 'rgba(0,0,0,0.06)',
+                          color: b.is_published ? '#00787e' : '#323232',
                         }}>
                           {b.is_published ? 'PUBLISHED' : 'DRAFT'}
                         </span>
                       </div>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: isAdmin ? 8 : 0 }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: isAdmin ? 8 : 0 }}>
                         {`Bulletin – ${new Date(b.bulletin_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })}`}
                         {!isAdmin && !isViewed && b.is_published && (
-                          <span style={{ marginLeft: 6, width: 7, height: 7, borderRadius: '50%', background: '#9B59D0', display: 'inline-block', verticalAlign: 'middle' }} />
+                          <span style={{ marginLeft: 6, width: 7, height: 7, borderRadius: '50%', background: '#00a8b0', display: 'inline-block', verticalAlign: 'middle' }} />
                         )}
                       </p>
                       {isAdmin && (
@@ -495,10 +495,10 @@ export default function Bulletin() {
                             { label: 'Delete', action: (e: React.MouseEvent) => { e.stopPropagation(); handleDelete(b.id) }, danger: true },
                           ].map(a => (
                             <button key={a.label} onClick={a.action} style={{
-                              fontFamily: 'Inter, sans-serif', fontSize: 11, cursor: 'pointer',
+                              fontFamily: 'var(--font-body)', fontSize: 11, cursor: 'pointer',
                               padding: '3px 8px', borderRadius: 6,
                               border: '1px solid rgba(0,0,0,0.1)', background: '#fff',
-                              color: (a as any).danger ? '#e53e3e' : '#58595B',
+                              color: (a as any).danger ? '#e53e3e' : '#323232',
                               transition: 'all 0.15s',
                             }}>
                               {a.label}
@@ -517,13 +517,13 @@ export default function Bulletin() {
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', minHeight: 400 }}>
             {!selected ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
                   Select a bulletin to view its contents
                 </p>
               </div>
             ) : (
               <div style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: '#000' }}>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: '#000' }}>
                   {formatBulletinDate(selected.bulletin_date)}
                 </h2>
 
@@ -537,7 +537,7 @@ export default function Bulletin() {
                     <Stat label="Team average" value={`${(selected.last_7_days_metrics.teamAvg ?? 0).toFixed(1)} tickets/agent`} />
                     <Stat label="vs previous week"
                       value={`↑ ${(selected.last_7_days_metrics.vsPrevious ?? 0).toFixed(1)}%`}
-                      valueColor="#166534"
+                      valueColor="#00787e"
                     />
                   </div>
                 )}
@@ -545,7 +545,7 @@ export default function Bulletin() {
                 {selected.highlights && (
                   <BulletinSection title="Highlights">
                     {selected.highlights.split('\n').filter(Boolean).map((line, i) => (
-                      <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B' }}>{line}</p>
+                      <p key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232' }}>{line}</p>
                     ))}
                   </BulletinSection>
                 )}
@@ -553,20 +553,20 @@ export default function Bulletin() {
                 {selected.current_issues && (
                   <BulletinSection title="Current Issues">
                     {selected.current_issues.split('\n').filter(Boolean).map((line, i) => (
-                      <p key={i} style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B' }}>{line}</p>
+                      <p key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232' }}>{line}</p>
                     ))}
                   </BulletinSection>
                 )}
 
                 {selected.hot_events && (
                   <BulletinSection title="Hot Events">
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B' }}>{selected.hot_events}</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232' }}>{selected.hot_events}</p>
                   </BulletinSection>
                 )}
 
                 {selected.tips_and_tricks && (
                   <BulletinSection title="Tips & Tricks">
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B' }}>{selected.tips_and_tricks}</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232' }}>{selected.tips_and_tricks}</p>
                   </BulletinSection>
                 )}
               </div>
@@ -583,8 +583,8 @@ function FormField({ label, hint, value, rows, onChange }: {
 }) {
   return (
     <div>
-      <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
-        {label}{hint && <span style={{ fontWeight: 400, color: '#aaa', marginLeft: 6 }}>{hint}</span>}
+      <label style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 5 }}>
+        {label}{hint && <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)', marginLeft: 6 }}>{hint}</span>}
       </label>
       <textarea
         value={value} rows={rows}
@@ -593,9 +593,9 @@ function FormField({ label, hint, value, rows, onChange }: {
           border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
           padding: '10px 12px', fontSize: 13, color: '#000',
           outline: 'none', resize: 'vertical', transition: 'border-color 0.15s',
-          width: '100%', fontFamily: 'Inter, sans-serif', minHeight: rows * 24 + 20, boxSizing: 'border-box',
+          width: '100%', fontFamily: 'var(--font-body)', minHeight: rows * 24 + 20, boxSizing: 'border-box',
         }}
-        onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+        onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
         onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
       />
     </div>
@@ -605,10 +605,10 @@ function FormField({ label, hint, value, rows, onChange }: {
 function Stat({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <div>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
         {label}
       </p>
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: valueColor ?? '#000' }}>
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: valueColor ?? '#000' }}>
         {value}
       </p>
     </div>
@@ -617,8 +617,8 @@ function Stat({ label, value, valueColor }: { label: string; value: string; valu
 
 function BulletinSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ padding: '16px 20px', borderRadius: 12, borderLeft: '3px solid #CEA4FF', background: 'rgba(206,164,255,0.04)' }}>
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 8 }}>{title}</p>
+    <div style={{ padding: '16px 20px', borderRadius: 12, borderLeft: '3px solid #00a8b0', background: 'rgba(0,168,176,0.04)' }}>
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 8 }}>{title}</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{children}</div>
     </div>
   )

@@ -118,8 +118,8 @@ interface TicketRow {
 const VERDICT_CONFIG: Record<Verdict, { label: string; color: string; bg: string; desc: string }> = {
   CORRECTION:  { label: 'Correction',  color: '#e53e3e', bg: 'rgba(229,62,62,0.09)',    desc: 'gameLM made an error — the agent fix was necessary.' },
   ENHANCEMENT: { label: 'Enhancement', color: '#854d0e', bg: 'rgba(234,179,8,0.12)',    desc: 'gameLM was acceptable — the agent added genuine value (e.g. escalation status or account context).' },
-  PREFERENCE:  { label: 'Preference',  color: '#58595B', bg: 'rgba(0,0,0,0.06)',        desc: 'Stylistic only — gameLM was fully send-worthy and the agent just reworded it.' },
-  AGENT_ERROR: { label: 'Agent Error', color: '#9B59D0', bg: 'rgba(155,89,208,0.12)',   desc: 'gameLM was correct — the agent thought they were fixing it but the edit introduced an error. Excluded from training targets.' },
+  PREFERENCE:  { label: 'Preference',  color: '#323232', bg: 'rgba(0,0,0,0.06)',        desc: 'Stylistic only — gameLM was fully send-worthy and the agent just reworded it.' },
+  AGENT_ERROR: { label: 'Agent Error', color: '#00a8b0', bg: 'rgba(0,168,176,0.12)',   desc: 'gameLM was correct — the agent thought they were fixing it but the edit introduced an error. Excluded from training targets.' },
 }
 
 function rangeDays(r: TimeRange) {
@@ -239,7 +239,7 @@ function VerdictBadge({ verdict, small }: { verdict: Verdict; small?: boolean })
   const c = VERDICT_CONFIG[verdict]
   return (
     <span style={{
-      fontFamily: 'Inter, sans-serif',
+      fontFamily: 'var(--font-body)',
       fontSize: small ? 10 : 11,
       fontWeight: 600,
       padding: small ? '2px 7px' : '3px 9px',
@@ -277,10 +277,10 @@ function QAFilter({ value, onChange, qad, pending }: { value: QAStatus; onChange
     <div title="Filter by QA review status" style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
       {opts.map(o => (
         <button key={o.id} onClick={() => onChange(o.id)} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: value === o.id ? 600 : 400,
+          fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: value === o.id ? 600 : 400,
           padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
-          background: value === o.id ? (o.id === 'qad' ? '#9B59D0' : '#fff') : 'transparent',
-          color: value === o.id ? (o.id === 'qad' ? '#fff' : '#000') : '#58595B',
+          background: value === o.id ? (o.id === 'qad' ? '#00a8b0' : '#fff') : 'transparent',
+          color: value === o.id ? (o.id === 'qad' ? '#fff' : '#000') : '#323232',
           boxShadow: value === o.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
         }}>{o.label}</button>
       ))}
@@ -289,16 +289,16 @@ function QAFilter({ value, onChange, qad, pending }: { value: QAStatus; onChange
 }
 
 function ConfidencePip({ value, label }: { value: number; label?: string }) {
-  const color = value >= 80 ? '#166534' : value >= 60 ? '#854d0e' : '#e53e3e'
+  const color = value >= 80 ? '#00787e' : value >= 60 ? '#854d0e' : '#e53e3e'
   // Labelled variant: a self-describing chip for places with no column header to
   // explain what the % means (e.g. the edit-eval ticket detail rows).
   if (label) {
     return (
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
-        fontFamily: 'Inter, sans-serif', fontSize: 11,
+        fontFamily: 'var(--font-body)', fontSize: 11,
         padding: '2px 9px', borderRadius: 100,
-        background: 'rgba(0,0,0,0.04)', color: '#58595B', whiteSpace: 'nowrap',
+        background: 'rgba(0,0,0,0.04)', color: '#323232', whiteSpace: 'nowrap',
       }}>
         {label}
         <strong style={{ color, fontWeight: 600 }}>{value}%</strong>
@@ -306,7 +306,7 @@ function ConfidencePip({ value, label }: { value: number; label?: string }) {
     )
   }
   return (
-    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color, fontWeight: 500 }}>
+    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color, fontWeight: 500 }}>
       {value}%
     </span>
   )
@@ -324,14 +324,14 @@ function InfoTip({ text }: { text: string }) {
       <span style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 13, height: 13, borderRadius: 100, fontSize: 9, fontWeight: 700,
-        background: 'rgba(0,0,0,0.18)', color: '#fff', fontFamily: 'Inter, sans-serif',
+        background: 'rgba(0,0,0,0.18)', color: '#fff', fontFamily: 'var(--font-body)',
         fontStyle: 'italic', lineHeight: 1,
       }}>i</span>
       {show && (
         <span style={{
           position: 'absolute', bottom: 'calc(100% + 7px)', left: '50%', transform: 'translateX(-50%)',
           width: 210, padding: '9px 11px', borderRadius: 8, zIndex: 30,
-          background: '#000', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 11,
+          background: '#000', color: '#fff', fontFamily: 'var(--font-body)', fontSize: 11,
           fontWeight: 400, lineHeight: 1.45, textTransform: 'none', letterSpacing: 0,
           boxShadow: '0 6px 20px rgba(0,0,0,0.22)', textAlign: 'left', pointerEvents: 'none', whiteSpace: 'normal',
         }}>{text}</span>
@@ -352,18 +352,18 @@ function TrendPip({ curr, prev, isPositiveGood = true, fmt }: {
   if (prev === null || (curr === 0 && prev === 0)) return null
   const delta = curr - prev
   if (delta === 0) return (
-    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.28)', marginTop: 2, display: 'block' }}>
+    <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.28)', marginTop: 2, display: 'block' }}>
       — same as prior period
     </span>
   )
   const up   = delta > 0
   const good = isPositiveGood ? up : !up
-  const color = good ? '#166534' : '#e53e3e'
-  const bg    = good ? 'rgba(22,101,52,0.08)' : 'rgba(229,62,62,0.08)'
+  const color = good ? '#00787e' : '#e53e3e'
+  const bg    = good ? 'rgba(0,168,176,0.08)' : 'rgba(229,62,62,0.08)'
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 2,
-      fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
+      fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600,
       padding: '2px 7px', borderRadius: 100, marginTop: 3,
       background: bg, color,
     }}>
@@ -573,10 +573,10 @@ function TimeRangeFilter({ value, onChange }: { value: TimeRange; onChange: (v: 
     <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
       {opts.map(o => (
         <button key={o.id} onClick={() => onChange(o.id)} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: value === o.id ? 500 : 400,
+          fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: value === o.id ? 500 : 400,
           padding: '5px 12px', borderRadius: 6,
           background: value === o.id ? '#fff' : 'transparent',
-          color: value === o.id ? '#000' : '#58595B',
+          color: value === o.id ? '#000' : '#323232',
           border: 'none', cursor: 'pointer', transition: 'all 0.15s',
           boxShadow: value === o.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
         }}>
@@ -688,7 +688,7 @@ function exportEditEvalCSV(rows: EvalRow[], filename = 'edit_eval_qa.csv') {
 // ── Shared UI helpers ────────────────────────────────────────────────────────
 
 const filterSelectStyle: React.CSSProperties = {
-  fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000',
+  fontFamily: 'var(--font-body)', fontSize: 12, color: '#000',
   padding: '6px 10px', borderRadius: 8,
   border: '1.5px solid rgba(0,0,0,0.12)',
   background: '#fff', cursor: 'pointer', outline: 'none',
@@ -716,7 +716,7 @@ function DiagnosticFilters({
       </select>
       {active && (
         <button onClick={() => { onCategoryChange(''); onAgentChange('') }}
-          style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+          style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
           Clear filters
         </button>
       )}
@@ -767,7 +767,7 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
     <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px' }}>
       {/* Header + toggle */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>
           {view === 'categories' ? 'Conversation Themes' : 'Context Themes'}
         </p>
         <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: 2 }}>
@@ -776,10 +776,10 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
             { id: 'context'    as const, label: 'Context'    },
           ]).map(t => (
             <button key={t.id} onClick={() => setView(t.id)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: view === t.id ? 500 : 400,
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: view === t.id ? 500 : 400,
               padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
               background: view === t.id ? '#000' : 'transparent',
-              color:      view === t.id ? '#fff' : '#58595B',
+              color:      view === t.id ? '#fff' : '#323232',
               boxShadow:  view === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
             }}>{t.label}</button>
           ))}
@@ -791,11 +791,11 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {catSorted.map(([theme, count]) => (
             <div key={theme} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', width: 170, flexShrink: 0 }}>{theme}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', width: 170, flexShrink: 0 }}>{theme}</span>
               <div style={{ flex: 1, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
-                <div style={{ width: `${(count / catMax) * 100}%`, height: '100%', borderRadius: 100, background: '#9B59D0', transition: 'width 0.3s' }} />
+                <div style={{ width: `${(count / catMax) * 100}%`, height: '100%', borderRadius: 100, background: '#00a8b0', transition: 'width 0.3s' }} />
               </div>
-              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000', width: 20, textAlign: 'right', flexShrink: 0 }}>{count}</span>
             </div>
           ))}
         </div>
@@ -804,10 +804,10 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
       {/* ── Context Themes view ─────────────────────────────────────────────── */}
       {view === 'context' && !hasDetails && (
         <div style={{ padding: '28px 0', textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', marginBottom: 4 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', marginBottom: 4 }}>
             Context themes populate as new issues are scored
           </p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.22)' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.22)' }}>
             Run a backfill to generate themes for existing issues
           </p>
         </div>
@@ -825,14 +825,14 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
                   onClick={() => toggleCollapse(group.cat)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '9px 14px', background: isOpen ? 'rgba(155,89,208,0.04)' : 'rgba(0,0,0,0.015)',
+                    padding: '9px 14px', background: isOpen ? 'rgba(0,168,176,0.04)' : 'rgba(0,0,0,0.015)',
                     border: 'none', cursor: 'pointer', transition: 'background 0.15s', textAlign: 'left',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#000' }}>{group.cat}</span>
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 100, background: 'rgba(155,89,208,0.1)', color: '#9B59D0' }}>{group.total}</span>
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)' }}>{group.details.length} situation{group.details.length !== 1 ? 's' : ''}</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#000' }}>{group.cat}</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 100, background: 'rgba(0,168,176,0.1)', color: '#00787e' }}>{group.total}</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.3)' }}>{group.details.length} situation{group.details.length !== 1 ? 's' : ''}</span>
                   </div>
                   <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.3)', transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
                 </button>
@@ -842,11 +842,11 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
                   <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                     {group.details.map(([detail, count]) => (
                       <div key={detail} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', flex: 1, minWidth: 0, lineHeight: 1.3 }}>{detail}</span>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', flex: 1, minWidth: 0, lineHeight: 1.3 }}>{detail}</span>
                         <div style={{ width: 72, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)', flexShrink: 0 }}>
-                          <div style={{ width: `${(count / detailMax) * 100}%`, height: '100%', borderRadius: 100, background: '#CEA4FF', transition: 'width 0.3s' }} />
+                          <div style={{ width: `${(count / detailMax) * 100}%`, height: '100%', borderRadius: 100, background: '#cceef0', transition: 'width 0.3s' }} />
                         </div>
-                        <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 600, color: '#000', width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600, color: '#000', width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
                       </div>
                     ))}
                   </div>
@@ -856,7 +856,7 @@ function ThemeDistribution({ rows }: { rows: EvalRow[] }) {
           })}
 
           {pendingCount > 0 && (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.28)', textAlign: 'center', marginTop: 4 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.28)', textAlign: 'center', marginTop: 4 }}>
               +{pendingCount} categor{pendingCount > 1 ? 'ies' : 'y'} awaiting backfill
             </p>
           )}
@@ -934,14 +934,14 @@ function ReviewActions({
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 12,
+    width: '100%', fontFamily: 'var(--font-body)', fontSize: 12,
     padding: '8px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
     resize: 'vertical' as const, boxSizing: 'border-box', outline: 'none',
   }
 
   return (
     <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 8, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.07)' }}>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
         QA Review — adds to training dataset
       </p>
 
@@ -959,13 +959,13 @@ function ReviewActions({
         <div style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 8, border: '1.5px solid rgba(229,62,62,0.2)', background: 'rgba(229,62,62,0.03)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {verdictOptions && verdictOptions.length > 0 && (
             <div>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 4 }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', marginBottom: 4 }}>
                 Correct verdict
               </p>
               <select
                 value={correctVerdict}
                 onChange={e => setCorrectVerdict(e.target.value)}
-                style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, padding: '7px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none', cursor: 'pointer', width: '100%' }}
+                style={{ fontFamily: 'var(--font-body)', fontSize: 12, padding: '7px 10px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', outline: 'none', cursor: 'pointer', width: '100%' }}
               >
                 <option value="">— select correct verdict —</option>
                 {verdictOptions.map(v => <option key={v} value={v}>{v}</option>)}
@@ -973,7 +973,7 @@ function ReviewActions({
             </div>
           )}
           <div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 4 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', marginBottom: 4 }}>
               Override context <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)' }}>— edge case or missing nuance</span>
             </p>
             <textarea
@@ -992,9 +992,9 @@ function ReviewActions({
         {/* Confirm path */}
         {!showOverride && (
           <button onClick={saveConfirm} disabled={saving} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
             padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
-            background: status === 'confirmed' ? '#166534' : '#000', color: '#fff',
+            background: status === 'confirmed' ? '#00787e' : '#000', color: '#fff',
             opacity: saving ? 0.6 : 1, transition: 'all 0.15s', border: 'none',
           }}>
             {status === 'confirmed' ? `✓ ${confirmLabel}ed` : confirmLabel}
@@ -1004,9 +1004,9 @@ function ReviewActions({
         {/* Override path */}
         {!showOverride ? (
           <button onClick={() => setShowOverride(true)} disabled={saving} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
             padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
-            background: 'transparent', color: '#58595B',
+            background: 'transparent', color: '#323232',
             border: '1.5px solid rgba(0,0,0,0.12)',
             opacity: saving ? 0.6 : 1, transition: 'all 0.15s',
           }}>
@@ -1015,7 +1015,7 @@ function ReviewActions({
         ) : (
           <>
             <button onClick={saveOverride} disabled={saving} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
               padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
               background: '#e53e3e', color: '#fff',
               opacity: saving ? 0.6 : 1, transition: 'all 0.15s', border: 'none',
@@ -1023,9 +1023,9 @@ function ReviewActions({
               {status === 'dismissed' ? '✓ Update Override' : 'Save Override'}
             </button>
             <button onClick={saveConfirm} disabled={saving} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
               padding: '6px 14px', borderRadius: 8, cursor: saving ? 'default' : 'pointer',
-              background: 'transparent', color: '#58595B',
+              background: 'transparent', color: '#323232',
               border: '1.5px solid rgba(0,0,0,0.12)',
               opacity: saving ? 0.6 : 1, transition: 'all 0.15s',
             }}>
@@ -1033,7 +1033,7 @@ function ReviewActions({
             </button>
             {status !== 'dismissed' && (
               <button onClick={() => setShowOverride(false)} disabled={saving} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)',
+                fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)',
                 background: 'none', border: 'none', cursor: 'pointer', padding: '6px 4px',
               }}>
                 Cancel
@@ -1043,7 +1043,7 @@ function ReviewActions({
         )}
 
         {(status === 'confirmed' || status === 'dismissed') && !saving && (
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
             Saved · use Export to download training data
           </span>
         )}
@@ -1057,8 +1057,8 @@ function ReviewActions({
 const VERDICT_META: Record<Verdict, { label: string; color: string; bg: string; desc: string }> = {
   CORRECTION:   { label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.06)',    desc: 'Cases where the agent identified an error in the gameLM response' },
   ENHANCEMENT:  { label: 'Enhancements', color: '#854d0e', bg: 'rgba(133,77,14,0.06)',    desc: 'Cases where the agent meaningfully improved or expanded the response' },
-  PREFERENCE:   { label: 'Preferences',  color: '#58595B', bg: 'rgba(88,89,91,0.06)',     desc: 'Stylistic changes — the original response was also acceptable' },
-  AGENT_ERROR:  { label: 'Agent Errors', color: '#9B59D0', bg: 'rgba(155,89,208,0.07)',   desc: 'Cases where gameLM was correct but the agent edit introduced an error' },
+  PREFERENCE:   { label: 'Preferences',  color: '#323232', bg: 'rgba(50,50,50,0.06)',     desc: 'Stylistic changes — the original response was also acceptable' },
+  AGENT_ERROR:  { label: 'Agent Errors', color: '#00a8b0', bg: 'rgba(0,168,176,0.07)',   desc: 'Cases where gameLM was correct but the agent edit introduced an error' },
 }
 
 function VerdictThemeModal({ verdict, rows, onClose }: {
@@ -1146,22 +1146,22 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <span style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
                   padding: '3px 10px', borderRadius: 100,
                   background: meta.bg, color: meta.color,
                 }}>
                   {meta.label}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                   {filtered.length} response{filtered.length !== 1 ? 's' : ''} in period
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 4 }}>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000', marginBottom: 4 }}>
                     {view === 'categories' ? 'Theme Breakdown' : 'Context Themes'}
                   </h2>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                     {view === 'categories' ? meta.desc : 'Specific situations driving each category — expand to see sub-themes'}
                   </p>
                 </div>
@@ -1172,10 +1172,10 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
                     { id: 'context'    as const, label: 'Context'    },
                   ]).map(t => (
                     <button key={t.id} onClick={() => setView(t.id)} style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: view === t.id ? 500 : 400,
+                      fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: view === t.id ? 500 : 400,
                       padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
                       background: view === t.id ? '#000' : 'transparent',
-                      color:      view === t.id ? '#fff' : '#58595B',
+                      color:      view === t.id ? '#fff' : '#323232',
                       boxShadow:  view === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
                     }}>{t.label}</button>
                   ))}
@@ -1185,7 +1185,7 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
             <button
               onClick={onClose}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 18, lineHeight: 1,
+                fontFamily: 'var(--font-body)', fontSize: 18, lineHeight: 1,
                 color: 'rgba(0,0,0,0.3)', background: 'none', border: 'none',
                 cursor: 'pointer', padding: '2px 6px', borderRadius: 6,
                 transition: 'all 0.15s', flexShrink: 0,
@@ -1195,7 +1195,7 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
             >×</button>
           </div>
           {unthemed > 0 && themed > 0 && (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 8 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 8 }}>
               {themed} of {filtered.length} responses have theme data · {unthemed} not yet scored
             </p>
           )}
@@ -1208,7 +1208,7 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
           {view === 'categories' && (
             <>
               {themes.length === 0 && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '24px 0' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '24px 0' }}>
                   No theme data yet — run the quality backfill to populate themes.
                 </p>
               )}
@@ -1228,13 +1228,13 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
                       onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
                       onMouseLeave={e => { e.currentTarget.style.background = isExp ? meta.bg : 'transparent' }}
                     >
-                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: isUncat ? 'rgba(0,0,0,0.3)' : '#000', minWidth: 160, flexShrink: 0 }}>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: isUncat ? 'rgba(0,0,0,0.3)' : '#000', minWidth: 160, flexShrink: 0 }}>
                         {isUncat ? 'Not yet themed' : theme}
                       </span>
                       <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                         <div style={{ width: `${barWidth}%`, height: '100%', borderRadius: 100, background: isUncat ? 'rgba(0,0,0,0.15)' : meta.color, opacity: isUncat ? 0.4 : 1, transition: 'width 0.4s ease' }} />
                       </div>
-                      <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: isUncat ? 'rgba(0,0,0,0.25)' : meta.color, minWidth: 28, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: isUncat ? 'rgba(0,0,0,0.25)' : meta.color, minWidth: 28, textAlign: 'right', flexShrink: 0 }}>{count}</span>
                       {!isUncat && <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.25)', flexShrink: 0, transition: 'transform 0.15s', transform: isExp ? 'rotate(180deg)' : 'none' }}>▼</span>}
                     </div>
                     {isExp && !isUncat && (
@@ -1242,26 +1242,26 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
                         {items.slice(0, 4).map(r => (
                           <div key={r.id} style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.07)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
-                              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{r.agentName}</span>
+                              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#00787e', fontWeight: 500 }}>#{r.ticketNumber}</span>
+                              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>{r.agentName}</span>
                               {r.evalVerdict && (
-                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 100, background: meta.bg, color: meta.color }}>{r.evalVerdict}</span>
+                                <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 100, background: meta.bg, color: meta.color }}>{r.evalVerdict}</span>
                               )}
                             </div>
                             {r.customerInput && (
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 4, fontStyle: 'italic' }}>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5, marginBottom: 4, fontStyle: 'italic' }}>
                                 "{r.customerInput.length > 120 ? r.customerInput.slice(0, 120) + '…' : r.customerInput}"
                               </p>
                             )}
                             {r.evalReasoning && (
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.45)', lineHeight: 1.5 }}>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.45)', lineHeight: 1.5 }}>
                                 {r.evalReasoning.length > 160 ? r.evalReasoning.slice(0, 160) + '…' : r.evalReasoning}
                               </p>
                             )}
                           </div>
                         ))}
                         {items.length > 4 && (
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', paddingLeft: 12 }}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', paddingLeft: 12 }}>
                             +{items.length - 4} more in this theme
                           </p>
                         )}
@@ -1275,7 +1275,7 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
 
           {/* ── Context view ────────────────────────────────────────────────── */}
           {view === 'context' && !hasDetails && (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '28px 0' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', textAlign: 'center', padding: '28px 0' }}>
               Context themes populate as new issues are scored — run a backfill to generate for existing data.
             </p>
           )}
@@ -1296,20 +1296,20 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
                       onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
                       onMouseLeave={e => { e.currentTarget.style.background = isExp ? meta.bg : 'transparent' }}
                     >
-                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', minWidth: 160, flexShrink: 0 }}>{group.theme}</span>
-                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', flex: 1 }}>{group.details.length} situation{group.details.length !== 1 ? 's' : ''}</span>
-                      <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: meta.color, minWidth: 28, textAlign: 'right', flexShrink: 0 }}>{group.total}</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', minWidth: 160, flexShrink: 0 }}>{group.theme}</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', flex: 1 }}>{group.details.length} situation{group.details.length !== 1 ? 's' : ''}</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: meta.color, minWidth: 28, textAlign: 'right', flexShrink: 0 }}>{group.total}</span>
                       <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.25)', flexShrink: 0, transition: 'transform 0.15s', transform: isExp ? 'rotate(180deg)' : 'none' }}>▼</span>
                     </div>
                     {isExp && (
                       <div style={{ marginLeft: 12, marginBottom: 6, padding: '10px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.07)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {group.details.map(([detail, count]) => (
                           <div key={detail} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', flex: 1, minWidth: 0, lineHeight: 1.3 }}>{detail}</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', flex: 1, minWidth: 0, lineHeight: 1.3 }}>{detail}</span>
                             <div style={{ width: 80, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)', flexShrink: 0 }}>
                               <div style={{ width: `${(count / detailMax) * 100}%`, height: '100%', borderRadius: 100, background: meta.color, opacity: 0.6, transition: 'width 0.3s' }} />
                             </div>
-                            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 600, color: meta.color, width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600, color: meta.color, width: 18, textAlign: 'right', flexShrink: 0 }}>{count}</span>
                           </div>
                         ))}
                       </div>
@@ -1318,7 +1318,7 @@ function VerdictThemeModal({ verdict, rows, onClose }: {
                 )
               })}
               {pendingCount > 0 && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.28)', textAlign: 'center', marginTop: 8 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.28)', textAlign: 'center', marginTop: 8 }}>
                   +{pendingCount} categor{pendingCount > 1 ? 'ies' : 'y'} awaiting backfill
                 </p>
               )}
@@ -1339,14 +1339,14 @@ const ACCURACY_CONFIG: Record<AccuracyClass, { label: string; color: string; bg:
     tip: 'Material accuracy / hallucination. The bot confidently stated a false fact — timing, amount, rule, cause, payout, or eligibility — as certain, or answered the wrong topic with material misinformation. Requires exact correction and pattern tracking.' },
   P2:   { label: 'P2 — Data error',  color: '#854d0e',  bg: 'rgba(234,179,8,0.12)',    desc: 'Account data presented as confirmed fact',
     tip: 'Account-data / lower-risk accuracy error. Wrong account, transaction, bet, or status info that hurts accuracy or CX, but does not create compliance/RG risk or mislead a gambling decision. Escalate to P1B if the wrong fact becomes material.' },
-  NONE: { label: 'Clean',            color: '#166534',  bg: 'rgba(22,101,52,0.09)',     desc: 'No accuracy errors detected' },
+  NONE: { label: 'Clean',            color: '#00787e',  bg: 'rgba(0,168,176,0.09)',     desc: 'No accuracy errors detected' },
 }
 
 function AccuracyBadge({ cls, small }: { cls: AccuracyClass; small?: boolean }) {
   const c = ACCURACY_CONFIG[cls]
   return (
     <span style={{
-      fontFamily: 'Inter, sans-serif', fontSize: small ? 10 : 11, fontWeight: 600,
+      fontFamily: 'var(--font-body)', fontSize: small ? 10 : 11, fontWeight: 600,
       padding: small ? '2px 7px' : '3px 9px', borderRadius: 100,
       background: c.bg, color: c.color, whiteSpace: 'nowrap', letterSpacing: '0.03em',
     }}>
@@ -1356,9 +1356,9 @@ function AccuracyBadge({ cls, small }: { cls: AccuracyClass; small?: boolean }) 
 }
 
 function QualityScore({ score, small }: { score: number; small?: boolean }) {
-  const color = score >= 4 ? '#166534' : score >= 3.5 ? '#854d0e' : '#e53e3e'
+  const color = score >= 4 ? '#00787e' : score >= 3.5 ? '#854d0e' : '#e53e3e'
   return (
-    <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: small ? 13 : 20, fontWeight: 600, color }}>
+    <span style={{ fontFamily: 'var(--font-display)', fontSize: small ? 13 : 20, fontWeight: 600, color }}>
       {score.toFixed(2)}
     </span>
   )
@@ -1384,27 +1384,27 @@ function Paginator({ page, total, onPage }: { page: number; total: number; onPag
   }
 
   const btnBase: React.CSSProperties = {
-    fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 400,
+    fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 400,
     width: 30, height: 30, borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
-    background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+    background: '#fff', color: '#323232', cursor: 'pointer', transition: 'all 0.15s',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
         Showing {from}–{to} of <strong style={{ fontWeight: 500, color: '#000' }}>{total}</strong>
       </span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button onClick={() => onPage(page - 1)} disabled={page === 1} style={{ ...btnBase, opacity: page === 1 ? 0.35 : 1, cursor: page === 1 ? 'default' : 'pointer' }}>←</button>
         {withEllipsis.map((p, i) =>
           p === -1 ? (
-            <span key={`ell-${i}`} style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.3)', width: 20, textAlign: 'center' }}>…</span>
+            <span key={`ell-${i}`} style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.3)', width: 20, textAlign: 'center' }}>…</span>
           ) : (
             <button key={p} onClick={() => onPage(p)} style={{
               ...btnBase,
               background: page === p ? '#000' : '#fff',
-              color:      page === p ? '#fff' : '#58595B',
+              color:      page === p ? '#fff' : '#323232',
               border:     page === p ? 'none' : '1.5px solid rgba(0,0,0,0.12)',
               fontWeight: page === p ? 500 : 400,
               boxShadow:  page === p ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
@@ -1475,64 +1475,64 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
           const active = errorClassFilter === key
           return (
             <button key={key} onClick={() => { setErrorClassFilter(active ? '' : key); setPage(1) }} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
               padding: '4px 10px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
               border: `1.5px solid ${active ? color : 'rgba(0,0,0,0.12)'}`,
-              background: active ? bg : '#fff', color: active ? color : '#58595B',
+              background: active ? bg : '#fff', color: active ? color : '#323232',
             }}>{label}</button>
           )
         })}
-        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginLeft: 4 }}>
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginLeft: 4 }}>
           {filtered.length} ticket{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-          {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
+          {cols.map(h => <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
         </div>
         {filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(t => {
           const isExp = expanded === t.ticketNumber
           return (
             <div key={t.ticketNumber} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
               <div onClick={() => setExpanded(isExp ? null : t.ticketNumber)}
-                style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 8, background: isExp ? 'rgba(206,164,255,0.04)' : 'transparent', transition: 'background 0.15s' }}
+                style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 8, background: isExp ? 'rgba(0,168,176,0.04)' : 'transparent', transition: 'background 0.15s' }}
                 onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.04)' : 'transparent' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(0,168,176,0.04)' : 'transparent' }}
               >
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{t.agent}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category || '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{t.agent}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category || '—'}</span>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {t.errorClasses.length === 0
-                    ? <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: 'rgba(22,101,52,0.08)', color: '#166534' }}>Clean</span>
+                    ? <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: 'rgba(0,168,176,0.08)', color: '#00787e' }}>Clean</span>
                     : t.errorClasses.map(ec => <AccuracyBadge key={ec} cls={ec as AccuracyClass} small />)
                   }
                 </div>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: t.pendingReview > 0 ? '#e53e3e' : '#166534' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: t.pendingReview > 0 ? '#e53e3e' : '#00787e' }}>
                   {t.pendingReview > 0 ? `${t.pendingReview} pending` : 'Done'}
                 </span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
                   {t.latestDate ? new Date(t.latestDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—'}
                 </span>
               </div>
               {isExp && (
                 <div style={{ padding: '0 0 12px 0' }}>
                   {t.issues.map((r, idx) => (
-                    <div key={r.id} style={{ margin: '8px 16px 0', padding: '14px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.07)', background: idx % 2 === 0 ? '#fafafa' : '#fff' }}>
+                    <div key={r.id} style={{ margin: '8px 16px 0', padding: '14px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.07)', background: idx % 2 === 0 ? '#fbfaf9' : '#fff' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                         <AccuracyBadge cls={(r.accuracyErrorClass ?? 'NONE') as AccuracyClass} />
-                        {r.themeTag && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, padding: '2px 8px', borderRadius: 100, background: 'rgba(155,89,208,0.08)', color: '#9B59D0', border: '1px solid rgba(155,89,208,0.15)' }}>{r.themeTag}</span>}
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                        {r.themeTag && <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, padding: '2px 8px', borderRadius: 100, background: 'rgba(0,168,176,0.08)', color: '#00787e', border: '1px solid rgba(0,168,176,0.15)' }}>{r.themeTag}</span>}
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                           {r.accuracyRanAt ? new Date(r.accuracyRanAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : ''}
                         </span>
                       </div>
-                      {r.accuracyReasoning && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 10 }}>{r.accuracyReasoning}</p>}
+                      {r.accuracyReasoning && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5, marginBottom: 10 }}>{r.accuracyReasoning}</p>}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         {[{ label: 'Player message', value: r.customerInput }, { label: 'gameLM suggested', value: r.suggestedResponse }].map(box => (
                           <div key={box.label} style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
                           </div>
                         ))}
                       </div>
@@ -1542,7 +1542,7 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
                       {isAdmin && r.accuracyRanAt && (
                         <div style={{ marginTop: 10 }}>
                           {promoted.has(r.id) ? (
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>✓ Added to gold set</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e' }}>✓ Added to gold set</span>
                           ) : (
                             <button
                               onClick={async () => {
@@ -1558,13 +1558,13 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
                                 if (!error) setPromoted(p => new Set([...p, r.id]))
                               }}
                               style={{
-                                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                                color: '#9B59D0', background: 'rgba(155,89,208,0.07)',
-                                border: '1px solid rgba(155,89,208,0.2)', borderRadius: 8,
+                                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+                                color: '#00a8b0', background: 'rgba(0,168,176,0.07)',
+                                border: '1px solid rgba(0,168,176,0.2)', borderRadius: 8,
                                 padding: '4px 12px', cursor: 'pointer', transition: 'all 0.15s',
                               }}
-                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.07)')}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.12)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.07)')}
                             >
                               ★ Promote to gold set
                             </button>
@@ -1580,7 +1580,7 @@ function AccuracyTicketLevelView({ rows, onReviewUpdate }: {
         })}
         {filtered.length === 0 && (
           <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No tickets found for this filter</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No tickets found for this filter</p>
           </div>
         )}
         <Paginator page={page} total={filtered.length} onPage={p => { setPage(p); setExpanded(null) }} />
@@ -1650,8 +1650,8 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   if (withEval.length === 0) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No accuracy evals yet</p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No accuracy evals yet</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
           New submissions automatically trigger Eval 2. Run the backfill to score existing issues.
         </p>
       </div>
@@ -1661,22 +1661,22 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
   const ExpandedRow = ({ r }: { r: EvalRow }) => (
     <div style={{ padding: '16px 20px 20px', background: 'rgba(229,62,62,0.02)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
       {r.accuracyErrorClass && (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: ACCURACY_CONFIG[r.accuracyErrorClass].color, marginBottom: 12 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: ACCURACY_CONFIG[r.accuracyErrorClass].color, marginBottom: 12 }}>
           {ACCURACY_CONFIG[r.accuracyErrorClass].desc}
-          {r.accuracyReasoning && <span style={{ color: '#58595B', fontWeight: 400 }}> — {r.accuracyReasoning}</span>}
+          {r.accuracyReasoning && <span style={{ color: '#323232', fontWeight: 400 }}> — {r.accuracyReasoning}</span>}
         </p>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
         {[{ label: 'Player message', value: r.customerInput }, { label: 'gameLM suggested', value: r.suggestedResponse }].map(box => (
           <div key={box.label} style={{ padding: '12px 14px', borderRadius: 10, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
           </div>
         ))}
       </div>
       {r.accuracyEvidence && r.accuracyEvidence !== 'None' && (
         <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(229,62,62,0.05)', border: '1px solid rgba(229,62,62,0.15)', marginBottom: 12 }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#e53e3e' }}>
             <strong style={{ fontWeight: 600 }}>Flagged text: </strong>"{r.accuracyEvidence}"
           </p>
         </div>
@@ -1707,12 +1707,12 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
           onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
           onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(229,62,62,0.03)' : 'transparent' }}
         >
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.agentName}</span>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category || '—'}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{r.ticketNumber}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{r.agentName}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category || '—'}</span>
           {r.accuracyErrorClass ? <AccuracyBadge cls={r.accuracyErrorClass} small /> : <span />}
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{r.themeTag ?? '—'}</span>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>{r.themeTag ?? '—'}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>
             {r.accuracyRanAt ? new Date(r.accuracyRanAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
           </span>
         </div>
@@ -1731,10 +1731,10 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
         { id: 'ticket' as const, label: 'Ticket Level' },
       ]).map(t => (
         <button key={t.id} onClick={() => setViewMode(t.id)} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: viewMode === t.id ? 500 : 400,
+          fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: viewMode === t.id ? 500 : 400,
           padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
           background: viewMode === t.id ? '#000' : 'transparent',
-          color: viewMode === t.id ? '#fff' : '#58595B',
+          color: viewMode === t.id ? '#fff' : '#323232',
           boxShadow: viewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
         }}>{t.label}</button>
       ))}
@@ -1747,23 +1747,23 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
         {[
-          { label: 'Evals run',          value: total.toString(),      color: '#9B59D0',                                                    note: 'responses scored',
+          { label: 'Evals run',          value: total.toString(),      color: '#00a8b0',                                                    note: 'responses scored',
             pip: <TrendPip curr={total} prev={priorTotal} isPositiveGood fmt={n => `${n}`} /> },
-          { label: 'Error rate',         value: `${errorRate}%`,       color: errorRate > 10 ? '#e53e3e' : errorRate > 5 ? '#854d0e' : '#166534', note: 'P1A + P1B + P2',
+          { label: 'Error rate',         value: `${errorRate}%`,       color: errorRate > 10 ? '#e53e3e' : errorRate > 5 ? '#854d0e' : '#00787e', note: 'P1A + P1B + P2',
             pip: <TrendPip curr={errorRate} prev={priorErrorRate} isPositiveGood={false} fmt={n => `${n}pp`} /> },
-          { label: 'P1A — Regulatory',   value: p1a.toString(),        color: p1a > 0 ? '#e53e3e' : '#166534',                             note: p1a > 0 ? 'Action required' : 'None detected',
+          { label: 'P1A — Regulatory',   value: p1a.toString(),        color: p1a > 0 ? '#e53e3e' : '#00787e',                             note: p1a > 0 ? 'Action required' : 'None detected',
             pip: <TrendPip curr={p1a} prev={priorP1a} isPositiveGood={false} fmt={n => `${n}`} />, tip: ACCURACY_CONFIG.P1A.tip },
-          { label: 'P1B — Hallucination', value: p1b.toString(),        color: p1b > 0 ? '#c05621' : '#166534',                             note: p1b > 0 ? 'Human review required' : 'None detected',
+          { label: 'P1B — Hallucination', value: p1b.toString(),        color: p1b > 0 ? '#c05621' : '#00787e',                             note: p1b > 0 ? 'Human review required' : 'None detected',
             pip: <TrendPip curr={p1b} prev={priorP1b} isPositiveGood={false} fmt={n => `${n}`} />, tip: ACCURACY_CONFIG.P1B.tip },
-          { label: 'P2 — Data error',    value: p2.toString(),          color: p2 > 0 ? '#854d0e' : '#166534',                             note: p2 > 0 ? 'Account data claims' : 'None detected',
+          { label: 'P2 — Data error',    value: p2.toString(),          color: p2 > 0 ? '#854d0e' : '#00787e',                             note: p2 > 0 ? 'Account data claims' : 'None detected',
             pip: <TrendPip curr={p2} prev={priorP2} isPositiveGood={false} fmt={n => `${n}`} />, tip: ACCURACY_CONFIG.P2.tip },
         ].map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center' }}>
               {k.label}{k.tip && <InfoTip text={k.tip} />}
             </p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
             {k.pip}
           </div>
         ))}
@@ -1783,10 +1783,10 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
             { id: 'all'   as const, label: `All Results (${allResults.length})` },
           ]).map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
+              fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
               padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
               background: subTab === t.id ? '#fff' : 'transparent',
-              color: subTab === t.id ? '#000' : '#58595B',
+              color: subTab === t.id ? '#000' : '#323232',
               boxShadow: subTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
             }}>{t.label}</button>
           ))}
@@ -1802,11 +1802,11 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
               const active = errorClassFilter === key
               return (
                 <button key={key} onClick={() => setErrorClassFilter(active ? '' : key)} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
                   padding: '4px 10px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
                   border: `1.5px solid ${active ? color : 'rgba(0,0,0,0.12)'}`,
                   background: active ? bg : '#fff',
-                  color: active ? color : '#58595B',
+                  color: active ? color : '#323232',
                 }}>
                   {label}
                 </button>
@@ -1819,10 +1819,10 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
               agentFilter={agentFil} onAgentChange={setAgentFil} />
           )}
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => exportJSONL(exportRows, 'accuracy')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportJSONL(exportRows, 'accuracy')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer' }}>
               Export JSONL
             </button>
-            <button onClick={() => exportCSV(exportRows, 'accuracy')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportCSV(exportRows, 'accuracy')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer' }}>
               Export CSV
             </button>
           </div>
@@ -1833,18 +1833,18 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
       {subTab === 'queue' && (
         <div style={{ background: '#fff', borderRadius: 16, border: reviewQueue.length > 0 ? '1.5px solid rgba(229,62,62,0.2)' : '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: reviewQueue.length > 0 ? 'rgba(229,62,62,0.03)' : 'rgba(0,0,0,0.015)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Human Review Queue</p>
-            {reviewQueue.length > 0 && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.1)', color: '#e53e3e' }}>{reviewQueue.length}</span>}
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>Confirm errors or dismiss false positives — saved items are included in exports</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>Human Review Queue</p>
+            {reviewQueue.length > 0 && <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.1)', color: '#e53e3e' }}>{reviewQueue.length}</span>}
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>Confirm errors or dismiss false positives — saved items are included in exports</p>
           </div>
           {reviewQueue.length === 0 ? (
             <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No items in review queue for this filter</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No items in review queue for this filter</p>
             </div>
           ) : (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-                {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
+                {cols.map(h => <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
               </div>
               {reviewQueue.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => <TableRow key={r.id} r={r} />)}
               <Paginator page={page} total={reviewQueue.length} onPage={p => { setPage(p); setExpanded(null) }} />
@@ -1856,10 +1856,10 @@ function ResponseAccuracyView({ rows, agentFilter, priorRows, onReviewUpdate }: 
       {subTab === 'all' && allResults.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>All Accuracy Results</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>All Accuracy Results</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-            {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
+            {cols.map(h => <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
           </div>
           {allResults.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => <TableRow key={r.id} r={r} />)}
           <Paginator page={page} total={allResults.length} onPage={p => { setPage(p); setExpanded(null) }} />
@@ -1977,18 +1977,18 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   if (withEval.length === 0) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No quality evals yet</p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No quality evals yet</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
           New submissions automatically trigger Eval 3. Run the backfill to score existing issues.
         </p>
       </div>
     )
   }
 
-  const scoreColor = (s: number | null) => s === null ? '#aaa' : s >= 4 ? '#166534' : s >= 3.5 ? '#854d0e' : '#e53e3e'
+  const scoreColor = (s: number | null) => s === null ? 'rgba(0,0,0,0.35)' : s >= 4 ? '#00787e' : s >= 3.5 ? '#854d0e' : '#e53e3e'
 
   const sc = (v: number | null) => v !== null ? (
-    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: v <= 2 ? '#e53e3e' : v >= 4 ? '#166534' : '#854d0e' }}>{v}</span>
+    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: v <= 2 ? '#e53e3e' : v >= 4 ? '#00787e' : '#854d0e' }}>{v}</span>
   ) : <span style={{ color: 'rgba(0,0,0,0.2)', fontSize: 12 }}>—</span>
 
   const colTemplate = '100px 1fr 130px 70px 70px 70px 70px 70px 70px 70px'
@@ -2002,32 +2002,32 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
           display: 'grid', gridTemplateColumns: colTemplate,
           padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 8,
           borderBottom: '1px solid rgba(0,0,0,0.05)',
-          background: isExp ? 'rgba(206,164,255,0.04)' : 'transparent', transition: 'background 0.15s',
+          background: isExp ? 'rgba(0,168,176,0.04)' : 'transparent', transition: 'background 0.15s',
         }}
           onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.04)' : 'transparent' }}
+          onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(0,168,176,0.04)' : 'transparent' }}
         >
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.agentName}</span>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category || '—'}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{r.ticketNumber}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{r.agentName}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.category || '—'}</span>
           {r.qualityScore !== null ? <QualityScore score={r.qualityScore} small /> : <span />}
           {sc(r.qualityIntent)} {sc(r.qualityResolution)} {sc(r.qualityInfoGathering)} {sc(r.qualityClarity)} {sc(r.qualityBrand)}
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: r.qualityFlag ? 'rgba(229,62,62,0.09)' : 'rgba(0,0,0,0.05)', color: r.qualityFlag ? '#e53e3e' : '#58595B', width: 'fit-content' }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: r.qualityFlag ? 'rgba(229,62,62,0.09)' : 'rgba(0,0,0,0.05)', color: r.qualityFlag ? '#e53e3e' : '#323232', width: 'fit-content' }}>
             {r.qualityFlag ? 'Flagged' : 'OK'}
           </span>
         </div>
         {isExp && (
-          <div style={{ padding: '16px 20px 20px', background: 'rgba(206,164,255,0.02)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+          <div style={{ padding: '16px 20px 20px', background: 'rgba(0,168,176,0.02)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
             {r.qualityFlagReason && r.qualityFlagReason !== 'None' && (
               <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 8, background: 'rgba(229,62,62,0.05)', border: '1px solid rgba(229,62,62,0.15)' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#e53e3e' }}>
                   <strong style={{ fontWeight: 600 }}>Flag reason: </strong>{r.qualityFlagReason}
                 </p>
               </div>
             )}
             {r.themeTag && (
               <div style={{ marginBottom: 12 }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 100, background: 'rgba(155,89,208,0.08)', color: '#9B59D0', border: '1px solid rgba(155,89,208,0.2)' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 100, background: 'rgba(0,168,176,0.08)', color: '#00787e', border: '1px solid rgba(0,168,176,0.2)' }}>
                   {r.themeTag}
                 </span>
               </div>
@@ -2035,8 +2035,8 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {[{ label: 'Player message', value: r.customerInput }, { label: 'gameLM suggested', value: r.suggestedResponse }].map(box => (
                 <div key={box.label} style={{ padding: '12px 14px', borderRadius: 10, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
                 </div>
               ))}
             </div>
@@ -2044,7 +2044,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
             {isAdmin && r.qualityRanAt && (
               <div style={{ marginTop: 10 }}>
                 {promoted.has(r.id) ? (
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>✓ Added to gold set</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e' }}>✓ Added to gold set</span>
                 ) : (
                   <button
                     onClick={async () => {
@@ -2062,13 +2062,13 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
                       if (!error) setPromoted(p => new Set([...p, r.id]))
                     }}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                      color: '#9B59D0', background: 'rgba(155,89,208,0.07)',
-                      border: '1px solid rgba(155,89,208,0.2)', borderRadius: 8,
+                      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+                      color: '#00a8b0', background: 'rgba(0,168,176,0.07)',
+                      border: '1px solid rgba(0,168,176,0.2)', borderRadius: 8,
                       padding: '4px 12px', cursor: 'pointer', transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.07)')}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.12)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.07)')}
                   >
                     ★ Promote to gold set
                   </button>
@@ -2084,23 +2084,23 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
   // ── KPI values swap based on view mode ──────────────────────────────────────
   const kpis = viewMode === 'issue'
     ? [
-        { label: 'Responses scored',  value: iTotal.toString(),                                color: '#9B59D0', note: 'individual responses',
+        { label: 'Responses scored',  value: iTotal.toString(),                                color: '#00a8b0', note: 'individual responses',
           pip: <TrendPip curr={iTotal} prev={priorITotal} isPositiveGood fmt={n => `${n}`} /> },
         { label: 'Avg quality score', value: iAvgScore !== null ? iAvgScore.toFixed(2) : '—', color: scoreColor(iAvgScore), note: 'target ≥ 3.50',
           pip: iAvgScore !== null ? <TrendPip curr={iAvgScore} prev={priorIAvgScore} isPositiveGood fmt={n => `${n.toFixed(2)}`} /> : null },
-        { label: 'Above bar (≥3.5)',  value: iTotal ? `${pct(iAboveBar, iTotal)}%` : '—',     color: '#166534', note: `${iAboveBar} / ${iTotal} responses`,
+        { label: 'Above bar (≥3.5)',  value: iTotal ? `${pct(iAboveBar, iTotal)}%` : '—',     color: '#00787e', note: `${iAboveBar} / ${iTotal} responses`,
           pip: <TrendPip curr={iTotal ? pct(iAboveBar, iTotal) : 0} prev={priorIAbovePct} isPositiveGood fmt={n => `${n}pp`} /> },
-        { label: 'Flagged (any cat=1)', value: iFlagged.toString(),                            color: iFlagged > 0 ? '#e53e3e' : '#166534', note: iFlagged > 0 ? 'Minimum quality fail' : 'None this period',
+        { label: 'Flagged (any cat=1)', value: iFlagged.toString(),                            color: iFlagged > 0 ? '#e53e3e' : '#00787e', note: iFlagged > 0 ? 'Minimum quality fail' : 'None this period',
           pip: <TrendPip curr={iFlagged} prev={priorIFlagged} isPositiveGood={false} fmt={n => `${n}`} /> },
       ]
     : [
-        { label: 'Tickets scored',   value: tTotal.toString(),                                color: '#9B59D0', note: 'unique tickets',
+        { label: 'Tickets scored',   value: tTotal.toString(),                                color: '#00a8b0', note: 'unique tickets',
           pip: null },
         { label: 'Avg ticket score', value: tAvgScore !== null ? tAvgScore.toFixed(2) : '—',  color: scoreColor(tAvgScore), note: 'avg of per-ticket averages',
           pip: null },
-        { label: 'Above bar (≥3.5)', value: tTotal ? `${pct(tAboveBar, tTotal)}%` : '—',      color: '#166534', note: `${tAboveBar} / ${tTotal} tickets`,
+        { label: 'Above bar (≥3.5)', value: tTotal ? `${pct(tAboveBar, tTotal)}%` : '—',      color: '#00787e', note: `${tAboveBar} / ${tTotal} tickets`,
           pip: null },
-        { label: 'Tickets flagged',  value: tFlagged.toString(),                               color: tFlagged > 0 ? '#e53e3e' : '#166534', note: tFlagged > 0 ? '≥1 flagged response' : 'None this period',
+        { label: 'Tickets flagged',  value: tFlagged.toString(),                               color: tFlagged > 0 ? '#e53e3e' : '#00787e', note: tFlagged > 0 ? '≥1 flagged response' : 'None this period',
           pip: null },
       ]
 
@@ -2112,10 +2112,10 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
         { id: 'ticket' as const, label: 'Ticket Level' },
       ]).map(t => (
         <button key={t.id} onClick={() => setViewMode(t.id)} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: viewMode === t.id ? 500 : 400,
+          fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: viewMode === t.id ? 500 : 400,
           padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
           background: viewMode === t.id ? '#000' : 'transparent',
-          color: viewMode === t.id ? '#fff' : '#58595B',
+          color: viewMode === t.id ? '#fff' : '#323232',
           boxShadow: viewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
         }}>{t.label}</button>
       ))}
@@ -2134,9 +2134,9 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: -4 }}>
         {kpis.map(k => (
           <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>
             {k.pip}
           </div>
         ))}
@@ -2144,7 +2144,7 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
 
       {/* Category averages — always response-level (same data regardless of view) */}
       <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 20px' }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 14 }}>Category Averages</p>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000', marginBottom: 14 }}>Category Averages</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
           {QUALITY_CATEGORIES.map(cat => {
             const avg = avgOf(withEval, cat.key)
@@ -2153,13 +2153,13 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
             return (
               <div key={cat.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B' }}>{cat.label}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.3)' }}>{cat.weight}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232' }}>{cat.label}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 9, color: 'rgba(0,0,0,0.3)' }}>{cat.weight}</span>
                 </div>
                 <div style={{ height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                   <div style={{ width: `${fill}%`, height: '100%', borderRadius: 100, background: color, transition: 'width 0.3s' }} />
                 </div>
-                <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color }}>{avg !== null ? avg.toFixed(2) : '—'}</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color }}>{avg !== null ? avg.toFixed(2) : '—'}</span>
               </div>
             )
           })}
@@ -2178,10 +2178,10 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
               { id: 'passing' as const, label: `Passing (${passing.length})` },
             ]).map(t => (
               <button key={t.id} onClick={() => setSubTab(t.id)} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
+                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
                 padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
                 background: subTab === t.id ? '#fff' : 'transparent',
-                color: subTab === t.id ? '#000' : '#58595B',
+                color: subTab === t.id ? '#000' : '#323232',
                 boxShadow: subTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
               }}>{t.label}</button>
             ))}
@@ -2193,10 +2193,10 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
                 agentFilter={agentFil} onAgentChange={setAgentFil} />
             )}
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => exportJSONL(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+              <button onClick={() => exportJSONL(exportRows, 'quality')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer' }}>
                 Export JSONL
               </button>
-              <button onClick={() => exportCSV(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+              <button onClick={() => exportCSV(exportRows, 'quality')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer' }}>
                 Export CSV
               </button>
             </div>
@@ -2214,17 +2214,17 @@ function ResponseQualityView({ rows, agentFilter, priorRows, onReviewUpdate }: {
         return (
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>
                 {subTab === 'below' ? 'Below Threshold' : 'Passing Responses'}
               </p>
               {subTab === 'below' && belowBar.length > 0 && (
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>
                   {belowBar.length} below 3.5
                 </span>
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)', gap: 8 }}>
-              {colHeaders.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
+              {colHeaders.map(h => <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>)}
             </div>
             {displayRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(r => <QualityTableRow key={r.id} r={r} />)}
             <Paginator page={page} total={displayRows.length} onPage={p => { setPage(p); setExpanded(null) }} />
@@ -2289,9 +2289,9 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
   const VERDICT_PILLS: { key: Verdict | 'NONE'; label: string; color: string; bg: string }[] = [
     { key: 'CORRECTION',  label: 'Corrections',  color: '#e53e3e', bg: 'rgba(229,62,62,0.08)' },
     { key: 'ENHANCEMENT', label: 'Enhancements', color: '#c05621', bg: 'rgba(192,86,33,0.08)' },
-    { key: 'PREFERENCE',  label: 'Preferences',  color: '#0369a1', bg: 'rgba(3,105,161,0.08)' },
-    { key: 'AGENT_ERROR', label: 'Agent Errors', color: '#9B59D0', bg: 'rgba(155,89,208,0.10)' },
-    { key: 'NONE',        label: 'None',          color: '#166534', bg: 'rgba(22,101,52,0.08)' },
+    { key: 'PREFERENCE',  label: 'Preferences',  color: '#5078ff', bg: 'rgba(3,105,161,0.08)' },
+    { key: 'AGENT_ERROR', label: 'Agent Errors', color: '#00a8b0', bg: 'rgba(0,168,176,0.10)' },
+    { key: 'NONE',        label: 'None',          color: '#00787e', bg: 'rgba(0,168,176,0.08)' },
   ]
 
   const colTemplate = '100px 1fr 150px 70px 110px 120px 110px 90px'
@@ -2315,10 +2315,10 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
             const active = verdictFilter === key
             return (
               <button key={key} onClick={() => { setVerdictFilter(active ? '' : key); setPage(1) }} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
                 padding: '4px 10px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
                 border: `1.5px solid ${active ? color : 'rgba(0,0,0,0.12)'}`,
-                background: active ? bg : '#fff', color: active ? color : '#58595B',
+                background: active ? bg : '#fff', color: active ? color : '#323232',
               }}>{label}</button>
             )
           })}
@@ -2329,48 +2329,48 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
           <QAFilter value={qaFilter} onChange={v => { setQaFilter(v); setPage(1) }} qad={qaQad} pending={qaPending} />
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{filtered.length} ticket{filtered.length !== 1 ? 's' : ''}</span>
-          <button onClick={exportTicketCSV} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>Export CSV</button>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{filtered.length} ticket{filtered.length !== 1 ? 's' : ''}</span>
+          <button onClick={exportTicketCSV} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer' }}>Export CSV</button>
         </div>
       </div>
 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
-          {cols.map(h => <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
+          {cols.map(h => <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>)}
         </div>
         {filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(t => {
           const isExp = expanded === t.ticketNumber
           return (
             <div key={t.ticketNumber} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
               <div onClick={() => setExpanded(isExp ? null : t.ticketNumber)}
-                style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 4, background: isExp ? 'rgba(206,164,255,0.04)' : 'transparent', transition: 'background 0.15s' }}
+                style={{ display: 'grid', gridTemplateColumns: colTemplate, padding: '11px 20px', alignItems: 'center', cursor: 'pointer', gap: 4, background: isExp ? 'rgba(0,168,176,0.04)' : 'transparent', transition: 'background 0.15s' }}
                 onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.04)' : 'transparent' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(0,168,176,0.04)' : 'transparent' }}
               >
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.agents.join(', ') || '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category || '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{t.issues.length}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: t.corrections > 0 ? '#e53e3e' : 'rgba(0,0,0,0.3)' }}>{t.corrections > 0 ? t.corrections : '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: t.enhancements > 0 ? '#c05621' : 'rgba(0,0,0,0.3)' }}>{t.enhancements > 0 ? t.enhancements : '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: t.preferences > 0 ? '#0369a1' : 'rgba(0,0,0,0.3)' }}>{t.preferences > 0 ? t.preferences : '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.agents.join(', ') || '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.category || '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: '#000' }}>{t.issues.length}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: t.corrections > 0 ? '#e53e3e' : 'rgba(0,0,0,0.3)' }}>{t.corrections > 0 ? t.corrections : '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: t.enhancements > 0 ? '#c05621' : 'rgba(0,0,0,0.3)' }}>{t.enhancements > 0 ? t.enhancements : '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: t.preferences > 0 ? '#5078ff' : 'rgba(0,0,0,0.3)' }}>{t.preferences > 0 ? t.preferences : '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
                   {t.latestDate ? new Date(t.latestDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—'}
                 </span>
               </div>
               {isExp && (
                 <div style={{ padding: '0 0 12px 0' }}>
                   {t.issues.map((r, idx) => (
-                    <div key={r.id} style={{ margin: '8px 16px 0', padding: '14px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.07)', background: idx % 2 === 0 ? '#fafafa' : '#fff' }}>
+                    <div key={r.id} style={{ margin: '8px 16px 0', padding: '14px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.07)', background: idx % 2 === 0 ? '#fbfaf9' : '#fff' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                         {r.evalVerdict && <VerdictBadge verdict={r.evalVerdict} />}
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.agentName}</span>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{r.agentName}</span>
                         <ConfidencePip value={r.evalConfidence} label="Verdict confidence" />
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                           {r.evalRanAt ? new Date(r.evalRanAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : ''}
                         </span>
                       </div>
-                      {r.evalReasoning && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, marginBottom: 10 }}>{r.evalReasoning}</p>}
+                      {r.evalReasoning && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5, marginBottom: 10 }}>{r.evalReasoning}</p>}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                         {[
                           { label: 'Player message', value: r.customerInput },
@@ -2378,8 +2378,8 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                           { label: 'Agent edit', value: r.finalEdits },
                         ].map(box => (
                           <div key={box.label} style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
                           </div>
                         ))}
                       </div>
@@ -2387,7 +2387,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                       {isAdmin && r.evalVerdict !== null && (
                         <div style={{ marginTop: 10 }}>
                           {promoted.has(r.id) ? (
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>✓ Added to gold set</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e' }}>✓ Added to gold set</span>
                           ) : (
                             <button
                               onClick={async () => {
@@ -2405,13 +2405,13 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
                                 if (!error) setPromoted(p => new Set([...p, r.id]))
                               }}
                               style={{
-                                fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-                                color: '#9B59D0', background: 'rgba(155,89,208,0.07)',
-                                border: '1px solid rgba(155,89,208,0.2)', borderRadius: 8,
+                                fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+                                color: '#00a8b0', background: 'rgba(0,168,176,0.07)',
+                                border: '1px solid rgba(0,168,176,0.2)', borderRadius: 8,
                                 padding: '4px 12px', cursor: 'pointer', transition: 'all 0.15s',
                               }}
-                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.12)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(155,89,208,0.07)')}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.12)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,168,176,0.07)')}
                             >
                               ★ Promote to gold set
                             </button>
@@ -2427,7 +2427,7 @@ function EditEvalTicketLevelView({ rows, onReviewUpdate }: {
         })}
         {filtered.length === 0 && (
           <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No tickets found for this filter</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>No tickets found for this filter</p>
           </div>
         )}
         <Paginator page={page} total={filtered.length} onPage={p => { setPage(p); setExpanded(null) }} />
@@ -2453,14 +2453,14 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={onBack} style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+          fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
           background: 'none', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 8,
           padding: '6px 12px', cursor: 'pointer', transition: 'all 0.15s',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
           ← Back
         </button>
-        <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: '#000' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: '#000' }}>
           {agentName}
         </h2>
       </div>
@@ -2470,8 +2470,8 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
         const ticketsWithData  = tickets.filter(t => t.zdMessageCount !== null)
         const completeTickets  = ticketsWithData.filter(t => t.issueCount >= (t.zdMessageCount ?? 0)).length
         const completenessVal  = ticketsWithData.length ? `${pct(completeTickets, ticketsWithData.length)}%` : '—'
-        const completenessColor = ticketsWithData.length === 0 ? '#aaa'
-          : pct(completeTickets, ticketsWithData.length) >= 80 ? '#166534'
+        const completenessColor = ticketsWithData.length === 0 ? 'rgba(0,0,0,0.35)'
+          : pct(completeTickets, ticketsWithData.length) >= 80 ? '#00787e'
           : pct(completeTickets, ticketsWithData.length) >= 60 ? '#854d0e'
           : '#e53e3e'
 
@@ -2488,15 +2488,15 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
             {/* Row 1: eval metrics */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
               {[
-                { label: 'Total evals',    value: total.toString(),             color: '#9B59D0' },
+                { label: 'Total evals',    value: total.toString(),             color: '#00a8b0' },
                 { label: 'Corrections',    value: `${pct(correction, total)}%`, color: '#e53e3e' },
                 { label: 'Enhancements',   value: `${pct(enhancement, total)}%`,color: '#854d0e' },
-                { label: 'Preferences',    value: `${pct(preference, total)}%`, color: '#58595B' },
-                { label: 'Avg confidence', value: `${avgConf}%`,                color: avgConf >= 80 ? '#166534' : '#854d0e' },
+                { label: 'Preferences',    value: `${pct(preference, total)}%`, color: '#323232' },
+                { label: 'Avg confidence', value: `${avgConf}%`,                color: avgConf >= 80 ? '#00787e' : '#854d0e' },
               ].map(k => (
                 <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
                 </div>
               ))}
             </div>
@@ -2505,13 +2505,13 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
               {[
                 { label: 'Logging completeness', value: completenessVal, color: completenessColor, note: ticketsWithData.length ? `${completeTickets}/${ticketsWithData.length} tickets` : 'No ZD data yet' },
                 { label: 'Avg resolution time',  value: fmtMinutes(avgRes), color: '#000', note: ticketsWithRes.length ? `${ticketsWithRes.length} resolved tickets` : 'No data yet' },
-                { label: 'FCR rate',             value: fcrPct !== null ? `${fcrPct}%` : '—', color: fcrPct === null ? '#aaa' : fcrPct >= 80 ? '#166534' : fcrPct >= 60 ? '#854d0e' : '#e53e3e', note: 'First contact resolution' },
-                { label: 'Player compliments',   value: complimentCount > 0 ? `+${complimentCount}` : complimentCount.toString(), color: complimentCount > 0 ? '#166534' : 'rgba(0,0,0,0.25)', note: 'Genuine positive feedback' },
+                { label: 'FCR rate',             value: fcrPct !== null ? `${fcrPct}%` : '—', color: fcrPct === null ? 'rgba(0,0,0,0.35)' : fcrPct >= 80 ? '#00787e' : fcrPct >= 60 ? '#854d0e' : '#e53e3e', note: 'First contact resolution' },
+                { label: 'Player compliments',   value: complimentCount > 0 ? `+${complimentCount}` : complimentCount.toString(), color: complimentCount > 0 ? '#00787e' : 'rgba(0,0,0,0.25)', note: 'Genuine positive feedback' },
               ].map(k => (
                 <div key={k.label} style={{ background: '#fff', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', padding: '14px 16px' }}>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
-                  {k.note && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>}
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{k.label}</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: k.color }}>{k.value}</p>
+                  {k.note && <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 2 }}>{k.note}</p>}
                 </div>
               ))}
             </div>
@@ -2529,20 +2529,20 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
           { id: 'wins',         label: 'Wins',             count: tickets.filter(t => t.zdPlayerSentiment === 'COMPLIMENT').length },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13,
+            fontFamily: 'var(--font-body)', fontSize: 13,
             fontWeight: activeTab === t.id ? 500 : 400,
             padding: '6px 14px', borderRadius: 8,
             background: activeTab === t.id ? '#000' : 'transparent',
-            color: activeTab === t.id ? '#fff' : '#58595B',
+            color: activeTab === t.id ? '#fff' : '#323232',
             border: 'none', cursor: 'pointer', transition: 'all 0.15s',
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
             {t.label}
             <span style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
               padding: '1px 6px', borderRadius: 100,
               background: activeTab === t.id ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.07)',
-              color: activeTab === t.id ? '#fff' : '#58595B',
+              color: activeTab === t.id ? '#fff' : '#323232',
             }}>{t.count}</span>
           </button>
         ))}
@@ -2553,19 +2553,19 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Edit Evaluations</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>Click any row to review — QA feedback exports to JSONL / CSV</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>Edit Evaluations</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>Click any row to review — QA feedback exports to JSONL / CSV</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => exportEditEvalCSV(rows, `edit_evals_${agentName.replace(/\s+/g, '_')}.csv`)}
-              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = '#CEA4FF'}
+              style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#00a8b0'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'}
             >Export CSV</button>
             <button
               onClick={() => exportEditEvalJSONL(rows, `edit_evals_${agentName.replace(/\s+/g, '_')}.jsonl`)}
-              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s' }}
+              style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
               onMouseLeave={e => e.currentTarget.style.opacity = '1'}
             >Export JSONL</button>
@@ -2573,7 +2573,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 120px 100px 80px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
           {['Ticket', 'Category', 'Verdict', 'Issue type', 'Confidence'].map(h => (
-            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
         {rows.map((r) => {
@@ -2586,40 +2586,40 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
                   display: 'grid', gridTemplateColumns: '100px 1fr 120px 100px 80px',
                   padding: '11px 20px', alignItems: 'center', cursor: 'pointer',
                   borderBottom: '1px solid rgba(0,0,0,0.05)',
-                  background: isExp ? 'rgba(206,164,255,0.06)' : 'transparent',
+                  background: isExp ? 'rgba(0,168,176,0.06)' : 'transparent',
                   transition: 'background 0.15s',
                 }}
                 onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.06)' : 'transparent' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(0,168,176,0.06)' : 'transparent' }}
               >
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{r.ticketNumber}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{r.category || '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{r.ticketNumber}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{r.category || '—'}</span>
                 <VerdictBadge verdict={r.evalVerdict} small />
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{r.issueType}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{r.issueType}</span>
                 <ConfidencePip value={r.evalConfidence} />
               </div>
 
               {isExp && (
-                <div style={{ padding: '16px 20px 20px', background: 'rgba(206,164,255,0.03)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', marginBottom: 12 }}>
+                <div style={{ padding: '16px 20px 20px', background: 'rgba(0,168,176,0.03)', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#00787e', marginBottom: 12 }}>
                     {VERDICT_CONFIG[r.evalVerdict].desc}
-                    {r.evalReasoning && <span style={{ color: '#58595B', fontWeight: 400 }}> — {r.evalReasoning}</span>}
+                    {r.evalReasoning && <span style={{ color: '#323232', fontWeight: 400 }}> — {r.evalReasoning}</span>}
                   </p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                     {[
                       { label: 'Player message',        value: r.customerInput,      color: '#000' },
-                      { label: 'gameLM suggested',      value: r.suggestedResponse,  color: '#58595B' },
+                      { label: 'gameLM suggested',      value: r.suggestedResponse,  color: '#323232' },
                       { label: 'Agent final response',  value: r.finalEdits,         color: '#000' },
                     ].map(box => (
                       <div key={box.label} style={{ padding: '12px 14px', borderRadius: 10, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: box.color, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>{box.label}</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: box.color, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
                       </div>
                     ))}
                   </div>
                   {r.reasoning && (
                     <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 8, background: 'rgba(0,0,0,0.03)' }}>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>
                         <strong style={{ fontWeight: 600 }}>Agent reason: </strong>{r.reasoning}
                       </p>
                     </div>
@@ -2639,7 +2639,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
         })}
         {rows.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No evaluated edits in this period</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No evaluated edits in this period</p>
           </div>
         )}
       </div>
@@ -2658,20 +2658,20 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
       {/* Logging Completeness tab */}
       {activeTab === 'completeness' && tickets.length === 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No ZD message data yet — run the backfill script to populate.</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No ZD message data yet — run the backfill script to populate.</p>
         </div>
       )}
       {activeTab === 'completeness' && tickets.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Logging Completeness</p>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>Logging Completeness</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>
               Issues logged vs actual player messages in ZD — flags potential under-logging
             </p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '100px 90px 90px 90px 1fr', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
             {['Ticket', 'Logged', 'ZD msgs', 'Delta', 'Status'].map(h => (
-              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+              <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
             ))}
           </div>
           {tickets.map((t, i) => {
@@ -2687,17 +2687,17 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
                 borderBottom: i < tickets.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                 background: underLogged ? 'rgba(229,62,62,0.03)' : 'transparent',
               }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{t.issueCount}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{t.zdMessageCount ?? '—'}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: underLogged ? '#e53e3e' : overLogged ? '#854d0e' : '#166534' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{t.issueCount}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{t.zdMessageCount ?? '—'}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: underLogged ? '#e53e3e' : overLogged ? '#854d0e' : '#00787e' }}>
                   {delta > 0 ? `+${delta}` : delta}
                 </span>
                 <span style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
                   padding: '2px 8px', borderRadius: 100, width: 'fit-content',
-                  background: underLogged ? 'rgba(229,62,62,0.09)' : overLogged ? 'rgba(234,179,8,0.12)' : 'rgba(22,101,52,0.09)',
-                  color: underLogged ? '#e53e3e' : overLogged ? '#854d0e' : '#166534',
+                  background: underLogged ? 'rgba(229,62,62,0.09)' : overLogged ? 'rgba(234,179,8,0.12)' : 'rgba(0,168,176,0.09)',
+                  color: underLogged ? '#e53e3e' : overLogged ? '#854d0e' : '#00787e',
                 }}>
                   {underLogged ? 'Under-logged' : overLogged ? 'Over-logged' : 'Exact ✓'}
                 </span>
@@ -2712,7 +2712,7 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
         if (wins.length === 0) {
           return (
             <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
                 No compliments detected yet — run the ZD backfill to analyse player messages.
               </p>
             </div>
@@ -2721,8 +2721,8 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
         return (
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Agent Wins</p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>Agent Wins</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>
                 Tickets where the player left a genuine compliment — classified by AI from the last player message
               </p>
             </div>
@@ -2733,28 +2733,28 @@ function AgentDrilldown({ rows, tickets, agentName, onBack, onReviewUpdate }: { 
                 display: 'flex', flexDirection: 'column', gap: 6,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{t.ticketNumber}</span>
                   <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                    fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
                     padding: '2px 8px', borderRadius: 100,
-                    background: 'rgba(22,101,52,0.09)', color: '#166534',
+                    background: 'rgba(0,168,176,0.09)', color: '#00787e',
                   }}>Compliment</span>
                   {t.zdSentimentConfidence !== null && (
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
                       {t.zdSentimentConfidence}% confidence
                     </span>
                   )}
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
                     {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
                   </span>
                 </div>
                 {t.zdLastPlayerMessage && (
                   <p style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                    fontFamily: 'var(--font-body)', fontSize: 13, color: '#000',
                     lineHeight: 1.5, fontStyle: 'italic',
                     padding: '8px 12px', borderRadius: 8,
-                    background: 'rgba(22,101,52,0.04)',
-                    borderLeft: '3px solid rgba(22,101,52,0.3)',
+                    background: 'rgba(0,168,176,0.04)',
+                    borderLeft: '3px solid rgba(0,168,176,0.3)',
                   }}>
                     "{extractLastPlayerMessage(t.zdLastPlayerMessage ?? '', t.agentName)}"
                   </p>
@@ -2811,8 +2811,8 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
   if (allTickets.length === 0) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No scored tickets yet</p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>Run the backfill to populate ticket-level data.</p>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 6 }}>No scored tickets yet</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>Run the backfill to populate ticket-level data.</p>
       </div>
     )
   }
@@ -2830,10 +2830,10 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
             { id: 'passing' as const, label: `Passing (${passingTickets.length})` },
           ]).map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
+              fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: subTab === t.id ? 500 : 400,
               padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
               background: subTab === t.id ? '#fff' : 'transparent',
-              color: subTab === t.id ? '#000' : '#58595B',
+              color: subTab === t.id ? '#000' : '#323232',
               boxShadow: subTab === t.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
             }}>{t.label}</button>
           ))}
@@ -2844,10 +2844,10 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
               agentFilter={agentFil} onAgentChange={setAgentFil} />
           )}
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => exportJSONL(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportJSONL(exportRows, 'quality')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer' }}>
               Export JSONL
             </button>
-            <button onClick={() => exportCSV(exportRows, 'quality')} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer' }}>
+            <button onClick={() => exportCSV(exportRows, 'quality')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, padding: '5px 12px', borderRadius: 7, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer' }}>
               Export CSV
             </button>
           </div>
@@ -2857,7 +2857,7 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
       {/* Ticket list */}
       {displayTickets.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '32px 20px', textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>
             No {subTab === 'below' ? 'below-threshold' : 'passing'} tickets for this filter
           </p>
         </div>
@@ -2865,11 +2865,11 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
         <div style={{ background: '#fff', borderRadius: 16, border: subTab === 'below' && belowTickets.length > 0 ? '1.5px solid rgba(229,62,62,0.15)' : '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
           {/* Table header */}
           <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: subTab === 'below' ? 'rgba(229,62,62,0.02)' : 'rgba(0,0,0,0.015)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>
               {subTab === 'below' ? 'Below Threshold' : 'Passing Tickets'}
             </p>
             {subTab === 'below' && belowTickets.length > 0 && (
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>
                 {belowTickets.length} below 3.5
               </span>
             )}
@@ -2886,66 +2886,66 @@ function TicketLevelView({ rows, agentFilter }: { rows: EvalRow[], agentFilter?:
                 <div onClick={() => setExpanded(isExp ? null : ticket.ticketNumber)} style={{
                   display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px',
                   cursor: 'pointer', transition: 'background 0.15s',
-                  background: isExp ? 'rgba(206,164,255,0.04)' : 'transparent',
+                  background: isExp ? 'rgba(0,168,176,0.04)' : 'transparent',
                   borderBottom: isExp ? '1px solid rgba(0,0,0,0.07)' : 'none',
                 }}
                   onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(206,164,255,0.04)' : 'transparent' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isExp ? 'rgba(0,168,176,0.04)' : 'transparent' }}
                 >
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#9B59D0', minWidth: 76 }}>#{ticket.ticketNumber}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ticket.agentName}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', minWidth: 60 }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#00787e', minWidth: 76 }}>#{ticket.ticketNumber}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ticket.agentName}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', minWidth: 60 }}>
                     {ticket.issues.length} response{ticket.issues.length !== 1 ? 's' : ''}
                   </span>
                   {ticket.avgQuality !== null
                     ? <QualityScore score={ticket.avgQuality} small />
-                    : <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.25)' }}>—</span>
+                    : <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.25)' }}>—</span>
                   }
                   {hasP1 && (
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.1)', color: '#e53e3e', flexShrink: 0 }}>P1</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(229,62,62,0.1)', color: '#e53e3e', flexShrink: 0 }}>P1</span>
                   )}
                   {themes.slice(0, 2).map(t => (
-                    <span key={t} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 100, background: 'rgba(155,89,208,0.07)', color: '#9B59D0', border: '1px solid rgba(155,89,208,0.15)', flexShrink: 0 }}>{t}</span>
+                    <span key={t} style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 100, background: 'rgba(0,168,176,0.07)', color: '#00787e', border: '1px solid rgba(0,168,176,0.15)', flexShrink: 0 }}>{t}</span>
                   ))}
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto', flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto', flexShrink: 0 }}>
                     {isExp ? '▲' : '▼'}
                   </span>
                 </div>
 
                 {/* Expanded: full conversation thread */}
                 {isExp && (
-                  <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(206,164,255,0.02)' }}>
+                  <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(0,168,176,0.02)' }}>
                     {ticket.issues.map((issue, idx) => (
                       <div key={issue.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.3)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.3)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                           Turn {idx + 1} {issue.agentName && `· ${issue.agentName}`}
                         </p>
                         {issue.customerInput && (
                           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', minWidth: 52, paddingTop: 2 }}>Player</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', minWidth: 52, paddingTop: 2 }}>Player</span>
                             <div style={{ flex: 1, padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.07)' }}>
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{issue.customerInput}</p>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{issue.customerInput}</p>
                             </div>
                           </div>
                         )}
                         {issue.suggestedResponse && (
                           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0', minWidth: 52, paddingTop: 2 }}>Agent</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#00787e', minWidth: 52, paddingTop: 2 }}>Agent</span>
                             <div style={{ flex: 1 }}>
-                              <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(155,89,208,0.04)', border: '1px solid rgba(155,89,208,0.12)', marginBottom: 6 }}>
-                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{issue.suggestedResponse}</p>
+                              <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,168,176,0.04)', border: '1px solid rgba(0,168,176,0.12)', marginBottom: 6 }}>
+                                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{issue.suggestedResponse}</p>
                               </div>
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                                 {issue.accuracyErrorClass && <AccuracyBadge cls={issue.accuracyErrorClass} small />}
                                 {issue.qualityScore !== null && <QualityScore score={issue.qualityScore} small />}
                                 {issue.qualityFlag && (
-                                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>Flagged</span>
+                                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 100, background: 'rgba(229,62,62,0.09)', color: '#e53e3e' }}>Flagged</span>
                                 )}
                                 {issue.themeTag && (
-                                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, padding: '2px 7px', borderRadius: 100, background: 'rgba(155,89,208,0.07)', color: '#9B59D0', border: '1px solid rgba(155,89,208,0.15)' }}>{issue.themeTag}</span>
+                                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, padding: '2px 7px', borderRadius: 100, background: 'rgba(0,168,176,0.07)', color: '#00787e', border: '1px solid rgba(0,168,176,0.15)' }}>{issue.themeTag}</span>
                                 )}
                                 {issue.accuracyEvidence && issue.accuracyEvidence !== 'None' && (
-                                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#e53e3e' }}>"{issue.accuracyEvidence}"</span>
+                                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#e53e3e' }}>"{issue.accuracyEvidence}"</span>
                                 )}
                               </div>
                             </div>
@@ -3135,9 +3135,9 @@ export default function ReportCard() {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600 }}>Report Card</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600 }}>Report Card</h1>
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading evaluations…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading evaluations…</p>
         </div>
       </div>
     )
@@ -3150,7 +3150,7 @@ export default function ReportCard() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600 }}>Report Card</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600 }}>Report Card</h1>
           <TimeRangeFilter value={range} onChange={setRange} />
         </div>
         <AgentDrilldown rows={agentRows} tickets={agentTickets} agentName={selected} onBack={() => setSelected(null)} onReviewUpdate={handleReviewUpdate} />
@@ -3168,15 +3168,15 @@ export default function ReportCard() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={() => setShowWins(false)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+              fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
               background: 'none', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 8,
               padding: '6px 12px', cursor: 'pointer', transition: 'all 0.15s',
             }}>
               ← Back
             </button>
             <div>
-              <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Player Compliments</h1>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Player Compliments</h1>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 2 }}>
                 {wins.length} genuine compliment{wins.length !== 1 ? 's' : ''} across the team in this period
               </p>
             </div>
@@ -3186,7 +3186,7 @@ export default function ReportCard() {
 
         {wins.length === 0 ? (
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 60, textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
               No compliments detected in this period. Run the ZD backfill to analyse player messages.
             </p>
           </div>
@@ -3199,29 +3199,29 @@ export default function ReportCard() {
                 display: 'flex', flexDirection: 'column', gap: 8,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{t.agentName}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{t.agentName}</span>
                   <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                    fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
                     padding: '2px 8px', borderRadius: 100,
-                    background: 'rgba(22,101,52,0.09)', color: '#166534',
+                    background: 'rgba(0,168,176,0.09)', color: '#00787e',
                   }}>Compliment</span>
                   {t.zdSentimentConfidence !== null && (
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>
                       {t.zdSentimentConfidence}% confidence
                     </span>
                   )}
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
                     {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
                   </span>
                 </div>
                 {t.zdLastPlayerMessage && (
                   <p style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                    fontFamily: 'var(--font-body)', fontSize: 13, color: '#000',
                     lineHeight: 1.55, fontStyle: 'italic',
                     padding: '10px 14px', borderRadius: 8,
-                    background: 'rgba(22,101,52,0.04)',
-                    borderLeft: '3px solid rgba(22,101,52,0.25)',
+                    background: 'rgba(0,168,176,0.04)',
+                    borderLeft: '3px solid rgba(0,168,176,0.25)',
                     margin: 0,
                   }}>
                     "{extractLastPlayerMessage(t.zdLastPlayerMessage ?? '', t.agentName)}"
@@ -3240,8 +3240,8 @@ export default function ReportCard() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Report Card</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Report Card</h1>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 2 }}>
             AI evaluation of agent performance{operator?.name ? ` · ${operator.name}` : ''} — click an agent to drill down
           </p>
         </div>
@@ -3251,14 +3251,14 @@ export default function ReportCard() {
             title="Show only evals scored under the current prompt version. Turn off to include legacy/older-version scores."
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 7,
-              fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
               padding: '6px 12px', borderRadius: 100, cursor: 'pointer',
-              border: `1.5px solid ${latestOnly ? 'rgba(155,89,208,0.4)' : 'rgba(0,0,0,0.12)'}`,
-              background: latestOnly ? 'rgba(155,89,208,0.08)' : '#fff',
-              color: latestOnly ? '#9B59D0' : '#58595B', transition: 'all 0.15s',
+              border: `1.5px solid ${latestOnly ? 'rgba(0,168,176,0.4)' : 'rgba(0,0,0,0.12)'}`,
+              background: latestOnly ? 'rgba(0,168,176,0.08)' : '#fff',
+              color: latestOnly ? '#00a8b0' : '#323232', transition: 'all 0.15s',
             }}
           >
-            <span style={{ width: 7, height: 7, borderRadius: 100, background: latestOnly ? '#9B59D0' : 'rgba(0,0,0,0.25)' }} />
+            <span style={{ width: 7, height: 7, borderRadius: 100, background: latestOnly ? '#00a8b0' : 'rgba(0,0,0,0.25)' }} />
             {latestOnly ? 'Latest evals only' : 'All versions'}
           </button>
           <TimeRangeFilter value={range} onChange={setRange} />
@@ -3274,11 +3274,11 @@ export default function ReportCard() {
           { id: 'quality'   as TopTab, label: 'Response Quality'  },
         ]).map(t => (
           <button key={t.id} onClick={() => setTopTab(t.id)} style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13,
+            fontFamily: 'var(--font-body)', fontSize: 13,
             fontWeight: topTab === t.id ? 500 : 400,
             padding: '7px 16px', borderRadius: 9,
             background: topTab === t.id ? '#000' : 'transparent',
-            color: topTab === t.id ? '#fff' : '#58595B',
+            color: topTab === t.id ? '#fff' : '#323232',
             border: 'none', cursor: 'pointer', transition: 'all 0.15s',
           }}>
             {t.label}
@@ -3329,11 +3329,11 @@ export default function ReportCard() {
         const priorPrefPct  = priorTotal ? pct(priorPreference,  priorTotal) : null
         const priorAgentErrPct = priorTotal ? pct(priorAgentError, priorTotal) : null
 
-        const qualScoreColor = (s: number | null) => s === null ? '#aaa' : s >= 4 ? '#166534' : s >= 3.5 ? '#854d0e' : '#e53e3e'
+        const qualScoreColor = (s: number | null) => s === null ? 'rgba(0,0,0,0.35)' : s >= 4 ? '#00787e' : s >= 3.5 ? '#854d0e' : '#e53e3e'
 
         const SectionHeader = ({ label }: { label: string }) => (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{label}</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>{label}</p>
             <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.07)' }} />
           </div>
         )
@@ -3346,20 +3346,20 @@ export default function ReportCard() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {/* Avg resolution time */}
               <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Avg Resolution Time</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: '#000' }}>{fmtMinutes(avgResolutionMins)}</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Avg Resolution Time</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, lineHeight: 1, color: '#000' }}>{fmtMinutes(avgResolutionMins)}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>
                   {ticketsWithRes.length ? `across ${ticketsWithRes.length} resolved tickets` : 'Run ZD backfill to populate'}
                 </p>
                 {range !== 'allTime' && avgResolutionMins !== null && <TrendPip curr={avgResolutionMins} prev={priorAvgResolutionMins} isPositiveGood={false} fmt={n => fmtMinutes(n)} />}
               </div>
               {/* FCR rate */}
               <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>FCR Rate</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: teamFcrPct === null ? '#aaa' : teamFcrPct >= 80 ? '#166534' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>FCR Rate</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, lineHeight: 1, color: teamFcrPct === null ? 'rgba(0,0,0,0.35)' : teamFcrPct >= 80 ? '#00787e' : teamFcrPct >= 60 ? '#854d0e' : '#e53e3e' }}>
                   {teamFcrPct !== null ? `${teamFcrPct}%` : '—'}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>First contact resolution — no reopens</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>First contact resolution — no reopens</p>
                 {range !== 'allTime' && teamFcrPct !== null && <TrendPip curr={teamFcrPct} prev={priorFcrPct} isPositiveGood fmt={n => `${n}pp`} />}
               </div>
               {/* Player compliments — clickable */}
@@ -3367,17 +3367,17 @@ export default function ReportCard() {
                 onClick={() => teamCompliments > 0 && setShowWins(true)}
                 style={{
                   background: '#fff', borderRadius: 14, padding: '16px 18px',
-                  border: teamCompliments > 0 ? '1.5px solid rgba(22,101,52,0.25)' : '1.5px solid rgba(0,0,0,0.09)',
+                  border: teamCompliments > 0 ? '1.5px solid rgba(0,168,176,0.25)' : '1.5px solid rgba(0,0,0,0.09)',
                   cursor: teamCompliments > 0 ? 'pointer' : 'default', transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (teamCompliments > 0) e.currentTarget.style.background = 'rgba(22,101,52,0.03)' }}
+                onMouseEnter={e => { if (teamCompliments > 0) e.currentTarget.style.background = 'rgba(0,168,176,0.03)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
               >
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Player Compliments</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Player Compliments</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, lineHeight: 1, color: teamCompliments > 0 ? '#00787e' : 'rgba(0,0,0,0.25)' }}>
                   {teamCompliments > 0 ? `+${teamCompliments}` : '—'}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: teamCompliments > 0 ? '#166534' : 'rgba(0,0,0,0.3)', marginTop: 4 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: teamCompliments > 0 ? '#00787e' : 'rgba(0,0,0,0.3)', marginTop: 4 }}>
                   {teamCompliments > 0 ? 'Click to view all →' : 'Genuine positive feedback detected'}
                 </p>
                 {range !== 'allTime' && <TrendPip curr={teamCompliments} prev={priorCompliments} isPositiveGood fmt={n => `${n}`} />}
@@ -3390,13 +3390,13 @@ export default function ReportCard() {
               {[
                 { label: 'Corrections',  value: `${corrPct}%`,    color: '#e53e3e',  note: 'Response needed rewriting',    curr: corrPct,    prev: priorCorrPct,     good: false, tip: VERDICT_CONFIG.CORRECTION.desc  },
                 { label: 'Enhancements', value: `${enhPct}%`,     color: '#854d0e',  note: 'Response improved upon',       curr: enhPct,     prev: priorEnhPct,      good: true,  tip: VERDICT_CONFIG.ENHANCEMENT.desc },
-                { label: 'Preferences',  value: `${prefPct}%`,    color: '#58595B',  note: 'Agent chose own wording',      curr: prefPct,    prev: priorPrefPct,     good: false, tip: VERDICT_CONFIG.PREFERENCE.desc  },
-                { label: 'Agent Errors', value: `${agentErrPct}%`, color: '#9B59D0', note: 'Agent edit was wrong',         curr: agentErrPct, prev: priorAgentErrPct, good: false, tip: VERDICT_CONFIG.AGENT_ERROR.desc },
+                { label: 'Preferences',  value: `${prefPct}%`,    color: '#323232',  note: 'Agent chose own wording',      curr: prefPct,    prev: priorPrefPct,     good: false, tip: VERDICT_CONFIG.PREFERENCE.desc  },
+                { label: 'Agent Errors', value: `${agentErrPct}%`, color: '#00a8b0', note: 'Agent edit was wrong',         curr: agentErrPct, prev: priorAgentErrPct, good: false, tip: VERDICT_CONFIG.AGENT_ERROR.desc },
               ].map(k => (
                 <div key={k.label} style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8, display: 'flex', alignItems: 'center' }}>{k.label}<InfoTip text={k.tip} /></p>
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, color: k.color, lineHeight: 1 }}>{k.value}</p>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>{k.note}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8, display: 'flex', alignItems: 'center' }}>{k.label}<InfoTip text={k.tip} /></p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: k.color, lineHeight: 1 }}>{k.value}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>{k.note}</p>
                   {range !== 'allTime' && <TrendPip curr={k.curr} prev={k.prev} isPositiveGood={k.good} fmt={n => `${n}pp`} />}
                 </div>
               ))}
@@ -3406,19 +3406,19 @@ export default function ReportCard() {
             <SectionHeader label="Response Accuracy" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Error Rate</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: accErrorRate > 10 ? '#e53e3e' : accErrorRate > 5 ? '#854d0e' : '#166534' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Error Rate</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, lineHeight: 1, color: accErrorRate > 10 ? '#e53e3e' : accErrorRate > 5 ? '#854d0e' : '#00787e' }}>
                   {accTotal ? `${accErrorRate}%` : '—'}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>P1A + P1B + P2 errors</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>P1A + P1B + P2 errors</p>
                 {range !== 'allTime' && <TrendPip curr={accErrorRate} prev={priorAccErrorRate} isPositiveGood={false} fmt={n => `${n}pp`} />}
               </div>
               <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Error Ratio</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: accErrorRate > 10 ? '#e53e3e' : accErrorRate > 5 ? '#854d0e' : '#166534' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Error Ratio</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, lineHeight: 1, color: accErrorRate > 10 ? '#e53e3e' : accErrorRate > 5 ? '#854d0e' : '#00787e' }}>
                   {accTotal && accRatioDenom !== null ? `1:${accRatioDenom}` : accTotal && accErrorRate === 0 ? 'None' : '—'}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>
                   {accRatioDenom !== null ? `1 error per ${accRatioDenom} responses` : accErrorRate === 0 ? 'No errors this period' : 'No data yet'}
                 </p>
               </div>
@@ -3428,19 +3428,19 @@ export default function ReportCard() {
             <SectionHeader label="Response Quality" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Avg Quality Score</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: qualScoreColor(qualAvgScore) }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Avg Quality Score</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, lineHeight: 1, color: qualScoreColor(qualAvgScore) }}>
                   {qualAvgScore !== null ? qualAvgScore.toFixed(2) : '—'}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>target ≥ 3.50 · out of 5</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>target ≥ 3.50 · out of 5</p>
                 {range !== 'allTime' && qualAvgScore !== null && <TrendPip curr={qualAvgScore} prev={priorQualAvgScore} isPositiveGood fmt={n => `${n.toFixed(2)}`} />}
               </div>
               <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Passing Score Rate</p>
-                <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 26, fontWeight: 600, lineHeight: 1, color: '#166534' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Passing Score Rate</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, lineHeight: 1, color: '#00787e' }}>
                   {qualAbovePct !== null ? `${qualAbovePct}%` : '—'}
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>{qualAboveBar} / {qualTotal} responses ≥ 3.5</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>{qualAboveBar} / {qualTotal} responses ≥ 3.5</p>
                 {range !== 'allTime' && <TrendPip curr={qualAbovePct ?? 0} prev={priorQualAbovePct} isPositiveGood fmt={n => `${n}pp`} />}
               </div>
             </div>
@@ -3462,21 +3462,21 @@ export default function ReportCard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {/* Evals run — split card with "added today" secondary metric */}
         <div style={{ background: '#fff', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.09)', padding: '16px 18px' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Evals run</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Evals run</p>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 0 }}>
             {/* Primary: total */}
             <div style={{ flex: 1 }}>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: '#9B59D0', lineHeight: 1 }}>{teamTotal}</p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>in period</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: '#00a8b0', lineHeight: 1 }}>{teamTotal}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>in period</p>
             </div>
             {/* Divider */}
             <div style={{ width: 1, height: 36, background: 'rgba(0,0,0,0.08)', margin: '0 14px', flexShrink: 0 }} />
             {/* Secondary: today */}
             <div style={{ flexShrink: 0 }}>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: addedToday > 0 ? '#9B59D0' : 'rgba(0,0,0,0.2)', lineHeight: 1 }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: addedToday > 0 ? '#00a8b0' : 'rgba(0,0,0,0.2)', lineHeight: 1 }}>
                 {addedToday > 0 ? `+${addedToday}` : '—'}
               </p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>today</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginTop: 4 }}>today</p>
             </div>
           </div>
           {range !== 'allTime' && (
@@ -3489,8 +3489,8 @@ export default function ReportCard() {
         {[
           { label: 'Corrections',  currPct: pct(teamCorrection, teamTotal),  priorPct: pct(priorCorrection, priorTotal),  isPositiveGood: false, color: '#e53e3e', note: 'gameLM had an error',  verdict: 'CORRECTION'  as Verdict },
           { label: 'Enhancements', currPct: pct(teamEnhancement, teamTotal), priorPct: pct(priorEnhancement, priorTotal), isPositiveGood: true,  color: '#854d0e', note: 'Agent added value',    verdict: 'ENHANCEMENT' as Verdict },
-          { label: 'Preferences',  currPct: pct(teamPreference, teamTotal),  priorPct: pct(priorPreference, priorTotal),  isPositiveGood: false, color: '#58595B', note: 'Stylistic only',       verdict: 'PREFERENCE'  as Verdict },
-          { label: 'Agent Errors', currPct: pct(teamAgentError, teamTotal),  priorPct: pct(priorAgentError, priorTotal),  isPositiveGood: false, color: '#9B59D0', note: 'Agent edit was wrong',  verdict: 'AGENT_ERROR' as Verdict },
+          { label: 'Preferences',  currPct: pct(teamPreference, teamTotal),  priorPct: pct(priorPreference, priorTotal),  isPositiveGood: false, color: '#323232', note: 'Stylistic only',       verdict: 'PREFERENCE'  as Verdict },
+          { label: 'Agent Errors', currPct: pct(teamAgentError, teamTotal),  priorPct: pct(priorAgentError, priorTotal),  isPositiveGood: false, color: '#00a8b0', note: 'Agent edit was wrong',  verdict: 'AGENT_ERROR' as Verdict },
         ].map(k => (
           <div
             key={k.label}
@@ -3509,19 +3509,19 @@ export default function ReportCard() {
               e.currentTarget.style.boxShadow = 'none'
             }}
           >
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6, display: 'flex', alignItems: 'center' }}>
               {k.label}
               <span onClick={e => e.stopPropagation()} style={{ display: 'inline-flex' }}><InfoTip text={VERDICT_CONFIG[k.verdict].desc} /></span>
             </p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: k.color }}>{k.currPct}%</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: k.color }}>{k.currPct}%</p>
             {range !== 'allTime' && (
               <div style={{ marginBottom: 4 }}>
                 <TrendPip curr={k.currPct} prev={k.priorPct} isPositiveGood={k.isPositiveGood} fmt={n => `${n}pp`} />
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{k.note}</p>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: k.color, opacity: 0.6 }}>View themes →</span>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{k.note}</p>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: k.color, opacity: 0.6 }}>View themes →</span>
             </div>
           </div>
         ))}
@@ -3535,10 +3535,10 @@ export default function ReportCard() {
             { id: 'tickets' as const, label: 'Ticket View' },
           ]).map(t => (
             <button key={t.id} onClick={() => setEvalsViewMode(t.id)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: evalsViewMode === t.id ? 500 : 400,
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: evalsViewMode === t.id ? 500 : 400,
               padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.15s',
               background: evalsViewMode === t.id ? '#000' : 'transparent',
-              color: evalsViewMode === t.id ? '#fff' : '#58595B',
+              color: evalsViewMode === t.id ? '#fff' : '#323232',
               boxShadow: evalsViewMode === t.id ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
             }}>{t.label}</button>
           ))}
@@ -3552,17 +3552,17 @@ export default function ReportCard() {
       {evalsViewMode === 'agents' && (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000' }}>Agent Breakdown</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000' }}>Agent Breakdown</p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => exportEditEvalCSV(rows, 'edit_evals_all.csv')}
-              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = '#CEA4FF'}
+              style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#00a8b0'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'}
             >Export CSV</button>
             <button
               onClick={() => exportEditEvalJSONL(rows, 'edit_evals_all.jsonl')}
-              style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s' }}
+              style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', transition: 'opacity 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
               onMouseLeave={e => e.currentTarget.style.opacity = '1'}
             >Export JSONL</button>
@@ -3570,7 +3570,7 @@ export default function ReportCard() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 70px 105px 115px 105px 105px 95px', padding: '9px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.01)' }}>
           {['Agent', 'Evals', 'Corrections', 'Enhancements', 'Preferences', 'Agent Errors', 'Avg confidence'].map(h => (
-            <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
           ))}
         </div>
         {agentSummaries.map((a, i) => (
@@ -3587,40 +3587,40 @@ export default function ReportCard() {
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
             <div>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 1 }}>{a.email}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.name}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 1 }}>{a.email}</p>
             </div>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.total}</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{a.total}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: 1, maxWidth: 48, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                 <div style={{ width: `${a.correctionPct}%`, height: '100%', borderRadius: 100, background: '#e53e3e' }} />
               </div>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', fontWeight: 500 }}>{a.correctionPct}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e', fontWeight: 500 }}>{a.correctionPct}%</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: 1, maxWidth: 48, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                 <div style={{ width: `${a.enhancementPct}%`, height: '100%', borderRadius: 100, background: '#854d0e' }} />
               </div>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#854d0e' }}>{a.enhancementPct}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#854d0e' }}>{a.enhancementPct}%</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: 1, maxWidth: 48, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
                 <div style={{ width: `${a.preferencePct}%`, height: '100%', borderRadius: 100, background: 'rgba(0,0,0,0.25)' }} />
               </div>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{a.preferencePct}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{a.preferencePct}%</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: 1, maxWidth: 48, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.07)' }}>
-                <div style={{ width: `${a.agentErrorPct}%`, height: '100%', borderRadius: 100, background: '#9B59D0' }} />
+                <div style={{ width: `${a.agentErrorPct}%`, height: '100%', borderRadius: 100, background: '#00a8b0' }} />
               </div>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: a.agentErrorPct > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)', fontWeight: 500 }}>{a.agentErrorPct}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: a.agentErrorPct > 0 ? '#00a8b0' : 'rgba(0,0,0,0.3)', fontWeight: 500 }}>{a.agentErrorPct}%</span>
             </div>
             <ConfidencePip value={a.avgConf} />
           </div>
         ))}
         {agentSummaries.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
               No evaluations found for this period. Run the backfill script to populate.
             </p>
           </div>

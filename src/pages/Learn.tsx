@@ -42,9 +42,9 @@ interface KBArticle {
 type View = 'list' | 'create' | 'edit' | 'read'
 
 const CATEGORY_COLORS: Record<string, { bg: string; color: string }> = {
-  General:   { bg: 'rgba(8,145,178,0.1)',   color: '#0e7490' },
-  Processes: { bg: 'rgba(206,164,255,0.18)', color: '#6b21a8' },
-  SOPs:      { bg: 'rgba(22,101,52,0.1)',   color: '#166534' },
+  General:   { bg: 'rgba(8,145,178,0.1)',   color: '#5078ff' },
+  Processes: { bg: 'rgba(0,168,176,0.14)', color: '#00787e' },
+  SOPs:      { bg: 'rgba(0,168,176,0.1)',   color: '#00787e' },
   Zendesk:   { bg: 'rgba(243,156,18,0.12)', color: '#b45309' },
 }
 
@@ -58,7 +58,7 @@ const ACCEPTED_TYPES = [
 ].join(',')
 
 function catStyle(cat: string): { bg: string; color: string } {
-  return CATEGORY_COLORS[cat] ?? { bg: 'rgba(0,0,0,0.07)', color: '#58595B' }
+  return CATEGORY_COLORS[cat] ?? { bg: 'rgba(0,0,0,0.07)', color: '#323232' }
 }
 
 function fileTypeLabel(fileType: string | null): string | null {
@@ -84,22 +84,22 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '9px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s', background: '#fff', width: '100%',
-  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
 }
 
 const labelStyle: React.CSSProperties = {
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', display: 'block', marginBottom: 6,
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', display: 'block', marginBottom: 6,
 }
 
 const primaryBtn: React.CSSProperties = {
   background: '#000', color: '#fff',
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
   padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', transition: 'opacity 0.15s',
 }
 
 const secondaryBtn: React.CSSProperties = {
-  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
   padding: '9px 18px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
 }
 
@@ -306,23 +306,23 @@ export default function Learn() {
             <button onClick={() => { setView('list'); setReadTarget(null) }} style={{ ...secondaryBtn, marginBottom: 12 }}>
               ← Back to Learn
             </button>
-            <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
               {readTarget.title}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
               <span style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
                 padding: '3px 9px', borderRadius: 100,
                 background: catStyle(readTarget.category).bg, color: catStyle(readTarget.category).color,
               }}>{readTarget.category}</span>
               {ftLabel && (
                 <span style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+                  fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
                   padding: '3px 9px', borderRadius: 100,
-                  background: 'rgba(0,0,0,0.06)', color: '#58595B',
+                  background: 'rgba(0,0,0,0.06)', color: '#323232',
                 }}>{ftLabel}</span>
               )}
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
                 Updated {new Date(readTarget.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </span>
             </div>
@@ -370,7 +370,7 @@ export default function Learn() {
 
         {!hasEmbed && !readTarget.content && (
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-            <em style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#aaa' }}>No content yet.</em>
+            <em style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No content yet.</em>
           </div>
         )}
       </div>
@@ -383,10 +383,10 @@ export default function Learn() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
               {view === 'edit' ? 'Edit article' : 'New article'}
             </h1>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
               SOPs, guides, and resources for the team
             </p>
           </div>
@@ -402,7 +402,7 @@ export default function Learn() {
                 onChange={e => setFormTitle(e.target.value)}
                 placeholder="e.g. How to Handle Chargebacks"
                 style={inputStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               />
             </div>
@@ -412,7 +412,7 @@ export default function Learn() {
                 value={formCat}
                 onChange={e => setFormCat(e.target.value)}
                 style={inputStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                 onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
               >
                 {CATEGORIES.map(c => <option key={c}>{c}</option>)}
@@ -430,8 +430,8 @@ export default function Learn() {
             >
               <span style={{
                 width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                border: formGlobal ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
-                background: formGlobal ? '#9B59D0' : '#fff',
+                border: formGlobal ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.25)',
+                background: formGlobal ? '#00a8b0' : '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
               }}>
                 {formGlobal && (
@@ -440,11 +440,11 @@ export default function Learn() {
                   </svg>
                 )}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>
                 Global doc — visible to all clients
               </span>
             </button>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 6 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 6 }}>
               {formGlobal
                 ? 'This article will appear in Learn for every client.'
                 : `Scoped to ${selectedOperator?.name ?? 'the selected client'} only.`}
@@ -461,8 +461,8 @@ export default function Learn() {
             >
               <span style={{
                 width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                border: formIncludeInAsk ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)',
-                background: formIncludeInAsk ? '#9B59D0' : '#fff',
+                border: formIncludeInAsk ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.25)',
+                background: formIncludeInAsk ? '#00a8b0' : '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
               }}>
                 {formIncludeInAsk && (
@@ -471,11 +471,11 @@ export default function Learn() {
                   </svg>
                 )}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>
                 Include in Ask
               </span>
             </button>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 6 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 6 }}>
               On for real KB content (SOPs, house rules, process docs) that should ground Ask answers. Turn off for
               QA/agent training or testing material — it'll still live in Learn, just excluded from Ask.
             </p>
@@ -484,26 +484,26 @@ export default function Learn() {
           {/* File upload */}
           <div>
             <label style={labelStyle}>
-              Document <span style={{ fontWeight: 400, color: '#aaa' }}>(PDF, DOCX, XLSX, PPTX — optional)</span>
+              Document <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)' }}>(PDF, DOCX, XLSX, PPTX — optional)</span>
             </label>
 
             {formFileUrl ? (
               /* Uploaded file pill */
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                border: '1.5px solid rgba(22,101,52,0.3)', borderRadius: 10,
-                padding: '10px 14px', background: 'rgba(22,101,52,0.04)',
+                border: '1.5px solid rgba(0,168,176,0.3)', borderRadius: 10,
+                padding: '10px 14px', background: 'rgba(0,168,176,0.04)',
               }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00787e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                   <polyline points="14 2 14 8 20 8"/>
                 </svg>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {formFileName || 'Uploaded file'}
                 </span>
                 <button
                   onClick={clearFile}
-                  style={{ color: '#aaa', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
+                  style={{ color: 'rgba(0,0,0,0.35)', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
                   title="Remove file"
                 >×</button>
                 <button
@@ -518,32 +518,32 @@ export default function Learn() {
               <div
                 onClick={() => fileInputRef.current?.click()}
                 style={{
-                  border: '1.5px dashed rgba(206,164,255,0.6)', borderRadius: 10,
-                  padding: '28px 20px', background: 'rgba(206,164,255,0.04)',
+                  border: '1.5px dashed rgba(0,168,176,0.6)', borderRadius: 10,
+                  padding: '28px 20px', background: 'rgba(0,168,176,0.04)',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
                   cursor: uploading ? 'default' : 'pointer', transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { if (!uploading) e.currentTarget.style.background = 'rgba(206,164,255,0.09)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(206,164,255,0.04)' }}
+                onMouseEnter={e => { if (!uploading) e.currentTarget.style.background = 'rgba(0,168,176,0.09)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,168,176,0.04)' }}
               >
                 {uploading ? (
                   <>
                     <div style={{ width: '100%', maxWidth: 220, height: 4, borderRadius: 100, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                      <div style={{ width: `${uploadPct}%`, height: '100%', background: '#9B59D0', borderRadius: 100, transition: 'width 0.3s' }} />
+                      <div style={{ width: `${uploadPct}%`, height: '100%', background: '#00a8b0', borderRadius: 100, transition: 'width 0.3s' }} />
                     </div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', margin: 0 }}>Uploading…</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', margin: 0 }}>Uploading…</p>
                   </>
                 ) : (
                   <>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#CEA4FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00a8b0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="16 16 12 12 8 16"/>
                       <line x1="12" y1="12" x2="12" y2="21"/>
                       <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
                     </svg>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', margin: 0 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', margin: 0 }}>
                       Click to upload a file
                     </p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', margin: 0 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', margin: 0 }}>
                       PDF, DOCX, XLSX, PPTX
                     </p>
                   </>
@@ -552,7 +552,7 @@ export default function Learn() {
             )}
 
             {uploadError && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 6 }}>{uploadError}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 6 }}>{uploadError}</p>
             )}
 
             <input
@@ -565,14 +565,14 @@ export default function Learn() {
           </div>
 
           <div>
-            <label style={labelStyle}>Article content <span style={{ fontWeight: 400, color: '#aaa' }}>(optional if file uploaded)</span></label>
+            <label style={labelStyle}>Article content <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)' }}>(optional if file uploaded)</span></label>
             <textarea
               value={formBody}
               onChange={e => setFormBody(e.target.value)}
               placeholder="Write your article here…"
               rows={10}
               style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7, minHeight: 200 }}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
             />
           </div>
@@ -605,8 +605,8 @@ export default function Learn() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
               SOPs, guides, and resources for the team
             </p>
           </div>
@@ -623,8 +623,8 @@ export default function Learn() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
-            <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
               SOPs, guides, and resources for the team
             </p>
           </div>
@@ -645,8 +645,8 @@ export default function Learn() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Learn</h1>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
             SOPs, guides, and resources for the team
           </p>
         </div>
@@ -662,25 +662,25 @@ export default function Learn() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: 260 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-            <circle cx="11" cy="11" r="8" stroke="#aaa" strokeWidth="1.7"/>
-            <path d="M21 21l-4.35-4.35" stroke="#aaa" strokeWidth="1.7" strokeLinecap="round"/>
+            <circle cx="11" cy="11" r="8" stroke="rgba(0,0,0,0.35)" strokeWidth="1.7"/>
+            <path d="M21 21l-4.35-4.35" stroke="rgba(0,0,0,0.35)" strokeWidth="1.7" strokeLinecap="round"/>
           </svg>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search articles…"
             style={{ ...inputStyle, paddingLeft: 32 }}
-            onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+            onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
             onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
           />
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {categories.map(f => (
             <button key={f} onClick={() => setFilter(f)} style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
               padding: '7px 14px', borderRadius: 100, cursor: 'pointer',
               background: filter === f ? '#000' : '#fff',
-              color: filter === f ? '#fff' : '#58595B',
+              color: filter === f ? '#fff' : '#323232',
               border: filter === f ? '1.5px solid #000' : '1.5px solid rgba(0,0,0,0.12)',
               transition: 'all 0.15s',
             }}>
@@ -692,16 +692,16 @@ export default function Learn() {
 
       {loading ? (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
         </div>
       ) : filtered.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No articles found</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No articles found</p>
         </div>
       ) : (
         groupedCats.map(cat => (
           <div key={cat}>
-            <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 12 }}>{cat}</h2>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 12 }}>{cat}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
               {filtered.filter(a => a.category === cat).map(article => (
                 <ArticleCard
@@ -730,10 +730,10 @@ function SubNavTabs({ subView, setSubView }: { subView: SubView; setSubView: (v:
           key={tab}
           onClick={() => setSubView(tab)}
           style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
             padding: '7px 18px', borderRadius: 9, border: 'none', cursor: 'pointer',
             background: subView === tab ? '#fff' : 'transparent',
-            color: subView === tab ? '#000' : '#58595B',
+            color: subView === tab ? '#000' : '#323232',
             boxShadow: subView === tab ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
             transition: 'all 0.15s',
           }}
@@ -757,7 +757,7 @@ function renderInline(text: string, kp: string): React.ReactNode[] {
     if (m.index > last) out.push(text.slice(last, m.index))
     const t = m[0]
     if (t.startsWith('**')) out.push(<strong key={`${kp}b${i}`} style={{ fontWeight: 700 }}>{t.slice(2, -2)}</strong>)
-    else out.push(<code key={`${kp}c${i}`} style={{ fontFamily: 'monospace', fontSize: '0.92em', background: 'rgba(0,0,0,0.05)', padding: '1px 5px', borderRadius: 4 }}>{t.slice(1, -1)}</code>)
+    else out.push(<code key={`${kp}c${i}`} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.92em', background: 'rgba(0,0,0,0.05)', padding: '1px 5px', borderRadius: 4 }}>{t.slice(1, -1)}</code>)
     last = m.index + t.length; i++
   }
   if (last < text.length) out.push(text.slice(last))
@@ -782,7 +782,7 @@ function MarkdownView({ text }: { text: string }) {
     if (h) {
       const lvl = h[1].length
       const size = lvl === 1 ? 22 : lvl === 2 ? 17 : 14
-      blocks.push(<div key={key++} style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 600, color: '#000', fontSize: size, margin: lvl === 1 ? '4px 0 12px' : '22px 0 8px' }}>{renderInline(h[2], `h${key}`)}</div>)
+      blocks.push(<div key={key++} style={{ fontFamily: 'var(--font-display)', fontWeight: 600, color: '#000', fontSize: size, margin: lvl === 1 ? '4px 0 12px' : '22px 0 8px' }}>{renderInline(h[2], `h${key}`)}</div>)
       i++; continue
     }
     if (/^\s*(---+|===+)\s*$/.test(line)) { blocks.push(<hr key={key++} style={{ border: 'none', borderTop: '1.5px solid rgba(0,0,0,0.1)', margin: '18px 0' }} />); i++; continue }
@@ -793,8 +793,8 @@ function MarkdownView({ text }: { text: string }) {
       const rows: string[][] = []
       while (i < lines.length && isRow(lines[i])) { rows.push(lines[i].split('|').slice(1, -1).map(s => s.trim())); i++ }
       blocks.push(
-        <table key={key++} style={{ borderCollapse: 'collapse', width: '100%', margin: '12px 0', fontFamily: 'Inter, sans-serif', fontSize: 13 }}>
-          <thead><tr>{header.map((c, ci) => <th key={ci} style={{ textAlign: 'left', padding: '8px 12px', borderBottom: '2px solid rgba(0,0,0,0.12)', color: '#58595B', fontWeight: 600 }}>{renderInline(c, `th${key}_${ci}`)}</th>)}</tr></thead>
+        <table key={key++} style={{ borderCollapse: 'collapse', width: '100%', margin: '12px 0', fontFamily: 'var(--font-body)', fontSize: 13 }}>
+          <thead><tr>{header.map((c, ci) => <th key={ci} style={{ textAlign: 'left', padding: '8px 12px', borderBottom: '2px solid rgba(0,0,0,0.12)', color: '#323232', fontWeight: 600 }}>{renderInline(c, `th${key}_${ci}`)}</th>)}</tr></thead>
           <tbody>{rows.map((r, ri) => <tr key={ri}>{r.map((c, ci) => <td key={ci} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(0,0,0,0.07)', color: '#000', verticalAlign: 'top' }}>{renderInline(c, `td${key}_${ri}_${ci}`)}</td>)}</tr>)}</tbody>
         </table>
       )
@@ -804,25 +804,25 @@ function MarkdownView({ text }: { text: string }) {
     if (/^\s*[-*]\s+/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*[-*]\s+/, '')); i++ }
-      blocks.push(<ul key={key++} style={{ margin: '8px 0', paddingLeft: 22, fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((it, ii) => <li key={ii} style={{ marginBottom: 4 }}>{renderInline(it, `ul${key}_${ii}`)}</li>)}</ul>)
+      blocks.push(<ul key={key++} style={{ margin: '8px 0', paddingLeft: 22, fontFamily: 'var(--font-body)', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((it, ii) => <li key={ii} style={{ marginBottom: 4 }}>{renderInline(it, `ul${key}_${ii}`)}</li>)}</ul>)
       continue
     }
     if (/^\s*\d+\.\s+/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*\d+\.\s+/, '')); i++ }
-      blocks.push(<ol key={key++} style={{ margin: '8px 0', paddingLeft: 22, fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((it, ii) => <li key={ii} style={{ marginBottom: 4 }}>{renderInline(it, `ol${key}_${ii}`)}</li>)}</ol>)
+      blocks.push(<ol key={key++} style={{ margin: '8px 0', paddingLeft: 22, fontFamily: 'var(--font-body)', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((it, ii) => <li key={ii} style={{ marginBottom: 4 }}>{renderInline(it, `ol${key}_${ii}`)}</li>)}</ol>)
       continue
     }
     if (/^\s*>\s?/.test(line)) {
       const items: string[] = []
       while (i < lines.length && /^\s*>\s?/.test(lines[i])) { items.push(lines[i].replace(/^\s*>\s?/, '')); i++ }
-      blocks.push(<blockquote key={key++} style={{ margin: '12px 0', padding: '12px 16px', borderLeft: '3px solid #9B59D0', background: 'rgba(155,89,208,0.06)', borderRadius: '0 8px 8px 0', fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((l, li) => <span key={li}>{renderInline(l, `bq${key}_${li}`)}{li < items.length - 1 ? <br /> : null}</span>)}</blockquote>)
+      blocks.push(<blockquote key={key++} style={{ margin: '12px 0', padding: '12px 16px', borderLeft: '3px solid #00a8b0', background: 'rgba(0,168,176,0.06)', borderRadius: '0 8px 8px 0', fontFamily: 'var(--font-body)', fontSize: 14, color: '#000', lineHeight: 1.7 }}>{items.map((l, li) => <span key={li}>{renderInline(l, `bq${key}_${li}`)}{li < items.length - 1 ? <br /> : null}</span>)}</blockquote>)
       continue
     }
 
     const para: string[] = []
     while (i < lines.length && !isSpecial(lines[i])) { para.push(lines[i]); i++ }
-    blocks.push(<p key={key++} style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#000', lineHeight: 1.8, margin: '0 0 12px' }}>{para.map((l, li) => <span key={li}>{renderInline(l, `p${key}_${li}`)}{li < para.length - 1 ? <br /> : null}</span>)}</p>)
+    blocks.push(<p key={key++} style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#000', lineHeight: 1.8, margin: '0 0 12px' }}>{para.map((l, li) => <span key={li}>{renderInline(l, `p${key}_${li}`)}{li < para.length - 1 ? <br /> : null}</span>)}</p>)
   }
   return <>{blocks}</>
 }
@@ -848,8 +848,8 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
         cursor: 'pointer', position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.borderColor = 'rgba(206,164,255,0.5)'
-        e.currentTarget.style.boxShadow = '0 4px 16px rgba(206,164,255,0.12)'
+        e.currentTarget.style.borderColor = 'rgba(0,168,176,0.5)'
+        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,168,176,0.12)'
       }}
       onMouseLeave={e => {
         e.currentTarget.style.borderColor = 'rgba(0,0,0,0.09)'
@@ -859,32 +859,32 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span style={{
-            fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700,
+            fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700,
             padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em',
             background: cs.bg, color: cs.color,
           }}>{article.category}</span>
           {ftLabel && (
             <span style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700,
+              fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700,
               padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em',
-              background: 'rgba(0,0,0,0.06)', color: '#58595B',
+              background: 'rgba(0,0,0,0.06)', color: '#323232',
             }}>{ftLabel}</span>
           )}
           {isAdmin && article.operator_id === null && (
             <span style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700,
+              fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700,
               padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em',
-              background: 'rgba(155,89,208,0.12)', color: '#9B59D0',
+              background: 'rgba(0,168,176,0.12)', color: '#00a8b0',
             }}>Global</span>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {isAdmin && (
             <span style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600,
+              fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600,
               padding: '3px 8px', borderRadius: 100,
-              background: article.is_published ? 'rgba(22,101,52,0.09)' : 'rgba(0,0,0,0.06)',
-              color: article.is_published ? '#166534' : '#58595B',
+              background: article.is_published ? 'rgba(0,168,176,0.09)' : 'rgba(0,0,0,0.06)',
+              color: article.is_published ? '#00787e' : '#323232',
             }}>
               {article.is_published ? 'Published' : 'Draft'}
             </span>
@@ -895,7 +895,7 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
                 onClick={e => { e.stopPropagation(); setMenuOpen(v => !v) }}
                 style={{
                   width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#aaa', fontSize: 16, background: 'none', border: 'none', cursor: 'pointer', transition: 'background 0.15s',
+                  color: 'rgba(0,0,0,0.35)', fontSize: 16, background: 'none', border: 'none', cursor: 'pointer', transition: 'background 0.15s',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.07)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -918,7 +918,7 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
                   ].map(item => (
                     <button key={item.label} onClick={() => { item.action(); setMenuOpen(false) }} style={{
                       display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px',
-                      fontFamily: 'Inter, sans-serif', fontSize: 13,
+                      fontFamily: 'var(--font-body)', fontSize: 13,
                       color: item.danger ? '#e53e3e' : '#000',
                       background: 'none', border: 'none', cursor: 'pointer', transition: 'background 0.1s',
                     }}
@@ -933,24 +933,24 @@ function ArticleCard({ article, isAdmin, onRead, onEdit, onDelete, onToggle }: {
         </div>
       </div>
 
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', lineHeight: 1.4 }}>
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', lineHeight: 1.4 }}>
         {article.title}
       </p>
 
       {preview ? (
         <p style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5,
+          fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}>
           {preview}{article.content_preview.length > 120 ? '…' : ''}
         </p>
       ) : article.file_name ? (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', lineHeight: 1.5 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', lineHeight: 1.5 }}>
           📄 {article.file_name}
         </p>
       ) : null}
 
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 'auto' }}>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 'auto' }}>
         Updated {new Date(article.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
       </p>
     </div>

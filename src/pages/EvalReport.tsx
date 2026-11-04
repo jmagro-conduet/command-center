@@ -63,7 +63,7 @@ const SEV: Record<string, { bg: string; color: string; label: string }> = {
   critical: { bg: 'rgba(229,62,62,0.1)',   color: '#c53030', label: 'Critical' },
   high:     { bg: 'rgba(234,88,12,0.1)',    color: '#c2410c', label: 'High' },
   medium:   { bg: 'rgba(202,138,4,0.12)',   color: '#854d0e', label: 'Medium' },
-  low:      { bg: 'rgba(0,0,0,0.06)',       color: '#58595B', label: 'Low' },
+  low:      { bg: 'rgba(0,0,0,0.06)',       color: '#323232', label: 'Low' },
 }
 
 const card: React.CSSProperties = { background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 22 }
@@ -284,23 +284,23 @@ export default function EvalReport() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={card}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 4 }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 4 }}>
           Eval Reports — {selectedOperator?.name ?? 'no operator selected'}
         </p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.6 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', lineHeight: 1.6 }}>
           A focused LLM analysis per eval section: the patterns, likely root causes, and what to investigate to drive failures down.
           Generate or Regenerate to pick a date range to analyze — the latest run is shared across all SuperAdmins; open History to browse every prior run.
           Hand this to engineering alongside the Report Card numbers.
         </p>
 
         {loadingStored && (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', marginTop: 8 }}>Loading saved reports…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', marginTop: 8 }}>Loading saved reports…</p>
         )}
         {generatedKeys.length > 1 && (
           <button
             onClick={() => setAll(!allCollapsed)}
             style={{
-              marginTop: 12, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#9B59D0',
+              marginTop: 12, fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#00787e',
               background: 'none', border: 'none', padding: 0, cursor: 'pointer', transition: 'opacity 0.15s',
             }}
             onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
@@ -326,20 +326,20 @@ export default function EvalReport() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {syn && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#58595B', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#323232', transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.2s' }}>
                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   )}
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>{s.label}</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>{s.label}</p>
                   {isCollapsed && findingCount > 0 && (
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.08)', padding: '2px 8px', borderRadius: 100 }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#00787e', background: 'rgba(0,168,176,0.08)', padding: '2px 8px', borderRadius: 100 }}>
                       {findingCount} finding{findingCount === 1 ? '' : 's'}
                     </span>
                   )}
                 </div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 3 }}>{s.blurb}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 3 }}>{s.blurb}</p>
                 {res.generatedAt && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 4 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 4 }}>
                     {res.isHistorical ? 'Generated' : 'Last generated'} {new Date(res.generatedAt).toLocaleString()}
                     {res.rangeLabel ? ` · ${res.rangeLabel}` : ''}{res.generatedBy ? ` · by ${res.generatedBy}` : ''}
                   </p>
@@ -350,7 +350,7 @@ export default function EvalReport() {
                   <button
                     onClick={() => toggleHistory(s.key)}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B',
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#323232',
                       background: historyOpen[s.key] ? 'rgba(0,0,0,0.06)' : 'transparent',
                       padding: '8px 14px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)',
                       whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s',
@@ -363,7 +363,7 @@ export default function EvalReport() {
                   onClick={() => openGenerateModal(s.key)}
                   disabled={res.loading}
                   style={{
-                    flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    flexShrink: 0, fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                     padding: '8px 16px', borderRadius: 10, border: 'none', whiteSpace: 'nowrap',
                     background: res.loading ? 'rgba(0,0,0,0.1)' : '#000', color: res.loading ? 'rgba(0,0,0,0.4)' : '#fff',
                     cursor: res.loading ? 'default' : 'pointer', transition: 'all 0.15s',
@@ -376,13 +376,13 @@ export default function EvalReport() {
 
             {historyOpen[s.key] && (
               <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
                   Past reports
                 </p>
                 {historyLoading[s.key] ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>Loading…</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
                 ) : !historyLists[s.key]?.length ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>No history yet.</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>No history yet.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {historyLists[s.key]!.map(h => {
@@ -394,9 +394,9 @@ export default function EvalReport() {
                           disabled={isCurrent}
                           style={{
                             display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-                            fontFamily: 'Inter, sans-serif', fontSize: 12.5, padding: '6px 10px', borderRadius: 8,
-                            border: 'none', background: isCurrent ? 'rgba(155,89,208,0.08)' : 'transparent',
-                            color: isCurrent ? '#9B59D0' : '#000', cursor: isCurrent ? 'default' : 'pointer', textAlign: 'left',
+                            fontFamily: 'var(--font-body)', fontSize: 12.5, padding: '6px 10px', borderRadius: 8,
+                            border: 'none', background: isCurrent ? 'rgba(0,168,176,0.08)' : 'transparent',
+                            color: isCurrent ? '#00a8b0' : '#000', cursor: isCurrent ? 'default' : 'pointer', textAlign: 'left',
                           }}
                           onMouseEnter={!isCurrent ? e => (e.currentTarget.style.background = 'rgba(0,0,0,0.04)') : undefined}
                           onMouseLeave={!isCurrent ? e => (e.currentTarget.style.background = 'transparent') : undefined}
@@ -412,20 +412,20 @@ export default function EvalReport() {
             )}
 
             {res.error && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>❌ {res.error}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>❌ {res.error}</p>
             )}
             {res.loading && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0' }}>Reading the eval data and synthesizing… (10–30s)</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e' }}>Reading the eval data and synthesizing… (10–30s)</p>
             )}
 
             {res.isHistorical && !res.loading && !isCollapsed && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 14px', borderRadius: 8, background: 'rgba(202,138,4,0.08)', border: '1px solid rgba(202,138,4,0.2)', marginBottom: 14 }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#854d0e' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12.5, color: '#854d0e' }}>
                   Viewing a past report — not the latest.
                 </span>
                 <button
                   onClick={() => backToLatest(s.key)}
-                  style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#00787e', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
                   Back to latest →
                 </button>
@@ -439,15 +439,15 @@ export default function EvalReport() {
 
             {syn && !res.loading && !isCollapsed && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {syn.error && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#c2410c' }}>⚠ {syn.error} The numbers above are still accurate.</p>}
+                {syn.error && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#c2410c' }}>⚠ {syn.error} The numbers above are still accurate.</p>}
 
                 {/* Headline + summary */}
                 {syn.headline && (
-                  <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', lineHeight: 1.5 }}>{syn.headline}</p>
+                  <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', lineHeight: 1.5 }}>{syn.headline}</p>
                 )}
                 {syn.executive_summary && (
-                  <div style={{ padding: '12px 16px', borderLeft: '3px solid #9B59D0', background: 'rgba(155,89,208,0.06)', borderRadius: '0 8px 8px 0' }}>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.7 }}>{syn.executive_summary}</p>
+                  <div style={{ padding: '12px 16px', borderLeft: '3px solid #00a8b0', background: 'rgba(0,168,176,0.06)', borderRadius: '0 8px 8px 0' }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.7 }}>{syn.executive_summary}</p>
                   </div>
                 )}
 
@@ -460,19 +460,19 @@ export default function EvalReport() {
                       key={i}
                       onClick={canDrill ? () => openDrill(s.key, f) : undefined}
                       style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '12px 14px', cursor: canDrill ? 'pointer' : 'default', transition: 'all 0.15s' }}
-                      onMouseEnter={canDrill ? e => { e.currentTarget.style.borderColor = '#CEA4FF'; e.currentTarget.style.background = 'rgba(155,89,208,0.03)' } : undefined}
+                      onMouseEnter={canDrill ? e => { e.currentTarget.style.borderColor = '#00a8b0'; e.currentTarget.style.background = 'rgba(0,168,176,0.03)' } : undefined}
                       onMouseLeave={canDrill ? e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'; e.currentTarget.style.background = 'transparent' } : undefined}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: sev.bg, color: sev.color }}>{sev.label}</span>
-                        <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13.5, fontWeight: 600, color: '#000' }}>{f.title}</span>
-                        {f.theme && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0', background: 'rgba(155,89,208,0.08)', padding: '2px 8px', borderRadius: 100 }}>{f.theme}</span>}
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: sev.bg, color: sev.color }}>{sev.label}</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13.5, fontWeight: 600, color: '#000' }}>{f.title}</span>
+                        {f.theme && <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#00787e', background: 'rgba(0,168,176,0.08)', padding: '2px 8px', borderRadius: 100 }}>{f.theme}</span>}
                       </div>
                       <FieldLine label="Evidence" value={f.evidence} />
                       <FieldLine label="Likely root cause" value={f.likely_root_cause} />
                       <FieldLine label="Investigate" value={f.recommended_investigation} accent />
                       {canDrill && (
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600, color: '#9B59D0', marginTop: 8 }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: '#00787e', marginTop: 8 }}>
                           View analyzed tickets ({f.instance_filter!.themes!.join(', ')}{f.instance_filter?.error_class ? ` · ${f.instance_filter.error_class}` : ''}) →
                         </p>
                       )}
@@ -483,15 +483,15 @@ export default function EvalReport() {
                 {/* Top priorities */}
                 {(syn.top_priorities ?? []).length > 0 && (
                   <div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Fix first</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Fix first</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {syn.top_priorities!.map((p, i) => (
                         <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                          <span style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, background: '#000', color: '#fff', fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.rank}</span>
+                          <span style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, background: '#000', color: '#fff', fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.rank}</span>
                           <div>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{p.issue}</p>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.6, marginTop: 2 }}>{p.why_it_matters}</p>
-                            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#166534', lineHeight: 1.6, marginTop: 2 }}><strong>Fix:</strong> {p.suggested_fix}</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: '#000' }}>{p.issue}</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.6, marginTop: 2 }}>{p.why_it_matters}</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', lineHeight: 1.6, marginTop: 2 }}><strong>Fix:</strong> {p.suggested_fix}</p>
                           </div>
                         </div>
                       ))}
@@ -529,10 +529,10 @@ function GenerateModal({ sectionLabel, selection, onChange, onConfirm, onCancel 
       onClick={onCancel}
     >
       <div style={{ ...card, width: 420, maxWidth: '90vw' }} onClick={e => e.stopPropagation()}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 4 }}>
           What data should this cover?
         </p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#58595B', marginBottom: 14 }}>{sectionLabel}</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12.5, color: '#323232', marginBottom: 14 }}>{sectionLabel}</p>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {PRESETS.map(p => (
@@ -540,10 +540,10 @@ function GenerateModal({ sectionLabel, selection, onChange, onConfirm, onCancel 
               key={p.key}
               onClick={() => onChange({ preset: p.key })}
               style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500, padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
-                border: `1.5px solid ${selection.preset === p.key ? '#9B59D0' : 'rgba(0,0,0,0.12)'}`,
-                background: selection.preset === p.key ? 'rgba(155,89,208,0.08)' : '#fff',
-                color: selection.preset === p.key ? '#9B59D0' : '#58595B',
+                fontFamily: 'var(--font-body)', fontSize: 12.5, fontWeight: 500, padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+                border: `1.5px solid ${selection.preset === p.key ? '#00a8b0' : 'rgba(0,0,0,0.12)'}`,
+                background: selection.preset === p.key ? 'rgba(0,168,176,0.08)' : '#fff',
+                color: selection.preset === p.key ? '#00a8b0' : '#323232',
               }}
             >
               {p.label}
@@ -552,10 +552,10 @@ function GenerateModal({ sectionLabel, selection, onChange, onConfirm, onCancel 
           <button
             onClick={() => onChange({ preset: 'custom', customFrom: selection.customFrom, customTo: selection.customTo })}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 12.5, fontWeight: 500, padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
-              border: `1.5px solid ${selection.preset === 'custom' ? '#9B59D0' : 'rgba(0,0,0,0.12)'}`,
-              background: selection.preset === 'custom' ? 'rgba(155,89,208,0.08)' : '#fff',
-              color: selection.preset === 'custom' ? '#9B59D0' : '#58595B',
+              fontFamily: 'var(--font-body)', fontSize: 12.5, fontWeight: 500, padding: '6px 14px', borderRadius: 100, cursor: 'pointer', transition: 'all 0.15s',
+              border: `1.5px solid ${selection.preset === 'custom' ? '#00a8b0' : 'rgba(0,0,0,0.12)'}`,
+              background: selection.preset === 'custom' ? 'rgba(0,168,176,0.08)' : '#fff',
+              color: selection.preset === 'custom' ? '#00a8b0' : '#323232',
             }}
           >
             Custom range…
@@ -565,32 +565,32 @@ function GenerateModal({ sectionLabel, selection, onChange, onConfirm, onCancel 
         {selection.preset === 'custom' && (
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#58595B', display: 'block', marginBottom: 4 }}>From</label>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 11.5, color: '#323232', display: 'block', marginBottom: 4 }}>From</label>
               <input
                 type="date" value={selection.customFrom ?? ''}
                 onChange={e => onChange({ ...selection, customFrom: e.target.value })}
-                style={{ width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '7px 10px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box' }}
+                style={{ width: '100%', fontFamily: 'var(--font-body)', fontSize: 13, padding: '7px 10px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box' }}
               />
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#58595B', display: 'block', marginBottom: 4 }}>To</label>
+              <label style={{ fontFamily: 'var(--font-body)', fontSize: 11.5, color: '#323232', display: 'block', marginBottom: 4 }}>To</label>
               <input
                 type="date" value={selection.customTo ?? ''}
                 onChange={e => onChange({ ...selection, customTo: e.target.value })}
-                style={{ width: '100%', fontFamily: 'Inter, sans-serif', fontSize: 13, padding: '7px 10px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box' }}
+                style={{ width: '100%', fontFamily: 'var(--font-body)', fontSize: 13, padding: '7px 10px', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', boxSizing: 'border-box' }}
               />
             </div>
           </div>
         )}
 
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: '#aaa', marginBottom: 18 }}>
-          Will analyze: <strong style={{ color: '#58595B' }}>{customIncomplete ? 'pick both dates' : preview.label}</strong>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 11.5, color: 'rgba(0,0,0,0.35)', marginBottom: 18 }}>
+          Will analyze: <strong style={{ color: '#323232' }}>{customIncomplete ? 'pick both dates' : preview.label}</strong>
         </p>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button
             onClick={onCancel}
-            style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B', background: 'transparent', border: 'none', padding: '8px 14px', cursor: 'pointer' }}
+            style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#323232', background: 'transparent', border: 'none', padding: '8px 14px', cursor: 'pointer' }}
           >
             Cancel
           </button>
@@ -598,7 +598,7 @@ function GenerateModal({ sectionLabel, selection, onChange, onConfirm, onCancel 
             onClick={onConfirm}
             disabled={customIncomplete}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '8px 18px', borderRadius: 10, border: 'none',
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '8px 18px', borderRadius: 10, border: 'none',
               background: customIncomplete ? 'rgba(0,0,0,0.1)' : '#000', color: customIncomplete ? 'rgba(0,0,0,0.4)' : '#fff',
               cursor: customIncomplete ? 'default' : 'pointer', transition: 'all 0.15s',
             }}
@@ -620,27 +620,27 @@ function DrillView({ drill, onBack }: { drill: Drill; onBack: () => void }) {
       <div style={card}>
         <button
           onClick={onBack}
-          style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#58595B', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 12 }}
+          style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#323232', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 12 }}
         >← Back to report</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: sev.bg, color: sev.color }}>{sev.label}</span>
-          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>{finding.title}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: sev.bg, color: sev.color }}>{sev.label}</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000' }}>{finding.title}</span>
         </div>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#58595B', lineHeight: 1.6 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12.5, color: '#323232', lineHeight: 1.6 }}>
           The analyzed tickets behind this finding — filtered by theme {(ifl?.themes ?? []).map(t => `“${t}”`).join(', ')}
           {ifl?.error_class ? ` and ${ifl.error_class}` : ''}. Validate that the pattern holds; if it doesn’t, the insight is off.
         </p>
         {!loading && !error && (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 6 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 6 }}>
             {rows.length} ticket{rows.length === 1 ? '' : 's'}{rows.length === 60 ? ' (showing most recent 60)' : ''}
           </p>
         )}
       </div>
 
-      {loading && <div style={card}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0' }}>Pulling the underlying tickets…</p></div>}
-      {error && <div style={card}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>❌ {error}</p></div>}
+      {loading && <div style={card}><p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e' }}>Pulling the underlying tickets…</p></div>}
+      {error && <div style={card}><p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>❌ {error}</p></div>}
       {!loading && !error && rows.length === 0 && (
-        <div style={card}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>No matching tickets — the finding’s theme filter may not line up with the stored theme tags.</p></div>
+        <div style={card}><p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>No matching tickets — the finding’s theme filter may not line up with the stored theme tags.</p></div>
       )}
 
       {!loading && rows.map(r => <InstanceCard key={r.id} section={section} r={r} />)}
@@ -656,10 +656,10 @@ function InstanceCard({ section, r }: { section: SectionKey; r: any }) {
   return (
     <div style={card}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        {badge && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: 'rgba(155,89,208,0.1)', color: '#9B59D0' }}>{badge}</span>}
-        {r.theme_tag && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: 100 }}>{r.theme_tag}</span>}
-        {r.external_ticket_id && <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0', background: 'rgba(155,89,208,0.08)', padding: '2px 8px', borderRadius: 100 }}>Ticket {r.external_ticket_id}</span>}
-        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
+        {badge && <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 100, background: 'rgba(0,168,176,0.1)', color: '#00787e' }}>{badge}</span>}
+        {r.theme_tag && <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: 100 }}>{r.theme_tag}</span>}
+        {r.external_ticket_id && <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#00787e', background: 'rgba(0,168,176,0.08)', padding: '2px 8px', borderRadius: 100 }}>Ticket {r.external_ticket_id}</span>}
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginLeft: 'auto' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
       </div>
       <TextBlock label="Player" value={r.customer_input} />
       <TextBlock label="gameLM suggested" value={r.suggested_response} />
@@ -680,8 +680,8 @@ function TextBlock({ label, value, accent }: { label: string; value?: string; ac
   if (!value) return null
   return (
     <div style={{ marginTop: 8 }}>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, color: accent ? '#9B59D0' : '#58595B', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>{label}</p>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.6, whiteSpace: 'pre-wrap', background: accent ? 'rgba(155,89,208,0.05)' : 'rgba(0,0,0,0.02)', borderRadius: 8, padding: '8px 12px' }}>{value}</p>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, color: accent ? '#00a8b0' : '#323232', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>{label}</p>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.6, whiteSpace: 'pre-wrap', background: accent ? 'rgba(0,168,176,0.05)' : 'rgba(0,0,0,0.02)', borderRadius: 8, padding: '8px 12px' }}>{value}</p>
     </div>
   )
 }
@@ -689,8 +689,8 @@ function TextBlock({ label, value, accent }: { label: string; value?: string; ac
 function FieldLine({ label, value, accent }: { label: string; value?: string; accent?: boolean }) {
   if (!value) return null
   return (
-    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, lineHeight: 1.6, color: '#000', marginTop: 4 }}>
-      <span style={{ fontWeight: 600, color: accent ? '#9B59D0' : '#58595B' }}>{label}: </span>{value}
+    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12.5, lineHeight: 1.6, color: '#000', marginTop: 4 }}>
+      <span style={{ fontWeight: 600, color: accent ? '#00a8b0' : '#323232' }}>{label}: </span>{value}
     </p>
   )
 }
@@ -698,8 +698,8 @@ function FieldLine({ label, value, accent }: { label: string; value?: string; ac
 function AggregateStrip({ section, agg }: { section: SectionKey; agg: any }) {
   const stat = (label: string, value: React.ReactNode) => (
     <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
-      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>{label} </span>
-      <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{value}</span>
+      <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>{label} </span>
+      <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>{value}</span>
     </div>
   )
   const items: React.ReactNode[] = []

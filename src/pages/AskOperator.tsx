@@ -139,7 +139,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
   if (!selectedOperator) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
           Select an operator to ask about.
         </p>
       </div>
@@ -152,8 +152,8 @@ export default function AskOperator({ onOpenArticle }: Props) {
         <button
           onClick={clearConversation}
           style={{
-            alignSelf: 'flex-end', fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-            color: '#58595B', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            alignSelf: 'flex-end', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+            color: '#323232', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
           }}
         >Clear conversation</button>
       )}
@@ -168,13 +168,13 @@ export default function AskOperator({ onOpenArticle }: Props) {
         }}>
         {messages.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
               Ask anything about {selectedOperator.name}'s SOPs, house rules, or process docs — answers are
               grounded only in what's published in Learn for {selectedOperator.name}.
             </p>
             {commonQuestions.length > 0 && (
               <div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
                   Commonly asked
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -185,15 +185,15 @@ export default function AskOperator({ onOpenArticle }: Props) {
                       disabled={asking}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                        textAlign: 'left', fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                        textAlign: 'left', fontFamily: 'var(--font-body)', fontSize: 13, color: '#000',
                         padding: '8px 12px', borderRadius: 8, cursor: asking ? 'default' : 'pointer',
                         border: '1px solid rgba(0,0,0,0.09)', background: '#fff', transition: 'background 0.15s',
                       }}
-                      onMouseEnter={e => { if (!asking) e.currentTarget.style.background = 'rgba(206,164,255,0.06)' }}
+                      onMouseEnter={e => { if (!asking) e.currentTarget.style.background = 'rgba(120,42,255,0.06)' }}
                       onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
                     >
                       <span>{cq.summarized_question}</span>
-                      <span style={{ flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
+                      <span style={{ flexShrink: 0, fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                         Asked {cq.count}×
                       </span>
                     </button>
@@ -208,7 +208,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
               {m.role === 'user' ? (
                 <div style={{
                   background: '#000', color: '#fff', borderRadius: 12, padding: '10px 14px',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13,
+                  fontFamily: 'var(--font-body)', fontSize: 13,
                 }}>
                   {m.text}
                 </div>
@@ -216,7 +216,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {m.coverage && m.coverage !== 'full' && (
                     <div style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                       color: '#b45309', background: 'rgba(243,156,18,0.1)',
                       padding: '5px 10px', borderRadius: 8, alignSelf: 'flex-start',
                     }}>
@@ -224,9 +224,9 @@ export default function AskOperator({ onOpenArticle }: Props) {
                     </div>
                   )}
                   <div style={{
-                    background: 'rgba(206,164,255,0.06)', border: '1px solid rgba(0,0,0,0.08)',
+                    background: 'rgba(120,42,255,0.06)', border: '1px solid rgba(0,0,0,0.08)',
                     borderRadius: 12, padding: '12px 14px',
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000',
+                    fontFamily: 'var(--font-body)', fontSize: 13, color: '#000',
                     lineHeight: 1.6, whiteSpace: 'pre-wrap',
                   }}>
                     {m.text}
@@ -238,10 +238,10 @@ export default function AskOperator({ onOpenArticle }: Props) {
                           key={s.id}
                           onClick={() => onOpenArticle(s.id)}
                           style={{
-                            fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                            fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                             padding: '3px 10px', borderRadius: 100, cursor: 'pointer',
-                            border: '1px solid rgba(155,89,208,0.3)', background: 'rgba(155,89,208,0.06)',
-                            color: '#9B59D0',
+                            border: '1px solid rgba(120,42,255,0.3)', background: 'rgba(120,42,255,0.06)',
+                            color: '#6a1ff0',
                           }}
                         >
                           {s.title}
@@ -250,7 +250,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
                     </div>
                   )}
                   {!!m.excludedCount && (
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                       {m.excludedCount} document(s) for this operator couldn't be read (Word/Excel/PowerPoint uploads).
                     </p>
                   )}
@@ -260,7 +260,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
           ))
         )}
         {asking && (
-          <div style={{ alignSelf: 'flex-start', fontFamily: 'Inter, sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
+          <div style={{ alignSelf: 'flex-start', fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
             Thinking…
           </div>
         )}
@@ -285,7 +285,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
       </div>
 
       {error && (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{error}</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{error}</p>
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
@@ -300,9 +300,9 @@ export default function AskOperator({ onOpenArticle }: Props) {
             border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
             padding: '9px 12px', fontSize: 13, color: '#000', outline: 'none',
             transition: 'border-color 0.15s', background: '#fff', flex: 1,
-            fontFamily: 'Inter, sans-serif', resize: 'vertical', boxSizing: 'border-box',
+            fontFamily: 'var(--font-body)', resize: 'vertical', boxSizing: 'border-box',
           }}
-          onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+          onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
           onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
         />
         <button
@@ -310,7 +310,7 @@ export default function AskOperator({ onOpenArticle }: Props) {
           disabled={!input.trim() || asking}
           style={{
             background: '#000', color: '#fff',
-            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
             padding: '9px 18px', borderRadius: 10, border: 'none',
             cursor: input.trim() && !asking ? 'pointer' : 'default',
             opacity: input.trim() && !asking ? 1 : 0.4, transition: 'opacity 0.15s',

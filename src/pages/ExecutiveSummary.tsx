@@ -242,12 +242,12 @@ function Delta({ curr, prev, good, suffix = 'pp', label = 'vs prior 30d' }: {
   // Round before comparing/displaying -- raw float subtraction (e.g. 71.9 - 14.3)
   // produces noise like 57.599999999999994 that'd otherwise leak into the UI.
   const d = Math.round((curr - prev) * 10) / 10
-  if (d === 0) return <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>— {label}</span>
+  if (d === 0) return <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>— {label}</span>
   const up = d > 0
   const isGood = good === 'up' ? up : !up
-  const color = isGood ? '#166534' : '#e53e3e'
+  const color = isGood ? '#00787e' : '#e53e3e'
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color, marginTop: 2 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color, marginTop: 2 }}>
       {up ? '↑' : '↓'} {Math.abs(d)}{suffix} {label}
     </span>
   )
@@ -264,10 +264,10 @@ function StatCard({ label, value, color, sub, delta, topLabel }: {
 }) {
   return (
     <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: topLabel ? 10 : 8 }}>{label}</p>
-      {topLabel && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{topLabel}</p>}
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color, lineHeight: 1 }}>{value}</p>
-      {sub && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 5 }}>{sub}</p>}
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: topLabel ? 10 : 8 }}>{label}</p>
+      {topLabel && <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{topLabel}</p>}
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 600, color, lineHeight: 1 }}>{value}</p>
+      {sub && <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 5 }}>{sub}</p>}
       {delta && <div style={{ marginTop: 3 }}>{delta}</div>}
     </div>
   )
@@ -283,19 +283,19 @@ function DualStatCard({ label, leftLabel, leftValue, leftColor, rightLabel, righ
 }) {
   return (
     <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{label}</p>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{label}</p>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
         <div>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{leftLabel}</p>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: leftColor, lineHeight: 1 }}>{leftValue}</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{leftLabel}</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 600, color: leftColor, lineHeight: 1 }}>{leftValue}</p>
         </div>
         <div style={{ width: 1, height: 36, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
         <div>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{rightLabel}</p>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: rightColor, lineHeight: 1 }}>{rightValue}</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{rightLabel}</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 600, color: rightColor, lineHeight: 1 }}>{rightValue}</p>
         </div>
       </div>
-      {sub && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>{sub}</p>}
+      {sub && <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>{sub}</p>}
       {delta && <div style={{ marginTop: 4 }}>{delta}</div>}
     </div>
   )
@@ -304,13 +304,13 @@ function DualStatCard({ label, leftLabel, leftValue, leftColor, rightLabel, righ
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div style={{ marginBottom: 4 }}>
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000' }}>{title}</p>
-      {subtitle && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>{subtitle}</p>}
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000' }}>{title}</p>
+      {subtitle && <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 2 }}>{subtitle}</p>}
     </div>
   )
 }
 
-const STATUS_COLOR: Record<string, string> = { ready: '#166534', almost: '#854d0e', 'not-ready': '#e53e3e', 'low-data': '#9ca3af' }
+const STATUS_COLOR: Record<string, string> = { ready: '#00787e', almost: '#854d0e', 'not-ready': '#e53e3e', 'low-data': 'rgba(0,0,0,0.35)' }
 
 type ExecView = 'copilot' | 'fullauto'
 const execViewKey = (email: string) => `exec_view_${email}`
@@ -553,7 +553,7 @@ export default function ExecutiveSummary() {
   }, [rows, now, trendPeriod])
 
   if (loading) {
-    return <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', padding: 40 }}>Loading…</div>
+    return <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', padding: 40 }}>Loading…</div>
   }
 
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -566,8 +566,8 @@ export default function ExecutiveSummary() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>Executive Summary</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 2 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>Executive Summary</h1>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 2 }}>
             {view === 'fullauto'
               ? `Full Auto path to production${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · as of ${today}`
               : `gameLM performance & path to automation${selectedOperator?.name ? ` · ${selectedOperator.name}` : ''} · last 30 days · as of ${today}`}
@@ -581,9 +581,9 @@ export default function ExecutiveSummary() {
                   key={v}
                   onClick={() => setView(v)}
                   style={{
-                    padding: '6px 16px', fontSize: 13, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+                    padding: '6px 16px', fontSize: 13, fontWeight: 500, fontFamily: 'var(--font-body)',
                     background: view === v ? '#fff' : 'transparent',
-                    color: view === v ? '#000' : '#58595B',
+                    color: view === v ? '#000' : '#323232',
                     border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
                     boxShadow: view === v ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   }}
@@ -596,11 +596,11 @@ export default function ExecutiveSummary() {
           <button
             onClick={() => window.print()}
             style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, padding: '8px 16px',
-              borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '8px 16px',
+              borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
               cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#CEA4FF' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#00a8b0' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)' }}
           >
             ⎙ Export / Print
@@ -616,32 +616,32 @@ export default function ExecutiveSummary() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
         {/* gameLM Perfect Rate — split actual vs projected */}
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>gameLM Perfect Rate</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>gameLM Perfect Rate</p>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14 }}>
             <div>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actual</p>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: curSplit.perfectRate >= 80 ? '#166534' : curSplit.perfectRate >= 70 ? '#854d0e' : '#e53e3e', lineHeight: 1 }}>{curSplit.perfectRate}%</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actual</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 600, color: curSplit.perfectRate >= 80 ? '#00787e' : curSplit.perfectRate >= 70 ? '#854d0e' : '#e53e3e', lineHeight: 1 }}>{curSplit.perfectRate}%</p>
             </div>
             <div style={{ width: 1, height: 36, background: 'rgba(0,0,0,0.08)', flexShrink: 0 }} />
             <div>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projected</p>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: '#9B59D0', lineHeight: 1 }}>{curSplit.projectedPerfectRate}%</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 500, color: 'rgba(0,0,0,0.35)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Projected</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 600, color: '#00a8b0', lineHeight: 1 }}>{curSplit.projectedPerfectRate}%</p>
             </div>
           </div>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>Projected adds preference &amp; agent-error edits + 50% of enhancements</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: 'rgba(0,0,0,0.3)', marginTop: 6, lineHeight: 1.4 }}>Projected adds preference &amp; agent-error edits + 50% of enhancements</p>
           <div style={{ marginTop: 4 }}><Delta curr={curSplit.perfectRate} prev={prev.length ? prevSplit.perfectRate : null} good="up" /></div>
         </div>
 
         {/* Edit Dependency — with majority / partial breakdown */}
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: '18px 20px' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Edit Dependency</p>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 30, fontWeight: 600, color: curSplit.editDependency <= 20 ? '#166534' : curSplit.editDependency <= 30 ? '#854d0e' : '#e53e3e', lineHeight: 1 }}>{curSplit.editDependency}%</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Edit Dependency</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 600, color: curSplit.editDependency <= 20 ? '#00787e' : curSplit.editDependency <= 30 ? '#854d0e' : '#e53e3e', lineHeight: 1 }}>{curSplit.editDependency}%</p>
           <div style={{ display: 'flex', gap: 10, marginTop: 7 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>
               <span style={{ fontWeight: 600, color: '#000' }}>{curSplit.majorityRate}%</span> majority
             </span>
             <span style={{ color: 'rgba(0,0,0,0.2)' }}>·</span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>
               <span style={{ fontWeight: 600, color: '#000' }}>{curSplit.partialRate}%</span> partial
             </span>
           </div>
@@ -650,14 +650,14 @@ export default function ExecutiveSummary() {
         <StatCard
           label="Autopilot-Ready Use Cases"
           value={`${readyCount} / ${trackedCats}`}
-          color="#9B59D0"
+          color="#00a8b0"
           sub={`categories at ≥${READY_THRESHOLD}% perfect`}
           delta={<Delta curr={readyCount} prev={prev.length ? prevReadyCount : null} good="up" suffix="" />}
         />
         <StatCard
           label={tracksZd ? 'Agent Adoption' : 'Interactions Captured'}
           value={tracksZd ? (adoption !== null ? `${adoption}%` : '—') : loggedTickets.toLocaleString()}
-          color="#166534"
+          color="#00787e"
           sub={
             tracksZd
               ? (adoption !== null ? `${loggedTickets} of ${zdTotal} chat tickets logged` : undefined)
@@ -667,7 +667,7 @@ export default function ExecutiveSummary() {
         <StatCard
           label="Fully Automatable"
           value={automationRate !== null ? `${automationRate}%` : '—'}
-          color={automationRate === null ? '#58595B' : automationRate >= 80 ? '#166534' : automationRate >= 70 ? '#854d0e' : '#e53e3e'}
+          color={automationRate === null ? '#323232' : automationRate >= 80 ? '#00787e' : automationRate >= 70 ? '#854d0e' : '#e53e3e'}
           sub={`of ${loggedTickets.toLocaleString()} logged tickets needed zero edits, end to end`}
           delta={automationRate !== null ? <Delta curr={automationRate} prev={prev.length ? prevAutomationRate : null} good="up" /> : undefined}
         />
@@ -696,9 +696,9 @@ export default function ExecutiveSummary() {
                     padding: '4px 12px',
                     fontSize: 12,
                     fontWeight: 500,
-                    fontFamily: 'Inter, sans-serif',
+                    fontFamily: 'var(--font-body)',
                     background: trendPeriod === p ? '#fff' : 'transparent',
-                    color: trendPeriod === p ? '#000' : '#58595B',
+                    color: trendPeriod === p ? '#000' : '#323232',
                     border: trendPeriod === p ? '1px solid rgba(0,0,0,0.1)' : 'none',
                     borderRadius: 6,
                     cursor: 'pointer',
@@ -710,7 +710,7 @@ export default function ExecutiveSummary() {
                 </button>
               ))}
             </div>
-            <Legend color="#166534" label="Perfect rate" />
+            <Legend color="#00787e" label="Perfect rate" />
             <Legend color="#f97316" label="Edit dependency" />
             <Legend color="#e53e3e" label="No response" />
           </div>
@@ -718,11 +718,11 @@ export default function ExecutiveSummary() {
         <ResponsiveContainer width="100%" height={260}>
           <LineChart data={trend} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-            <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
-            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
-            <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
-            <ReferenceLine y={READY_THRESHOLD} stroke="#166534" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: 'Auto-ready 80%', position: 'right', fontSize: 10, fill: '#166534' }} />
-            <Line type="monotone" dataKey="perfect" name="Perfect rate" stroke="#166534" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+            <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#323232', fontFamily: "'Maax', 'Outfit', sans-serif" }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
+            <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#323232', fontFamily: "'Maax', 'Outfit', sans-serif" }} tickLine={false} axisLine={false} />
+            <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
+            <ReferenceLine y={READY_THRESHOLD} stroke="#00787e" strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: 'Auto-ready 80%', position: 'right', fontSize: 10, fill: '#00787e' }} />
+            <Line type="monotone" dataKey="perfect" name="Perfect rate" stroke="#00787e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
             <Line type="monotone" dataKey="edits" name="Edit dependency" stroke="#f97316" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
             <Line type="monotone" dataKey="noResponse" name="No response" stroke="#e53e3e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
           </LineChart>
@@ -735,7 +735,7 @@ export default function ExecutiveSummary() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 60px 80px 90px 1.3fr 70px 32px', padding: '8px 4px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
             {['Use case', 'Volume', 'Actual', 'Projected', 'Progress to 80%', 'Status', ''].map(h => (
-              <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: h === 'Projected' ? '#9B59D0' : '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+              <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: h === 'Projected' ? '#00a8b0' : 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
             ))}
           </div>
           {curReady.slice(0, 10).map(c => {
@@ -753,24 +753,24 @@ export default function ExecutiveSummary() {
                     if (next && !insightsCache[c.name]) fetchInsights(c)
                   }}
                 >
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{c.name}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>{c.vol}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color }}>{c.status === 'low-data' ? '—' : `${c.perfectRate}%`}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: c.status === 'low-data' ? '#aaa' : '#9B59D0' }}>{c.status === 'low-data' ? '—' : `${c.projectedPerfectRate}%`}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{c.name}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>{c.vol}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color }}>{c.status === 'low-data' ? '—' : `${c.perfectRate}%`}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: c.status === 'low-data' ? 'rgba(0,0,0,0.35)' : '#00a8b0' }}>{c.status === 'low-data' ? '—' : `${c.projectedPerfectRate}%`}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 16 }}>
                     <div style={{ flex: 1, height: 6, borderRadius: 100, background: 'rgba(0,0,0,0.07)', overflow: 'hidden', position: 'relative' }}>
                       {/* Projected bar (behind) */}
-                      <div style={{ position: 'absolute', top: 0, left: 0, width: `${Math.min(100, (c.projectedPerfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: 'rgba(155,89,208,0.2)', borderRadius: 100 }} />
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: `${Math.min(100, (c.projectedPerfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: 'rgba(0,168,176,0.2)', borderRadius: 100 }} />
                       {/* Actual bar (front) */}
                       <div style={{ position: 'absolute', top: 0, left: 0, width: `${Math.min(100, (c.perfectRate / READY_THRESHOLD) * 100)}%`, height: '100%', background: color, borderRadius: 100, transition: 'width 0.4s' }} />
                     </div>
                   </div>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color }}>
                     {c.status === 'ready' ? '✓ Ready' : c.status === 'low-data' ? 'Low data' : c.status === 'almost' ? 'Almost' : 'Not ready'}
                   </span>
                   {/* Expand chevron — hidden for operator-role users */}
                   {!isOperator && (
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(0,0,0,0.35)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                         <path d="M2.5 5l4.5 4 4.5-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
@@ -780,57 +780,57 @@ export default function ExecutiveSummary() {
 
                 {/* Expanded insights panel */}
                 {isExpanded && (
-                  <div style={{ background: '#FAFAFA', border: '0.5px solid rgba(0,0,0,0.07)', borderRadius: '0 0 10px 10px', padding: '16px 16px 18px', marginBottom: 2, borderTop: 'none' }}>
+                  <div style={{ background: '#fbfaf9', border: '0.5px solid rgba(0,0,0,0.07)', borderRadius: '0 0 10px 10px', padding: '16px 16px 18px', marginBottom: 2, borderTop: 'none' }}>
                     {insight?.loading ? (
-                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', gap: 8 }}>
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                          <circle cx="7" cy="7" r="5.5" stroke="#CEA4FF" strokeWidth="1.5" strokeDasharray="20 8"/>
+                          <circle cx="7" cy="7" r="5.5" stroke="#00a8b0" strokeWidth="1.5" strokeDasharray="20 8"/>
                         </svg>
                         Analysing {c.name} patterns…
                       </div>
                     ) : insight?.error ? (
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', margin: 0 }}>{insight.error}</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', margin: 0 }}>{insight.error}</p>
                     ) : insight ? (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                         {/* Operations */}
                         <div style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.08)', borderLeft: '3px solid #f97316', borderRadius: 8, padding: '12px 14px' }}>
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Operations</p>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Operations</p>
                           {insight.ops.length > 0 ? insight.ops.map((b, i) => (
                             <div key={i} style={{ marginBottom: 10 }}>
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#111', margin: '0 0 5px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#000', margin: '0 0 5px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
                                 <span style={{ color: '#f97316', flexShrink: 0 }}>•</span>{b.text}
                               </p>
                               {b.subs.length > 0 && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
                                   {b.subs.map((s, j) => (
-                                    <p key={j} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#666', margin: 0, lineHeight: 1.5, fontStyle: 'italic', display: 'flex', gap: 5, paddingLeft: 18 }}>
+                                    <p key={j} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.55)', margin: 0, lineHeight: 1.5, fontStyle: 'italic', display: 'flex', gap: 5, paddingLeft: 18 }}>
                                       <span style={{ color: '#fdba74', flexShrink: 0, fontSize: 9, marginTop: 3 }}>◦</span>{s}
                                     </p>
                                   ))}
                                 </div>
                               )}
                             </div>
-                          )) : <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', margin: 0 }}>No operational patterns identified.</p>}
+                          )) : <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', margin: 0 }}>No operational patterns identified.</p>}
                         </div>
                         {/* Technical */}
-                        <div style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.08)', borderLeft: '3px solid #3b82f6', borderRadius: 8, padding: '12px 14px' }}>
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Technical</p>
+                        <div style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.08)', borderLeft: '3px solid #5078ff', borderRadius: 8, padding: '12px 14px' }}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#5078ff', textTransform: 'uppercase', letterSpacing: '0.07em', margin: '0 0 8px' }}>Technical</p>
                           {insight.tech.length > 0 ? insight.tech.map((b, i) => (
                             <div key={i} style={{ marginBottom: 10 }}>
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#111', margin: '0 0 5px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
-                                <span style={{ color: '#3b82f6', flexShrink: 0 }}>•</span>{b.text}
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#000', margin: '0 0 5px', lineHeight: 1.55, display: 'flex', gap: 6 }}>
+                                <span style={{ color: '#5078ff', flexShrink: 0 }}>•</span>{b.text}
                               </p>
                               {b.subs.length > 0 && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2 }}>
                                   {b.subs.map((s, j) => (
-                                    <p key={j} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#666', margin: 0, lineHeight: 1.5, fontStyle: 'italic', display: 'flex', gap: 5, paddingLeft: 18 }}>
+                                    <p key={j} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.55)', margin: 0, lineHeight: 1.5, fontStyle: 'italic', display: 'flex', gap: 5, paddingLeft: 18 }}>
                                       <span style={{ color: '#93c5fd', flexShrink: 0, fontSize: 9, marginTop: 3 }}>◦</span>{s}
                                     </p>
                                   ))}
                                 </div>
                               )}
                             </div>
-                          )) : <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', margin: 0 }}>No technical patterns identified.</p>}
+                          )) : <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', margin: 0 }}>No technical patterns identified.</p>}
                         </div>
                       </div>
                     ) : null}
@@ -840,7 +840,7 @@ export default function ExecutiveSummary() {
             )
           })}
         </div>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic', marginTop: 12 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', fontStyle: 'italic', marginTop: 12 }}>
           A use case needs ≥{READY_THRESHOLD}% perfect rate (and ≥{MIN_VOL} interactions) before it's a candidate for full automation. · Projected rate adds preference &amp; agent-error edits (100%) + enhancements (50%) — cases where gameLM was correct or marginally improvable.
         </p>
       </div>
@@ -849,29 +849,29 @@ export default function ExecutiveSummary() {
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 20 }}>
         <SectionTitle title="Quality &amp; Safety — automated evaluation" subtitle="Every gameLM suggestion is auto-graded so accuracy and regulatory risks surface fast — no extra headcount." />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginTop: 14 }}>
-          <MiniStat label="Responses auto-evaluated (30d)" value={`${accRows.length}`} color="#9B59D0" />
-          <MiniStat label="Accuracy issues caught" value={`${accIssues}`} color={accIssues > 0 ? '#854d0e' : '#166534'} sub="P1/P2 flagged for human review" />
-          <MiniStat label="Avg response quality" value={avgQuality !== null ? `${avgQuality.toFixed(2)} / 5` : '—'} color={avgQuality !== null && avgQuality >= 4 ? '#166534' : '#854d0e'} />
+          <MiniStat label="Responses auto-evaluated (30d)" value={`${accRows.length}`} color="#6a1ff0" />
+          <MiniStat label="Accuracy issues caught" value={`${accIssues}`} color={accIssues > 0 ? '#854d0e' : '#00787e'} sub="P1/P2 flagged for human review" />
+          <MiniStat label="Avg response quality" value={avgQuality !== null ? `${avgQuality.toFixed(2)} / 5` : '—'} color={avgQuality !== null && avgQuality >= 4 ? '#00787e' : '#854d0e'} />
           {/* Compliments — clickable drilldown */}
           <div
             onClick={() => compliments.length > 0 && setShowCompliments(s => !s)}
             style={{
-              background: showCompliments ? 'rgba(22,101,52,0.04)' : 'rgba(0,0,0,0.02)',
+              background: showCompliments ? 'rgba(0,168,176,0.04)' : 'rgba(0,0,0,0.02)',
               borderRadius: 12,
-              border: compliments.length > 0 ? `1.5px solid ${showCompliments ? 'rgba(22,101,52,0.35)' : 'rgba(22,101,52,0.2)'}` : '1.5px solid rgba(0,0,0,0.06)',
+              border: compliments.length > 0 ? `1.5px solid ${showCompliments ? 'rgba(0,168,176,0.35)' : 'rgba(0,168,176,0.2)'}` : '1.5px solid rgba(0,0,0,0.06)',
               padding: '14px 16px',
               cursor: compliments.length > 0 ? 'pointer' : 'default',
               transition: 'all 0.15s',
             }}
-            onMouseEnter={e => { if (compliments.length > 0) e.currentTarget.style.background = 'rgba(22,101,52,0.06)' }}
+            onMouseEnter={e => { if (compliments.length > 0) e.currentTarget.style.background = 'rgba(0,168,176,0.06)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
           >
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 6 }}>Player compliments (30d)</p>
-            <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, lineHeight: 1, color: compliments.length > 0 ? '#166534' : 'rgba(0,0,0,0.25)' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', marginBottom: 6 }}>Player compliments (30d)</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, lineHeight: 1, color: compliments.length > 0 ? '#00787e' : 'rgba(0,0,0,0.25)' }}>
               {compliments.length > 0 ? `+${compliments.length}` : '—'}
             </p>
             {compliments.length > 0 && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#166534', marginTop: 4 }}>Click to view all →</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#00787e', marginTop: 4 }}>Click to view all →</p>
             )}
           </div>
         </div>
@@ -894,14 +894,14 @@ export default function ExecutiveSummary() {
           {/* Header */}
           <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <div>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 17, fontWeight: 600, color: '#000' }}>Player Compliments</p>
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginTop: 2 }}>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, color: '#000' }}>Player Compliments</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 2 }}>
                 {compliments.length} genuine compliment{compliments.length !== 1 ? 's' : ''} in the last 30 days
               </p>
             </div>
             <button
               onClick={() => setShowCompliments(false)}
-              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#58595B', flexShrink: 0 }}
+              style={{ width: 32, height: 32, borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#323232', flexShrink: 0 }}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
@@ -913,18 +913,18 @@ export default function ExecutiveSummary() {
             {compliments.map((t, i) => (
               <div key={t.id} style={{ padding: '14px 24px', borderBottom: i < compliments.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#9B59D0', fontWeight: 500 }}>#{t.ticketNumber}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{t.agentName}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(22,101,52,0.09)', color: '#166534' }}>Compliment</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>#{t.ticketNumber}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{t.agentName}</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 100, background: 'rgba(0,168,176,0.09)', color: '#00787e' }}>Compliment</span>
                   {t.confidence !== null && (
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{t.confidence}% confidence</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)' }}>{t.confidence}% confidence</span>
                   )}
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>
                     {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
                   </span>
                 </div>
                 {t.lastMessage && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', lineHeight: 1.55, fontStyle: 'italic', padding: '10px 14px', borderRadius: 8, background: 'rgba(22,101,52,0.04)', borderLeft: '3px solid rgba(22,101,52,0.3)', margin: 0 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', lineHeight: 1.55, fontStyle: 'italic', padding: '10px 14px', borderRadius: 8, background: 'rgba(0,168,176,0.04)', borderLeft: '3px solid rgba(0,168,176,0.3)', margin: 0 }}>
                     "{t.lastMessage.length > 400 ? t.lastMessage.slice(0, 400) + '…' : t.lastMessage}"
                   </p>
                 )}
@@ -938,7 +938,7 @@ export default function ExecutiveSummary() {
   )
 }
 
-const USE_CASE_COLORS = ['#166534', '#9B59D0', '#e53e3e', '#854d0e', '#0d9488', '#be185d', '#ea580c', '#65a30d']
+const USE_CASE_COLORS = ['#00a8b0', '#5078ff', '#ff8c78', '#002896', '#b45309', '#323232', '#d9d7d3', '#141414']
 
 function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   snapshots: AutomationSnapshot[]; loading: boolean; isAdmin: boolean; operatorName: string | null
@@ -946,14 +946,14 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   const [series, setSeries] = useState<string>(SUPPORTED_USE_CASE)
 
   if (loading) {
-    return <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', padding: 40 }}>Loading…</div>
+    return <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', padding: 40 }}>Loading…</div>
   }
 
   if (snapshots.length === 0) {
     return (
       <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 40, textAlign: 'center' }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 6 }}>No Full Auto data yet</p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', maxWidth: 460, margin: '0 auto' }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: '#000', marginBottom: 6 }}>No Full Auto data yet</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', maxWidth: 460, margin: '0 auto' }}>
           {isAdmin
             ? 'Add a snapshot in Admin Settings → Config → Edit operator to populate this tab.'
             : "Preview data for this operator's path to Full Auto hasn't been added yet — check back soon."}
@@ -982,7 +982,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
   // threshold per value (which could put two clashing alarm colors side by
   // side on one card). No red anywhere in this row.
   const ALL_TICKETS_COLOR = '#000'
-  const SUPPORTED_COLOR = '#9B59D0'
+  const SUPPORTED_COLOR = '#00a8b0'
 
   // Main chart is a fixed 2-way switcher between the two AGGREGATE views --
   // All Tickets (raw Zendesk pull) and Supported Use Cases (manual rollup
@@ -1045,7 +1045,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Resolution Time"
           topLabel="All Tickets"
           value={latest?.resolutionTimeMinutes != null ? `${latest.resolutionTimeMinutes}m` : '—'}
-          color={latest?.resolutionTimeMinutes == null ? '#58595B' : ALL_TICKETS_COLOR}
+          color={latest?.resolutionTimeMinutes == null ? '#323232' : ALL_TICKETS_COLOR}
           sub="Manual"
           delta={latest?.resolutionTimeMinutes != null && prevSnap?.resolutionTimeMinutes != null ? <Delta curr={latest.resolutionTimeMinutes} prev={prevSnap.resolutionTimeMinutes} good="down" suffix="m" label="vs previous snapshot" /> : undefined}
         />
@@ -1053,7 +1053,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
           label="Handle Rate"
           topLabel="All Tickets"
           value={latest?.handleRate != null ? `${latest.handleRate}%` : '—'}
-          color={latest?.handleRate == null ? '#58595B' : ALL_TICKETS_COLOR}
+          color={latest?.handleRate == null ? '#323232' : ALL_TICKETS_COLOR}
           sub="Manual"
           delta={latest?.handleRate != null && prevSnap?.handleRate != null ? <Delta curr={latest.handleRate} prev={prevSnap.handleRate} good="up" suffix="pp" label="vs previous snapshot" /> : undefined}
         />
@@ -1074,9 +1074,9 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
                     key={uc}
                     onClick={() => setSeries(uc)}
                     style={{
-                      padding: '4px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+                      padding: '4px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)',
                       background: activeSeries === uc ? '#fff' : 'transparent',
-                      color: activeSeries === uc ? '#000' : '#58595B',
+                      color: activeSeries === uc ? '#000' : '#323232',
                       border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
                       boxShadow: activeSeries === uc ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                     }}
@@ -1086,26 +1086,26 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
                 ))}
               </div>
             )}
-            <Legend color="#166534" label="Automation rate" />
+            <Legend color="#00787e" label="Automation rate" />
             <Legend color="#e53e3e" label="Escalation rate" />
-            <Legend color="#9B59D0" label="Resolution time" />
+            <Legend color="#00a8b0" label="Resolution time" />
           </div>
         </div>
         {seriesSnapshots.length < 2 ? (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '20px 0' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', padding: '20px 0' }}>
             Add at least one more "{activeSeries}" snapshot to see a trend line.
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chartData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
-              <YAxis yAxisId="pct" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
-              <YAxis yAxisId="min" orientation="right" tickFormatter={v => `${v}m`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
-              <Tooltip formatter={(v: any, name: any) => v === null ? '—' : name === 'Resolution time' ? `${v}m` : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
-              <Line yAxisId="pct" type="monotone" dataKey="automation" name="Automation rate" stroke="#166534" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#323232', fontFamily: "'Maax', 'Outfit', sans-serif" }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
+              <YAxis yAxisId="pct" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#323232', fontFamily: "'Maax', 'Outfit', sans-serif" }} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="min" orientation="right" tickFormatter={v => `${v}m`} tick={{ fontSize: 11, fill: '#323232', fontFamily: "'Maax', 'Outfit', sans-serif" }} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(v: any, name: any) => v === null ? '—' : name === 'Resolution time' ? `${v}m` : `${v}%`} contentStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
+              <Line yAxisId="pct" type="monotone" dataKey="automation" name="Automation rate" stroke="#00787e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
               <Line yAxisId="pct" type="monotone" dataKey="escalation" name="Escalation rate" stroke="#e53e3e" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
-              <Line yAxisId="min" type="monotone" dataKey="resolutionTime" name="Resolution time" stroke="#9B59D0" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+              <Line yAxisId="min" type="monotone" dataKey="resolutionTime" name="Resolution time" stroke="#00a8b0" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -1123,16 +1123,16 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
             </div>
           </div>
           {useCaseDates.length < 2 ? (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '20px 0' }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', padding: '20px 0' }}>
               Add at least one more use-case snapshot to see a trend line.
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={useCaseChartData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
-                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#58595B', fontFamily: 'Inter, sans-serif' }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'Inter, sans-serif', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#323232', fontFamily: "'Maax', 'Outfit', sans-serif" }} tickLine={false} axisLine={{ stroke: 'rgba(0,0,0,0.1)' }} />
+                <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: '#323232', fontFamily: "'Maax', 'Outfit', sans-serif" }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(v: any) => v === null ? '—' : `${v}%`} contentStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)' }} />
                 {individualUseCases.map((uc, i) => (
                   <Line key={uc} type="monotone" dataKey={uc} name={uc} stroke={USE_CASE_COLORS[i % USE_CASE_COLORS.length]} strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
                 ))}
@@ -1142,7 +1142,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
         </div>
       )}
 
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>
         Preview data — manually entered, not yet connected to live systems. Mirrors the planned production Full Auto dashboard until {operatorName ?? 'this operator'} moves off Command Center entirely.
         {isAdmin && ' Manage snapshots in Admin Settings → Config → Edit operator.'}
       </p>
@@ -1152,7 +1152,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
 
 function Legend({ color, label }: { color: string; label: string }) {
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
       <span style={{ width: 14, height: 3, borderRadius: 2, background: color, display: 'inline-block' }} />
       {label}
     </span>
@@ -1162,9 +1162,9 @@ function Legend({ color, label }: { color: string; label: string }) {
 function MiniStat({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
   return (
     <div style={{ background: 'rgba(0,0,0,0.02)', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.06)', padding: '14px 16px' }}>
-      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', marginBottom: 6 }}>{label}</p>
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color, lineHeight: 1 }}>{value}</p>
-      {sub && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 4 }}>{sub}</p>}
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', marginBottom: 6 }}>{label}</p>
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color, lineHeight: 1 }}>{value}</p>
+      {sub && <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 4 }}>{sub}</p>}
     </div>
   )
 }

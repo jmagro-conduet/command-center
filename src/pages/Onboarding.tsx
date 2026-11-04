@@ -46,24 +46,24 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '9px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s', background: '#fff', width: '100%',
-  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
 }
 const labelStyle: React.CSSProperties = {
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', display: 'block', marginBottom: 6,
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', display: 'block', marginBottom: 6,
 }
 const primaryBtn: React.CSSProperties = {
   background: '#000', color: '#fff',
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
   padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', transition: 'opacity 0.15s',
 }
 const secondaryBtn: React.CSSProperties = {
-  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
   padding: '9px 18px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
 }
 const card: React.CSSProperties = { background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 22 }
 const focusHandlers = {
-  onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '#CEA4FF'),
+  onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = '#00a8b0'),
   onBlur:  (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)'),
 }
 
@@ -162,7 +162,7 @@ export default function Onboarding() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232' }}>
           Agent-training quizzes — {isAdmin ? 'author and publish quizzes, optionally drafted from a Learn article' : 'take a quiz to check your understanding'}
         </p>
         {isAdmin && (
@@ -172,11 +172,11 @@ export default function Onboarding() {
 
       {loading ? (
         <div style={{ ...card, padding: 48, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
         </div>
       ) : quizzes.length === 0 ? (
         <div style={{ ...card, padding: 48, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>
             {isAdmin ? 'No quizzes yet — create one to get started.' : 'No quizzes available yet.'}
           </p>
         </div>
@@ -211,24 +211,24 @@ function QuizCard({ quiz, isAdmin, questionCount, lastAttempt, onTake, onEdit, o
     <div style={{ ...card, padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'rgba(155,89,208,0.1)', color: '#9B59D0' }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'rgba(0,168,176,0.1)', color: '#00787e' }}>
             {questionCount} question{questionCount === 1 ? '' : 's'}
           </span>
           {isAdmin && quiz.operator_id === null && (
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'rgba(0,0,0,0.06)', color: '#58595B' }}>Global</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'rgba(0,0,0,0.06)', color: '#323232' }}>Global</span>
           )}
         </div>
         {isAdmin && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{
-              fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 100,
-              background: quiz.is_published ? 'rgba(22,101,52,0.09)' : 'rgba(0,0,0,0.06)',
-              color: quiz.is_published ? '#166534' : '#58595B',
+              fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 100,
+              background: quiz.is_published ? 'rgba(0,168,176,0.09)' : 'rgba(0,0,0,0.06)',
+              color: quiz.is_published ? '#00787e' : '#323232',
             }}>
               {quiz.is_published ? 'Published' : 'Draft'}
             </span>
             <div style={{ position: 'relative' }}>
-              <button onClick={() => setMenuOpen(v => !v)} style={{ width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 16, background: 'none', border: 'none', cursor: 'pointer' }}>⋯</button>
+              <button onClick={() => setMenuOpen(v => !v)} style={{ width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(0,0,0,0.35)', fontSize: 16, background: 'none', border: 'none', cursor: 'pointer' }}>⋯</button>
               {menuOpen && (
                 <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: 28, zIndex: 10, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', minWidth: 150, overflow: 'hidden' }}>
                   {[
@@ -237,7 +237,7 @@ function QuizCard({ quiz, isAdmin, questionCount, lastAttempt, onTake, onEdit, o
                     { label: 'View results', action: onResults, danger: false },
                     { label: 'Delete', action: onDelete, danger: true },
                   ].map(item => (
-                    <button key={item.label} onClick={() => { item.action(); setMenuOpen(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontFamily: 'Inter, sans-serif', fontSize: 13, color: item.danger ? '#e53e3e' : '#000', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <button key={item.label} onClick={() => { item.action(); setMenuOpen(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', fontFamily: 'var(--font-body)', fontSize: 13, color: item.danger ? '#e53e3e' : '#000', background: 'none', border: 'none', cursor: 'pointer' }}>
                       {item.label}
                     </button>
                   ))}
@@ -248,16 +248,16 @@ function QuizCard({ quiz, isAdmin, questionCount, lastAttempt, onTake, onEdit, o
         )}
       </div>
 
-      <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', lineHeight: 1.4 }}>{quiz.title || 'Untitled quiz'}</p>
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', lineHeight: 1.4 }}>{quiz.title || 'Untitled quiz'}</p>
       {quiz.description && (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{quiz.description}</p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{quiz.description}</p>
       )}
 
       {lastAttempt && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Inter, sans-serif', fontSize: 12 }}>
-          <span style={{ color: '#58595B' }}>Last score:</span>
-          <span style={{ fontWeight: 700, color: lastAttempt.passed ? '#166534' : '#c53030' }}>{lastAttempt.score_pct}%</span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 100, textTransform: 'uppercase', background: lastAttempt.passed ? 'rgba(22,101,52,0.09)' : 'rgba(229,62,62,0.09)', color: lastAttempt.passed ? '#166534' : '#c53030' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-body)', fontSize: 12 }}>
+          <span style={{ color: '#323232' }}>Last score:</span>
+          <span style={{ fontWeight: 700, color: lastAttempt.passed ? '#00787e' : '#c53030' }}>{lastAttempt.score_pct}%</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 100, textTransform: 'uppercase', background: lastAttempt.passed ? 'rgba(0,168,176,0.09)' : 'rgba(229,62,62,0.09)', color: lastAttempt.passed ? '#00787e' : '#c53030' }}>
             {lastAttempt.passed ? 'Passed' : 'Failed'}
           </span>
         </div>
@@ -366,8 +366,8 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>{quiz ? 'Edit quiz' : 'New quiz'}</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>Agent-training quiz builder</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>{quiz ? 'Edit quiz' : 'New quiz'}</h1>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>Agent-training quiz builder</p>
         </div>
         <button onClick={onCancel} style={secondaryBtn}>← Back to Onboarding</button>
       </div>
@@ -382,18 +382,18 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
             <label style={labelStyle}>Passing score</label>
             <div style={{ position: 'relative' }}>
               <input type="number" min={0} max={100} value={passingScore} onChange={e => setPassingScore(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))} style={{ ...inputStyle, paddingRight: 28 }} {...focusHandlers} />
-              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>%</span>
+              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>%</span>
             </div>
           </div>
         </div>
 
         <div>
-          <label style={labelStyle}>Description <span style={{ fontWeight: 400, color: '#aaa' }}>(optional)</span></label>
+          <label style={labelStyle}>Description <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)' }}>(optional)</span></label>
           <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical' }} {...focusHandlers} />
         </div>
 
         <div>
-          <label style={labelStyle}>Source Learn article <span style={{ fontWeight: 400, color: '#aaa' }}>(optional — lets you draft questions with AI)</span></label>
+          <label style={labelStyle}>Source Learn article <span style={{ fontWeight: 400, color: 'rgba(0,0,0,0.35)' }}>(optional — lets you draft questions with AI)</span></label>
           <select value={sourceArticleId} onChange={e => setSourceArticleId(e.target.value)} style={inputStyle} {...focusHandlers}>
             <option value="">No linked article</option>
             {articles.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
@@ -405,20 +405,20 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
             type="button" onClick={() => setIsGlobal(g => !g)}
             style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
-            <span style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: isGlobal ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)', background: isGlobal ? '#9B59D0' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: isGlobal ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.25)', background: isGlobal ? '#00a8b0' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {isGlobal && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
             </span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>Global quiz — visible to all clients</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>Global quiz — visible to all clients</span>
           </button>
         </div>
       </div>
 
       <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>Questions ({questions.length})</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>Questions ({questions.length})</p>
           <div style={{ display: 'flex', gap: 8 }}>
             {canGenerate && (
-              <button onClick={handleGenerate} disabled={generating} style={{ ...secondaryBtn, borderColor: '#CEA4FF', color: '#9B59D0', opacity: generating ? 0.6 : 1 }}>
+              <button onClick={handleGenerate} disabled={generating} style={{ ...secondaryBtn, borderColor: '#782aff', color: '#6a1ff0', opacity: generating ? 0.6 : 1 }}>
                 {generating ? 'Drafting…' : '✦ Draft questions from article'}
               </button>
             )}
@@ -426,24 +426,24 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
           </div>
         </div>
         {canGenerate && (title.trim() || description.trim()) && (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0' }}>Drafting will focus on your title/description above, not just summarize the whole article.</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#6a1ff0' }}>Drafting will focus on your title/description above, not just summarize the whole article.</p>
         )}
         {sourceArticleId && !canGenerate && (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>This article has no typed content and isn't a PDF — DOCX/XLSX/PPTX uploads aren't readable by the model yet. Add questions manually, or add written content to the article.</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>This article has no typed content and isn't a PDF — DOCX/XLSX/PPTX uploads aren't readable by the model yet. Add questions manually, or add written content to the article.</p>
         )}
-        {genError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>❌ {genError}</p>}
+        {genError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e' }}>❌ {genError}</p>}
 
         {loadingQuestions ? (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading questions…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading questions…</p>
         ) : questions.length === 0 ? (
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No questions yet — add one manually or draft from the linked article.</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No questions yet — add one manually or draft from the linked article.</p>
         ) : (
           questions.map((q, qi) => (
             <div key={q._key} style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 6, background: '#000', color: '#fff', fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 6 }}>{qi + 1}</span>
+                <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 6, background: '#000', color: '#fff', fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 6 }}>{qi + 1}</span>
                 <textarea value={q.question} onChange={e => updateQuestion(q._key, { question: e.target.value })} placeholder="Question text" rows={2} style={{ ...inputStyle, resize: 'vertical', flex: 1 }} {...focusHandlers} />
-                <button onClick={() => removeQuestion(q._key)} style={{ color: '#aaa', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0, marginTop: 6 }} title="Remove question">×</button>
+                <button onClick={() => removeQuestion(q._key)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 18, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, flexShrink: 0, marginTop: 6 }} title="Remove question">×</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, paddingLeft: 34 }}>
                 {q.options.map((opt, oi) => (
@@ -451,7 +451,7 @@ function QuizEditor({ quiz, articles, onCancel, onSaved }: {
                     <button
                       type="button" onClick={() => updateQuestion(q._key, { correct_index: oi })}
                       title="Mark as correct answer"
-                      style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 100, border: q.correct_index === oi ? '1.5px solid #166534' : '1.5px solid rgba(0,0,0,0.25)', background: q.correct_index === oi ? '#166534' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                      style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 100, border: q.correct_index === oi ? '1.5px solid #00787e' : '1.5px solid rgba(0,0,0,0.25)', background: q.correct_index === oi ? '#00787e' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                     >
                       {q.correct_index === oi && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                     </button>
@@ -509,42 +509,42 @@ function QuizRunner({ quiz, onBack }: { quiz: Quiz; onBack: () => void }) {
     setSubmitting(false)
   }
 
-  if (loading) return <div style={card}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading quiz…</p></div>
+  if (loading) return <div style={card}><p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading quiz…</p></div>
 
   if (result) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ ...card, textAlign: 'center', padding: 40 }}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 32, fontWeight: 600, color: result.passed ? '#166534' : '#c53030' }}>{result.score}%</p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 15, fontWeight: 600, color: result.passed ? '#166534' : '#c53030', marginTop: 4 }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 600, color: result.passed ? '#00787e' : '#c53030' }}>{result.score}%</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600, color: result.passed ? '#00787e' : '#c53030', marginTop: 4 }}>
             {result.passed ? 'Passed' : 'Not quite — review and retake'}
           </p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 4 }}>Passing score: {quiz.passing_score}%</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 4 }}>Passing score: {quiz.passing_score}%</p>
         </div>
         {questions.map((q, qi) => {
           const selected = answers[q.id]
           const correct = selected === q.correct_index
           return (
             <div key={q.id} style={card}>
-              <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 10 }}>{qi + 1}. {q.question}</p>
+              <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 10 }}>{qi + 1}. {q.question}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {q.options.map((opt, oi) => {
                   const isCorrectOpt = oi === q.correct_index
                   const isSelected = oi === selected
-                  const bg = isCorrectOpt ? 'rgba(22,101,52,0.07)' : isSelected ? 'rgba(229,62,62,0.06)' : 'transparent'
-                  const bd = isCorrectOpt ? 'rgba(22,101,52,0.3)' : isSelected ? 'rgba(229,62,62,0.3)' : 'rgba(0,0,0,0.08)'
-                  const fg = isCorrectOpt ? '#166534' : isSelected ? '#c53030' : '#000'
+                  const bg = isCorrectOpt ? 'rgba(0,168,176,0.07)' : isSelected ? 'rgba(229,62,62,0.06)' : 'transparent'
+                  const bd = isCorrectOpt ? 'rgba(0,168,176,0.3)' : isSelected ? 'rgba(229,62,62,0.3)' : 'rgba(0,0,0,0.08)'
+                  const fg = isCorrectOpt ? '#00787e' : isSelected ? '#c53030' : '#000'
                   return (
-                    <div key={oi} style={{ padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${bd}`, background: bg, fontFamily: 'Inter, sans-serif', fontSize: 13, color: fg }}>
+                    <div key={oi} style={{ padding: '8px 12px', borderRadius: 8, border: `1.5px solid ${bd}`, background: bg, fontFamily: 'var(--font-body)', fontSize: 13, color: fg }}>
                       {opt}{isCorrectOpt ? ' ✓' : isSelected ? ' ✗' : ''}
                     </div>
                   )
                 })}
               </div>
               {q.explanation && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#58595B', marginTop: 10, lineHeight: 1.6 }}>{q.explanation}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12.5, color: '#323232', marginTop: 10, lineHeight: 1.6 }}>{q.explanation}</p>
               )}
-              {!correct && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', marginTop: 4 }}>{selected == null ? 'Not answered' : ''}</p>}
+              {!correct && <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', marginTop: 4 }}>{selected == null ? 'Not answered' : ''}</p>}
             </div>
           )
         })}
@@ -561,15 +561,15 @@ function QuizRunner({ quiz, onBack }: { quiz: Quiz; onBack: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>{quiz.title}</h1>
-          {quiz.description && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>{quiz.description}</p>}
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>{quiz.title}</h1>
+          {quiz.description && <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>{quiz.description}</p>}
         </div>
         <button onClick={onBack} style={secondaryBtn}>← Back to Onboarding</button>
       </div>
 
       {questions.map((q, qi) => (
         <div key={q.id} style={card}>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 12 }}>{qi + 1}. {q.question}</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: '#000', marginBottom: 12 }}>{qi + 1}. {q.question}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {q.options.map((opt, oi) => {
               const selected = answers[q.id] === oi
@@ -578,12 +578,12 @@ function QuizRunner({ quiz, onBack }: { quiz: Quiz; onBack: () => void }) {
                   key={oi} onClick={() => setAnswers(a => ({ ...a, [q.id]: oi }))}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-                    border: selected ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.1)',
-                    background: selected ? 'rgba(155,89,208,0.06)' : '#fff', transition: 'all 0.15s',
+                    border: selected ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.1)',
+                    background: selected ? 'rgba(0,168,176,0.06)' : '#fff', transition: 'all 0.15s',
                   }}
                 >
-                  <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: 100, border: selected ? '1.5px solid #9B59D0' : '1.5px solid rgba(0,0,0,0.25)', background: selected ? '#9B59D0' : '#fff' }} />
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13.5, color: '#000' }}>{opt}</span>
+                  <span style={{ flexShrink: 0, width: 18, height: 18, borderRadius: 100, border: selected ? '1.5px solid #00a8b0' : '1.5px solid rgba(0,0,0,0.25)', background: selected ? '#00a8b0' : '#fff' }} />
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13.5, color: '#000' }}>{opt}</span>
                 </button>
               )
             })}
@@ -619,44 +619,44 @@ function QuizResults({ quiz, onBack }: { quiz: Quiz; onBack: () => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>{quiz.title} — Results</h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>Every attempt, most recent first</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>{quiz.title} — Results</h1>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>Every attempt, most recent first</p>
         </div>
         <button onClick={onBack} style={secondaryBtn}>← Back to Onboarding</button>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>Attempts </span>
-          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{attempts.length}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>Attempts </span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>{attempts.length}</span>
         </div>
         <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>Pass rate </span>
-          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{attempts.length ? Math.round((100 * passCount) / attempts.length) : 0}%</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>Pass rate </span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>{attempts.length ? Math.round((100 * passCount) / attempts.length) : 0}%</span>
         </div>
         <div style={{ padding: '6px 12px', background: 'rgba(0,0,0,0.03)', borderRadius: 8 }}>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B' }}>Unique agents </span>
-          <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>{uniqueAgents}</span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232' }}>Unique agents </span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>{uniqueAgents}</span>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ ...card, padding: 40, textAlign: 'center' }}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p></div>
+        <div style={{ ...card, padding: 40, textAlign: 'center' }}><p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p></div>
       ) : attempts.length === 0 ? (
-        <div style={{ ...card, padding: 40, textAlign: 'center' }}><p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No attempts yet.</p></div>
+        <div style={{ ...card, padding: 40, textAlign: 'center' }}><p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No attempts yet.</p></div>
       ) : (
         <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
           {attempts.map((a, i) => (
             <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.07)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.user_name || a.user_email}</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>{a.user_email}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000' }}>{a.user_name || a.user_email}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>{a.user_email}</p>
               </div>
-              <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 14, fontWeight: 600, color: a.passed ? '#166534' : '#c53030' }}>{a.score_pct}%</span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 100, textTransform: 'uppercase', background: a.passed ? 'rgba(22,101,52,0.09)' : 'rgba(229,62,62,0.09)', color: a.passed ? '#166534' : '#c53030' }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, color: a.passed ? '#00787e' : '#c53030' }}>{a.score_pct}%</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 100, textTransform: 'uppercase', background: a.passed ? 'rgba(0,168,176,0.09)' : 'rgba(229,62,62,0.09)', color: a.passed ? '#00787e' : '#c53030' }}>
                 {a.passed ? 'Passed' : 'Failed'}
               </span>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', width: 90, textAlign: 'right' }}>{new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', width: 90, textAlign: 'right' }}>{new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             </div>
           ))}
         </div>

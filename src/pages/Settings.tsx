@@ -1033,10 +1033,10 @@ export default function Settings({ initialTab }: SettingsProps) {
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
             {isAdmin ? 'Admin settings' : 'Settings'}
           </h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
             {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? 'Manage operators — Zendesk tracking, issue categories, rename, delete' : 'Configure your Command Center preferences'}
           </p>
         </div>
@@ -1053,10 +1053,10 @@ export default function Settings({ initialTab }: SettingsProps) {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '7px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
                   background: activeTab === tab ? '#fff' : 'transparent',
-                  color: activeTab === tab ? '#000' : '#58595B',
+                  color: activeTab === tab ? '#000' : '#323232',
                   boxShadow: activeTab === tab ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
                   transition: 'all 0.15s',
                 }}
@@ -1074,7 +1074,7 @@ export default function Settings({ initialTab }: SettingsProps) {
           {/* Gold case counts */}
           <SectionCard title={`Gold Case Library — ${selectedOperator?.name ?? 'no operator selected'}`} subtitle="Curated examples with known-correct outputs used as regression anchors. Scoped to the selected operator.">
             {regressionLoading ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
             ) : (() => {
               const editCases     = goldCases.filter(c => c.eval_type === 'edit')
               const accuracyCases = goldCases.filter(c => c.eval_type === 'accuracy')
@@ -1097,20 +1097,20 @@ export default function Settings({ initialTab }: SettingsProps) {
               const countChip = (count: number, label: string) => (
                 <div key={label} style={{
                   padding: '8px 14px', borderRadius: 10,
-                  background: count > 0 ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
-                  border: `1.5px solid ${count > 0 ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
+                  background: count > 0 ? 'rgba(0,168,176,0.06)' : 'rgba(0,0,0,0.03)',
+                  border: `1.5px solid ${count > 0 ? 'rgba(0,168,176,0.2)' : 'rgba(0,0,0,0.08)'}`,
                 }}>
-                  <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 20, fontWeight: 600, color: count > 0 ? '#9B59D0' : 'rgba(0,0,0,0.3)' }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: count > 0 ? '#00a8b0' : 'rgba(0,0,0,0.3)' }}>
                     {count}
                   </div>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 1 }}>{label}</div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 1 }}>{label}</div>
                 </div>
               )
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {/* Edit eval */}
                   <div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', marginBottom: 8 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#323232', marginBottom: 8 }}>
                       Edit Eval — {editCases.length} cases
                     </p>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1119,7 +1119,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   </div>
                   {/* Accuracy eval */}
                   <div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', marginBottom: 8 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#323232', marginBottom: 8 }}>
                       Accuracy Eval — {accuracyCases.length} cases
                     </p>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1128,18 +1128,18 @@ export default function Settings({ initialTab }: SettingsProps) {
                   </div>
                   {/* Quality eval */}
                   <div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B', marginBottom: 8 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#323232', marginBottom: 8 }}>
                       Quality Eval — {qualityCases.length} cases
                     </p>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {(['HIGH', 'LOW'] as const).map(v => countChip(qualByTier[v] ?? 0, v))}
                     </div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 6 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 6 }}>
                       HIGH = expect score ≥ 4.0 &nbsp;·&nbsp; LOW = expect score &lt; 3.5
                     </p>
                   </div>
                   {goldCases.length === 0 && (
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
                       No gold cases yet. Promote reviewed issues from Report Card to build the library.
                     </p>
                   )}
@@ -1151,9 +1151,9 @@ export default function Settings({ initialTab }: SettingsProps) {
           {/* Manage gold cases */}
           <SectionCard title="Manage Gold Cases" subtitle="View, edit expected outcomes, and remove cases from the active gold set.">
             {regressionLoading ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
             ) : goldCases.length === 0 ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>No gold cases yet.</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>No gold cases yet.</p>
             ) : (() => {
               const filtered = goldFilter === 'all' ? goldCases : goldCases.filter(c => c.eval_type === goldFilter)
               const typeOptions: { key: 'all' | 'edit' | 'accuracy' | 'quality'; label: string }[] = [
@@ -1171,10 +1171,10 @@ export default function Settings({ initialTab }: SettingsProps) {
                         key={opt.key}
                         onClick={() => { setGoldFilter(opt.key); setExpandedCase(null); setEditingCase(null); setDeletingCase(null) }}
                         style={{
-                          fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                          fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                           padding: '5px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
                           background: goldFilter === opt.key ? '#fff' : 'transparent',
-                          color: goldFilter === opt.key ? '#000' : '#58595B',
+                          color: goldFilter === opt.key ? '#000' : '#323232',
                           boxShadow: goldFilter === opt.key ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                           transition: 'all 0.15s',
                         }}
@@ -1187,7 +1187,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   {/* Cases table */}
                   <div style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden' }}>
                     {filtered.length === 0 ? (
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '16px 20px' }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', padding: '16px 20px' }}>
                         No {goldFilter} cases yet.
                       </p>
                     ) : filtered.map((c, i) => {
@@ -1199,10 +1199,10 @@ export default function Settings({ initialTab }: SettingsProps) {
                         ? ['P1A', 'P1B', 'P2', 'NONE']
                         : ['CORRECTION', 'ENHANCEMENT', 'PREFERENCE', 'NONE']
                       const chipColor = c.eval_type === 'edit'
-                        ? { bg: 'rgba(0,0,0,0.05)', color: '#58595B' }
+                        ? { bg: 'rgba(0,0,0,0.05)', color: '#323232' }
                         : c.eval_type === 'accuracy'
-                        ? { bg: 'rgba(155,89,208,0.08)', color: '#9B59D0' }
-                        : { bg: 'rgba(22,101,52,0.07)', color: '#166534' }
+                        ? { bg: 'rgba(0,168,176,0.08)', color: '#00a8b0' }
+                        : { bg: 'rgba(0,168,176,0.07)', color: '#00787e' }
 
                       return (
                         <div key={c.id} style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.07)' }}>
@@ -1218,7 +1218,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                           >
                             {/* Type chip */}
                             <span style={{
-                              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600,
+                              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
                               padding: '3px 8px', borderRadius: 100,
                               background: chipColor.bg, color: chipColor.color,
                               textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -1228,8 +1228,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                             </span>
 
                             {/* Player input preview */}
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {c.player_input ? `"${c.player_input.slice(0, 80)}${c.player_input.length > 80 ? '…' : ''}"` : <em style={{ color: '#bbb' }}>no input</em>}
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {c.player_input ? `"${c.player_input.slice(0, 80)}${c.player_input.length > 80 ? '…' : ''}"` : <em style={{ color: 'rgba(0,0,0,0.35)' }}>no input</em>}
                             </span>
 
                             {/* Expected — inline edit */}
@@ -1240,23 +1240,23 @@ export default function Settings({ initialTab }: SettingsProps) {
                                     autoFocus
                                     value={editValue}
                                     onChange={e => setEditValue(e.target.value)}
-                                    style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, border: '1.5px solid #CEA4FF', borderRadius: 6, padding: '3px 6px', outline: 'none' }}
+                                    style={{ fontFamily: 'var(--font-body)', fontSize: 12, border: '1.5px solid #00a8b0', borderRadius: 6, padding: '3px 6px', outline: 'none' }}
                                   >
                                     {verdictOptions.map(v => <option key={v} value={v}>{v}</option>)}
                                   </select>
-                                  <button onClick={() => saveExpected(c)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#166534', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>Save</button>
-                                  <button onClick={() => setEditingCase(null)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>✕</button>
+                                  <button onClick={() => saveExpected(c)} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#00787e', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>Save</button>
+                                  <button onClick={() => setEditingCase(null)} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>✕</button>
                                 </div>
                               ) : (
                                 <button
                                   onClick={() => { setEditingCase(c.id); setEditValue(expected ?? '') }}
                                   style={{
-                                    fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 600,
+                                    fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600,
                                     color: '#000', background: 'rgba(0,0,0,0.04)',
                                     border: '1px solid rgba(0,0,0,0.08)', borderRadius: 6,
                                     padding: '3px 10px', cursor: 'pointer', transition: 'all 0.15s',
                                   }}
-                                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                                   onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)')}
                                 >
                                   {expected ?? '—'}
@@ -1265,7 +1265,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                             </div>
 
                             {/* Date */}
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa' }}>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                               {new Date(c.created_at).toLocaleDateString()}
                             </span>
 
@@ -1273,15 +1273,15 @@ export default function Settings({ initialTab }: SettingsProps) {
                             <div onClick={e => e.stopPropagation()}>
                               {isDeleting ? (
                                 <div style={{ display: 'flex', gap: 6 }}>
-                                  <button onClick={() => deleteGoldCase(c.id)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#fff', background: '#e53e3e', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>Delete</button>
-                                  <button onClick={() => setDeletingCase(null)} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                                  <button onClick={() => deleteGoldCase(c.id)} style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#fff', background: '#e53e3e', border: 'none', borderRadius: 6, padding: '3px 8px', cursor: 'pointer' }}>Delete</button>
+                                  <button onClick={() => setDeletingCase(null)} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                                 </div>
                               ) : (
                                 <button
                                   onClick={() => setDeletingCase(c.id)}
-                                  style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 6px', borderRadius: 6, transition: 'all 0.15s' }}
+                                  style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 6px', borderRadius: 6, transition: 'all 0.15s' }}
                                   onMouseEnter={e => { e.currentTarget.style.color = '#e53e3e'; e.currentTarget.style.background = 'rgba(229,62,62,0.06)' }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#aaa'; e.currentTarget.style.background = 'none' }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = 'rgba(0,0,0,0.35)'; e.currentTarget.style.background = 'none' }}
                                 >
                                   Delete
                                 </button>
@@ -1293,7 +1293,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                           {isExpanded && (
                             <div style={{ padding: '0 16px 14px', background: 'rgba(0,0,0,0.015)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {c.notes && (
-                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', fontStyle: 'italic' }}>
+                                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', fontStyle: 'italic' }}>
                                   {c.notes}
                                 </p>
                               )}
@@ -1304,8 +1304,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                                   ...(c.final_edits ? [{ label: 'Agent edit', value: c.final_edits }] : []),
                                 ].map(box => (
                                   <div key={box.label} style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid rgba(0,0,0,0.09)' }}>
-                                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
-                                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
+                                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{box.label}</p>
+                                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#000', lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{box.value || '—'}</p>
                                   </div>
                                 ))}
                               </div>
@@ -1323,7 +1323,7 @@ export default function Settings({ initialTab }: SettingsProps) {
           {/* Regression runner */}
           <SectionCard title="Run Regression" subtitle={`Runs ${selectedOperator?.name ?? 'the selected operator'}'s active gold cases through the live eval models and checks for regressions. Typically 1–3 min.`}>
             {regressionError && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginBottom: 12 }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e', marginBottom: 12 }}>
                 ❌ {regressionError}
               </p>
             )}
@@ -1332,27 +1332,27 @@ export default function Settings({ initialTab }: SettingsProps) {
             {lastRun && (
               <div style={{
                 padding: '14px 16px', borderRadius: 10, marginBottom: 16,
-                background: lastRun.pass_rate >= 85 ? 'rgba(22,101,52,0.05)' : 'rgba(229,62,62,0.05)',
-                border: `1.5px solid ${lastRun.pass_rate >= 85 ? 'rgba(22,101,52,0.2)' : 'rgba(229,62,62,0.2)'}`,
+                background: lastRun.pass_rate >= 85 ? 'rgba(0,168,176,0.05)' : 'rgba(229,62,62,0.05)',
+                border: `1.5px solid ${lastRun.pass_rate >= 85 ? 'rgba(0,168,176,0.2)' : 'rgba(229,62,62,0.2)'}`,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
                     Last run — {new Date(lastRun.run_at).toLocaleDateString()} {new Date(lastRun.run_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     {lastRun.triggered_by && lastRun.triggered_by !== 'manual' && ` · ${lastRun.triggered_by}`}
                   </span>
                   <span style={{
-                    fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600,
-                    color: lastRun.pass_rate >= 85 ? '#166534' : '#c53030',
+                    fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600,
+                    color: lastRun.pass_rate >= 85 ? '#00787e' : '#c53030',
                   }}>
                     {lastRun.pass_rate}%
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: 16 }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
                     {lastRun.passed}/{lastRun.total_cases} passed
                   </span>
                   {lastRun.failed > 0 && (
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#c53030' }}>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#c53030' }}>
                       {lastRun.failed} failed
                     </span>
                   )}
@@ -1365,12 +1365,12 @@ export default function Settings({ initialTab }: SettingsProps) {
                       <div key={i} style={{
                         padding: '8px 12px', borderRadius: 8,
                         background: 'rgba(229,62,62,0.06)', border: '1px solid rgba(229,62,62,0.15)',
-                        fontFamily: 'Inter, sans-serif', fontSize: 12,
+                        fontFamily: 'var(--font-body)', fontSize: 12,
                       }}>
                         <span style={{ fontWeight: 600, color: '#c53030' }}>{r.eval_type} · </span>
-                        <span style={{ color: '#58595B' }}>expected <strong>{r.expected}</strong>, got <strong>{r.got}</strong></span>
+                        <span style={{ color: '#323232' }}>expected <strong>{r.expected}</strong>, got <strong>{r.got}</strong></span>
                         {r.reasoning && (
-                          <span style={{ color: '#aaa' }}> — {r.reasoning}</span>
+                          <span style={{ color: 'rgba(0,0,0,0.35)' }}> — {r.reasoning}</span>
                         )}
                       </div>
                     ))}
@@ -1386,7 +1386,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                 style={{
                   background: (regressionRunning || goldCases.length === 0) ? 'rgba(0,0,0,0.1)' : '#000',
                   color:      (regressionRunning || goldCases.length === 0) ? 'rgba(0,0,0,0.35)' : '#fff',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 20px', borderRadius: 10, border: 'none',
                   cursor: (regressionRunning || goldCases.length === 0) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s', whiteSpace: 'nowrap',
@@ -1397,12 +1397,12 @@ export default function Settings({ initialTab }: SettingsProps) {
                 {regressionRunning ? '⏳ Running…' : '▶ Run regression'}
               </button>
               {goldCases.length > 0 && !regressionRunning && (
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
                   {goldCases.length} cases · threshold 85%
                 </span>
               )}
               {regressionRunning && (
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
                   Keep this tab open…
                 </span>
               )}
@@ -1447,7 +1447,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                 style={{
                   background: (backfillStatus === 'loading' || backfillStatus === 'running') ? 'rgba(0,0,0,0.1)' : '#000',
                   color:      (backfillStatus === 'loading' || backfillStatus === 'running') ? 'rgba(0,0,0,0.35)' : '#fff',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 18px', borderRadius: 10, border: 'none',
                   cursor: (backfillStatus === 'loading' || backfillStatus === 'running') ? 'not-allowed' : 'pointer',
                   transition: 'all 0.15s', whiteSpace: 'nowrap',
@@ -1472,10 +1472,10 @@ export default function Settings({ initialTab }: SettingsProps) {
                     key={opt.key}
                     onClick={() => { if (backfillStatus !== 'running') { opt.set(!opt.val); setBackfillStatus('idle'); setBackfillCounts(null) } }}
                     style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       padding: '7px 16px', borderRadius: 100, border: 'none', cursor: backfillStatus === 'running' ? 'not-allowed' : 'pointer',
                       background: opt.val ? '#000' : 'rgba(0,0,0,0.06)',
-                      color: opt.val ? '#fff' : '#58595B',
+                      color: opt.val ? '#fff' : '#323232',
                       transition: 'all 0.15s',
                     }}
                   >
@@ -1501,13 +1501,13 @@ export default function Settings({ initialTab }: SettingsProps) {
                 type="checkbox"
                 checked={backfillForce}
                 onChange={() => {}}
-                style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+                style={{ marginTop: 2, cursor: 'pointer', accentColor: '#00a8b0', pointerEvents: 'none' }}
               />
               <div>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
                   Force re-score
                 </p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5 }}>
                   Re-run evals on <em>all</em> issues in this window, overwriting existing scores. Use after updating eval prompts to keep metrics consistent.
                 </p>
               </div>
@@ -1515,7 +1515,7 @@ export default function Settings({ initialTab }: SettingsProps) {
 
             {/* Error */}
             {backfillStatus === 'error' && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e', marginBottom: 12 }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e', marginBottom: 12 }}>
                 ❌ {backfillError}
               </p>
             )}
@@ -1530,14 +1530,14 @@ export default function Settings({ initialTab }: SettingsProps) {
                   { label: 'Total unique issues', value: backfillCounts.totalUnique, accent: false },
                 ].map(s => (
                   <div key={s.label} style={{
-                    background: s.accent ? 'rgba(155,89,208,0.06)' : 'rgba(0,0,0,0.03)',
-                    border: `1.5px solid ${s.accent ? 'rgba(155,89,208,0.2)' : 'rgba(0,0,0,0.08)'}`,
+                    background: s.accent ? 'rgba(0,168,176,0.06)' : 'rgba(0,0,0,0.03)',
+                    border: `1.5px solid ${s.accent ? 'rgba(0,168,176,0.2)' : 'rgba(0,0,0,0.08)'}`,
                     borderRadius: 10, padding: '12px 16px',
                   }}>
-                    <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: s.accent ? '#9B59D0' : '#000' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: s.accent ? '#00a8b0' : '#000' }}>
                       {s.value}
                     </div>
-                    <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 2 }}>
+                    <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 2 }}>
                       {s.label}
                     </div>
                   </div>
@@ -1552,7 +1552,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   onClick={runBackfill}
                   style={{
                     background: '#000', color: '#fff',
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                     padding: '9px 20px', borderRadius: 10, border: 'none',
                     cursor: 'pointer', transition: 'opacity 0.15s', whiteSpace: 'nowrap',
                   }}
@@ -1561,14 +1561,14 @@ export default function Settings({ initialTab }: SettingsProps) {
                 >
                   {backfillForce ? '♻ Re-score all' : '▶ Run backfill'}
                 </button>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa' }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)' }}>
                   Est. ~{estimateMinutes(backfillCounts.editIds.length, backfillCounts.accuracyIds.length, backfillCounts.qualityIds.length)} min — keep this tab open
                 </span>
               </div>
             )}
 
             {backfillStatus === 'ready' && backfillCounts && backfillCounts.totalUnique === 0 && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534' }}>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e' }}>
                 ✅ {backfillForce ? 'No scorable issues found in this window.' : 'All issues are already scored — nothing to backfill.'}
               </p>
             )}
@@ -1577,7 +1577,7 @@ export default function Settings({ initialTab }: SettingsProps) {
             {backfillStatus === 'running' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B' }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
                     {backfillProgress.editTotal > 0 && `Edit: ${backfillProgress.editDone}/${backfillProgress.editTotal} · `}
                     {backfillProgress.accTotal  > 0 && `Accuracy: ${backfillProgress.accDone}/${backfillProgress.accTotal} · `}
                     {backfillProgress.quaTotal  > 0 && `Quality: ${backfillProgress.quaDone}/${backfillProgress.quaTotal}`}
@@ -1587,7 +1587,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                       </span>
                     )}
                   </span>
-                  <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#9B59D0' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#00787e' }}>
                     {backfillProgress.total > 0 ? Math.round((backfillProgress.done / backfillProgress.total) * 100) : 0}%
                   </span>
                 </div>
@@ -1595,7 +1595,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   <div style={{
                     height: '100%',
                     width: `${backfillProgress.total > 0 ? (backfillProgress.done / backfillProgress.total) * 100 : 0}%`,
-                    background: '#CEA4FF',
+                    background: '#cceef0',
                     borderRadius: 100,
                     transition: 'width 0.4s ease',
                   }} />
@@ -1607,9 +1607,9 @@ export default function Settings({ initialTab }: SettingsProps) {
             {backfillStatus === 'done' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{
-                  background: 'rgba(22,101,52,0.06)', border: '1.5px solid rgba(22,101,52,0.2)',
+                  background: 'rgba(0,168,176,0.06)', border: '1.5px solid rgba(0,168,176,0.2)',
                   borderRadius: 10, padding: 14,
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
+                  fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e',
                 }}>
                   ✅ Backfill complete —{backfillProgress.editTotal > 0 ? ` ${backfillProgress.editTotal} edit,` : ''}{backfillProgress.accTotal > 0 ? ` ${backfillProgress.accTotal} accuracy,` : ''}{backfillProgress.quaTotal > 0 ? ` ${backfillProgress.quaTotal} quality` : ''} batches processed
                   {backfillProgress.errors > 0 && (
@@ -1647,13 +1647,13 @@ export default function Settings({ initialTab }: SettingsProps) {
               onChange={e => setDisplayName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveName() }}
               style={inputStyle}
-              onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+              onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
               onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
             />
           </div>
           <SaveBtn onClick={saveName} loading={nameSaving} saved={nameSaved} />
         </div>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 8 }}>
           Email: {user?.email} · Role: {user?.role}
         </p>
       </SectionCard>
@@ -1667,12 +1667,12 @@ export default function Settings({ initialTab }: SettingsProps) {
             subtitle="Known data/eval gaps. Red needs a person to fix data or config now; orange usually self-heals via an existing tool. Dismiss once acknowledged — it resurfaces automatically if the underlying count grows."
           >
             {healthIssues === null ? (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Checking…</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Checking…</p>
             ) : (() => {
               const active = filterActive(healthIssues, healthDismissals)
               if (active.length === 0) {
                 return (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534', fontWeight: 500 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e', fontWeight: 500 }}>
                     ✓ No open Data Health issues.
                   </p>
                 )
@@ -1690,19 +1690,19 @@ export default function Settings({ initialTab }: SettingsProps) {
                         padding: '12px 14px', borderRadius: 10, background: bg, border: `1.5px solid ${border}`,
                       }}>
                         <div>
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color, fontWeight: 600, marginBottom: 4 }}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color, fontWeight: 600, marginBottom: 4 }}>
                             {isRed ? '⚠' : '●'} {issue.title}
                           </p>
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', lineHeight: 1.5 }}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', lineHeight: 1.5 }}>
                             {issue.description}
                           </p>
                         </div>
                         <button
                           onClick={() => handleDismissHealthIssue(issue)}
                           style={{
-                            flexShrink: 0, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                            flexShrink: 0, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                             padding: '6px 12px', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.12)',
-                            background: '#fff', color: '#58595B', cursor: 'pointer', transition: 'all 0.15s',
+                            background: '#fff', color: '#323232', cursor: 'pointer', transition: 'all 0.15s',
                           }}
                         >Dismiss</button>
                       </div>
@@ -1725,7 +1725,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   type="number" min={1} value={targetMin}
                   onChange={e => setTargetMin(e.target.value)}
                   style={{ ...inputStyle, width: 110 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
               </div>
@@ -1735,15 +1735,15 @@ export default function Settings({ initialTab }: SettingsProps) {
                   type="number" min={1} value={targetMax}
                   onChange={e => setTargetMax(e.target.value)}
                   style={{ ...inputStyle, width: 110 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
               </div>
               <SaveBtn onClick={saveTarget} saved={targetSaved} />
             </div>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 8 }}>
               Currently: <strong>{tgt.min}–{tgt.max}</strong> tickets/agent/day
-              {targetSaved && <span style={{ color: '#166534', marginLeft: 10 }}>✓ Updated — reload Analytics to see changes</span>}
+              {targetSaved && <span style={{ color: '#00787e', marginLeft: 10 }}>✓ Updated — reload Analytics to see changes</span>}
             </p>
           </SectionCard>
 
@@ -1765,25 +1765,25 @@ export default function Settings({ initialTab }: SettingsProps) {
                 onClick={() => { fileRef.current?.click() }}
                 style={{
                   border: '1.5px dashed rgba(0,0,0,0.2)', borderRadius: 10,
-                  background: '#fafafa', padding: '20px 32px',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+                  background: '#fbfaf9', padding: '20px 32px',
+                  fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
                   cursor: 'pointer', transition: 'all 0.15s', display: 'flex',
                   alignItems: 'center', gap: 10,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#CEA4FF'; e.currentTarget.style.color = '#000' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.2)'; e.currentTarget.style.color = '#58595B' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#00a8b0'; e.currentTarget.style.color = '#000' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.2)'; e.currentTarget.style.color = '#323232' }}
               >
                 📂 Choose CSV file to import
               </button>
             )}
 
             {importStatus === 'parsing' && (
-              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Parsing CSV…</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Parsing CSV…</p>
             )}
 
             {importStatus === 'error' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>
                   ❌ {importError}
                 </p>
                 <button onClick={() => { setImportStatus('idle'); if (fileRef.current) fileRef.current.value = '' }} style={resetBtnStyle}>
@@ -1797,8 +1797,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
                   padding: '5px 12px', borderRadius: 100,
-                  background: 'rgba(155,89,208,0.08)', border: '1.5px solid rgba(155,89,208,0.25)',
-                  fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9B59D0', fontWeight: 500,
+                  background: 'rgba(0,168,176,0.08)', border: '1.5px solid rgba(0,168,176,0.25)',
+                  fontFamily: 'var(--font-body)', fontSize: 12, color: '#00787e', fontWeight: 500,
                 }}>
                   Detected: {importPreview.format === 'metabase' ? 'Metabase / Copilot (suggestion-quality, issue-level)' : 'Bolt agent feedback (ticket-level)'}
                 </div>
@@ -1812,14 +1812,14 @@ export default function Settings({ initialTab }: SettingsProps) {
                     { label: 'Existing (skip)', value: importPreview.existingTickets },
                   ].map(s => (
                     <div key={s.label} style={{
-                      background: s.accent ? 'rgba(206,164,255,0.1)' : 'rgba(0,0,0,0.03)',
-                      border: `1.5px solid ${s.accent ? 'rgba(206,164,255,0.4)' : 'rgba(0,0,0,0.08)'}`,
+                      background: s.accent ? 'rgba(0,168,176,0.1)' : 'rgba(0,0,0,0.03)',
+                      border: `1.5px solid ${s.accent ? 'rgba(0,168,176,0.4)' : 'rgba(0,0,0,0.08)'}`,
                       borderRadius: 10, padding: '12px 16px',
                     }}>
-                      <div style={{ fontFamily: 'Manrope, sans-serif', fontSize: 22, fontWeight: 600, color: s.accent ? '#9B59D0' : '#000' }}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: s.accent ? '#00a8b0' : '#000' }}>
                         {s.value}
                       </div>
-                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#58595B', marginTop: 2 }}>
+                      <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 2 }}>
                         {s.label}
                       </div>
                     </div>
@@ -1828,8 +1828,8 @@ export default function Settings({ initialTab }: SettingsProps) {
 
                 {/* Repair mode toggle */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 10, background: repairMode ? 'rgba(234,179,8,0.08)' : 'rgba(0,0,0,0.03)', border: `1.5px solid ${repairMode ? 'rgba(234,179,8,0.3)' : 'rgba(0,0,0,0.08)'}`, transition: 'all 0.15s' }}>
-                  <input type="checkbox" id="repairMode" checked={repairMode} onChange={e => setRepairMode(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0' }} />
-                  <label htmlFor="repairMode" style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', cursor: 'pointer', lineHeight: 1.5 }}>
+                  <input type="checkbox" id="repairMode" checked={repairMode} onChange={e => setRepairMode(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer', accentColor: '#00a8b0' }} />
+                  <label htmlFor="repairMode" style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', cursor: 'pointer', lineHeight: 1.5 }}>
                     <strong style={{ color: '#000' }}>Repair / backfill from CSV</strong> — re-read this CSV and overwrite timestamps, customer input, suggested response, reasoning, final edits, and notes on existing records (no duplicates inserted). Use this to fix bad dates or backfill newly-added fields.
                   </label>
                 </div>
@@ -1841,7 +1841,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                       disabled={importStatus === 'importing'}
                       style={{
                         background: '#854d0e', color: '#fff',
-                        fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                        fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                         padding: '9px 20px', borderRadius: 10, border: 'none',
                         cursor: importStatus === 'importing' ? 'not-allowed' : 'pointer',
                         opacity: importStatus === 'importing' ? 0.6 : 1, transition: 'opacity 0.15s',
@@ -1852,7 +1852,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                     <button onClick={() => { setImportStatus('idle'); setImportPreview(null); setRepairMode(false); if (fileRef.current) fileRef.current.value = '' }} style={resetBtnStyle}>Cancel</button>
                   </div>
                 ) : importPreview.newTickets === 0 ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
                     All tickets in this file already exist — nothing new to import. Use Repair mode to fix timestamps.
                   </p>
                 ) : (
@@ -1862,7 +1862,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                       disabled={importStatus === 'importing'}
                       style={{
                         background: '#000', color: '#fff',
-                        fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                        fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                         padding: '9px 20px', borderRadius: 10, border: 'none',
                         cursor: importStatus === 'importing' ? 'not-allowed' : 'pointer',
                         opacity: importStatus === 'importing' ? 0.6 : 1, transition: 'opacity 0.15s',
@@ -1879,9 +1879,9 @@ export default function Settings({ initialTab }: SettingsProps) {
             {importStatus === 'done' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{
-                  background: 'rgba(22,101,52,0.06)', border: '1.5px solid rgba(22,101,52,0.2)',
+                  background: 'rgba(0,168,176,0.06)', border: '1.5px solid rgba(0,168,176,0.2)',
                   borderRadius: 10, padding: 14,
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#166534',
+                  fontFamily: 'var(--font-body)', fontSize: 13, color: '#00787e',
                   display: 'flex', flexDirection: 'column', gap: 4,
                 }}>
                   {importLog.map((l, i) => <span key={i}>{l}</span>)}
@@ -1907,11 +1907,11 @@ export default function Settings({ initialTab }: SettingsProps) {
           subtitle="Client operators you support. Click Edit to rename, configure Zendesk tracking, or manage issue categories."
         >
           {teamsLoading ? (
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {teams.length === 0 && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', padding: '8px 0' }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', padding: '8px 0' }}>
                   No operators yet. Add one below.
                 </p>
               )}
@@ -1921,34 +1921,34 @@ export default function Settings({ initialTab }: SettingsProps) {
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '10px 14px', borderRadius: 10,
                   border: '1.5px solid rgba(0,0,0,0.08)',
-                  background: '#fafafa',
+                  background: '#fbfaf9',
                 }}>
                   <span style={{
-                    flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13,
+                    flex: 1, fontFamily: 'var(--font-body)', fontSize: 13,
                     fontWeight: 500, color: '#000',
                   }}>
                     {t.name}
                   </span>
                   {t.isQaMode && (
                     <span style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                       padding: '3px 9px', borderRadius: 100,
-                      background: 'rgba(155,89,208,0.1)', color: '#9B59D0',
+                      background: 'rgba(0,168,176,0.1)', color: '#00a8b0',
                     }}>
                       QA mode
                     </span>
                   )}
                   {t.fullAutoEnabled && (
                     <span style={{
-                      fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                       padding: '3px 9px', borderRadius: 100,
-                      background: 'rgba(20,184,166,0.1)', color: '#0d9488',
+                      background: 'rgba(20,184,166,0.1)', color: '#00a8b0',
                     }}>
                       Full Auto
                     </span>
                   )}
                   <span style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                    fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                     padding: '3px 9px', borderRadius: 100,
                     background: t.zendeskBrandId ? 'rgba(243,156,18,0.1)' : 'rgba(0,0,0,0.05)',
                     color: t.zendeskBrandId ? '#b45309' : 'rgba(0,0,0,0.35)',
@@ -1967,7 +1967,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   onKeyDown={e => { if (e.key === 'Enter') addTeam() }}
                   placeholder="New operator name…"
                   style={{ ...inputStyle, flex: 1 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
                 <button
@@ -1976,7 +1976,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   style={{
                     background: newTeamName.trim() && !addingTeam ? '#000' : 'rgba(0,0,0,0.1)',
                     color: newTeamName.trim() && !addingTeam ? '#fff' : 'rgba(0,0,0,0.35)',
-                    fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                    fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                     padding: '9px 18px', borderRadius: 10, border: 'none',
                     cursor: newTeamName.trim() && !addingTeam ? 'pointer' : 'default',
                     transition: 'all 0.15s', whiteSpace: 'nowrap',
@@ -2003,8 +2003,8 @@ export default function Settings({ initialTab }: SettingsProps) {
             style={{ background: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>Edit operator</h2>
-              <button onClick={closeConfigModal} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>Edit operator</h2>
+              <button onClick={closeConfigModal} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -2017,7 +2017,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                     onChange={e => setConfigNameVal(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') saveConfigName() }}
                     style={{ ...inputStyle, flex: 1 }}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                   />
                   <button
@@ -2025,7 +2025,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                     disabled={configSaving || !configNameVal.trim() || configNameVal.trim() === configTarget.name}
                     style={{
                       background: '#000', color: '#fff', border: 'none', borderRadius: 10,
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       padding: '9px 18px', cursor: 'pointer', whiteSpace: 'nowrap',
                       opacity: configSaving || !configNameVal.trim() || configNameVal.trim() === configTarget.name ? 0.4 : 1,
                     }}
@@ -2038,11 +2038,11 @@ export default function Settings({ initialTab }: SettingsProps) {
               {/* Zendesk brand */}
               <div>
                 <label style={labelStyle}>Zendesk brand</label>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginBottom: 8 }}>
                   Drives ZD adoption tracking on Leaderboard, Analytics, and Executive Summary. Leave as "Not tracked" for operators that don't use Zendesk.
                 </p>
                 {zdBrandsError ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{zdBrandsError}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{zdBrandsError}</p>
                 ) : (
                   <select
                     value={configTarget.zendeskBrandId ?? ''}
@@ -2063,7 +2063,7 @@ export default function Settings({ initialTab }: SettingsProps) {
               {/* Linear projects */}
               <div>
                 <label style={labelStyle}>Linear projects</label>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginBottom: 8 }}>
                   Bug reports for this operator are compared against every Linear project linked below for duplicate/triage classification — link more than one if this operator spans e.g. a POC project and an Upgrades/New Use Cases project. The workspace has 100+ projects (mostly future-roadmap placeholders), so search by name rather than picking from a full list.
                 </p>
 
@@ -2072,16 +2072,16 @@ export default function Settings({ initialTab }: SettingsProps) {
                     {configTarget.linearProjects.map(p => (
                       <div key={p.id} style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                        padding: '8px 12px', borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.25)', background: 'rgba(155,89,208,0.05)',
+                        padding: '8px 12px', borderRadius: 10, border: '1.5px solid rgba(0,168,176,0.25)', background: 'rgba(0,168,176,0.05)',
                       }}>
-                        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000', fontWeight: 500 }}>{p.name}</span>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000', fontWeight: 500 }}>{p.name}</span>
                         <GhostBtn danger onClick={() => !linearProjectSaving && removeLinearProject(p.id)}>Unlink</GhostBtn>
                       </div>
                     ))}
                   </div>
                 )}
                 {configTarget.linearProjects.length === 0 && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa', marginBottom: 10 }}>Not linked</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)', marginBottom: 10 }}>Not linked</p>
                 )}
 
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -2097,7 +2097,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                     disabled={linearSearching || !linearSearchTerm.trim()}
                     style={{
                       background: '#000', color: '#fff', border: 'none', borderRadius: 10,
-                      fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                      fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                       padding: '9px 18px', cursor: 'pointer', whiteSpace: 'nowrap',
                       opacity: linearSearching || !linearSearchTerm.trim() ? 0.4 : 1,
                     }}
@@ -2106,11 +2106,11 @@ export default function Settings({ initialTab }: SettingsProps) {
                   </button>
                 </div>
                 {linearSearchError && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{linearSearchError}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e', marginTop: 8 }}>{linearSearchError}</p>
                 )}
                 {linearSearchResults && (
                   linearSearchResults.length === 0 ? (
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#aaa', marginTop: 8 }}>No matching projects.</p>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(0,0,0,0.35)', marginTop: 8 }}>No matching projects.</p>
                   ) : (
                     <div style={{ marginTop: 8, border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
                       {linearSearchResults.map((p, i) => {
@@ -2128,8 +2128,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                             onMouseEnter={e => { if (!alreadyLinked) e.currentTarget.style.background = 'rgba(0,0,0,0.03)' }}
                             onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                           >
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>{p.name}</span>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#aaa', textTransform: 'capitalize' }}>{alreadyLinked ? 'Linked' : p.state}</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>{p.name}</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', textTransform: 'capitalize' }}>{alreadyLinked ? 'Linked' : p.state}</span>
                           </div>
                         )
                       })}
@@ -2144,8 +2144,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: 10,
                   padding: '10px 14px', borderRadius: 10,
-                  background: configTarget.isQaMode ? 'rgba(155,89,208,0.07)' : 'rgba(0,0,0,0.03)',
-                  border: `1.5px solid ${configTarget.isQaMode ? 'rgba(155,89,208,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                  background: configTarget.isQaMode ? 'rgba(0,168,176,0.07)' : 'rgba(0,0,0,0.03)',
+                  border: `1.5px solid ${configTarget.isQaMode ? 'rgba(0,168,176,0.35)' : 'rgba(0,0,0,0.08)'}`,
                   cursor: 'pointer', transition: 'all 0.15s',
                 }}
               >
@@ -2153,13 +2153,13 @@ export default function Settings({ initialTab }: SettingsProps) {
                   type="checkbox"
                   checked={configTarget.isQaMode}
                   onChange={() => {}}
-                  style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+                  style={{ marginTop: 2, cursor: 'pointer', accentColor: '#00a8b0', pointerEvents: 'none' }}
                 />
                 <div>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
                     QA / UAT mode
                   </p>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5 }}>
                     Turn on while this operator is in testing — duplicate placeholder ticket numbers are expected then,
                     so ticket counts on Submissions, Executive Summary, Analytics, and Leaderboard fall back to counting
                     each row instead of collapsing duplicates. Turn off once this operator goes live; production
@@ -2175,8 +2175,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '10px 14px', borderRadius: 10,
-                    background: configTarget.fullAutoEnabled ? 'rgba(155,89,208,0.07)' : 'rgba(0,0,0,0.03)',
-                    border: `1.5px solid ${configTarget.fullAutoEnabled ? 'rgba(155,89,208,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                    background: configTarget.fullAutoEnabled ? 'rgba(0,168,176,0.07)' : 'rgba(0,0,0,0.03)',
+                    border: `1.5px solid ${configTarget.fullAutoEnabled ? 'rgba(0,168,176,0.35)' : 'rgba(0,0,0,0.08)'}`,
                     cursor: 'pointer', transition: 'all 0.15s',
                   }}
                 >
@@ -2184,13 +2184,13 @@ export default function Settings({ initialTab }: SettingsProps) {
                     type="checkbox"
                     checked={configTarget.fullAutoEnabled}
                     onChange={() => {}}
-                    style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+                    style={{ marginTop: 2, cursor: 'pointer', accentColor: '#00a8b0', pointerEvents: 'none' }}
                   />
                   <div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
                       Full Auto preview tab
                     </p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5 }}>
                       Adds a "Full Auto" tab next to CoPilot on {configTarget.name}'s Executive Summary, showing the
                       manually entered snapshots below. Use for operators being migrated toward the production Full
                       Auto dashboard — turn off (or leave off) for everyone else.
@@ -2204,8 +2204,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '10px 14px', borderRadius: 10, marginTop: 10,
-                    background: configTarget.copilotEnabled ? 'rgba(155,89,208,0.07)' : 'rgba(0,0,0,0.03)',
-                    border: `1.5px solid ${configTarget.copilotEnabled ? 'rgba(155,89,208,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                    background: configTarget.copilotEnabled ? 'rgba(0,168,176,0.07)' : 'rgba(0,0,0,0.03)',
+                    border: `1.5px solid ${configTarget.copilotEnabled ? 'rgba(0,168,176,0.35)' : 'rgba(0,0,0,0.08)'}`,
                     cursor: 'pointer', transition: 'all 0.15s',
                   }}
                 >
@@ -2213,13 +2213,13 @@ export default function Settings({ initialTab }: SettingsProps) {
                     type="checkbox"
                     checked={configTarget.copilotEnabled}
                     onChange={() => {}}
-                    style={{ marginTop: 2, cursor: 'pointer', accentColor: '#9B59D0', pointerEvents: 'none' }}
+                    style={{ marginTop: 2, cursor: 'pointer', accentColor: '#00a8b0', pointerEvents: 'none' }}
                   />
                   <div>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 2 }}>
                       CoPilot ticket logging
                     </p>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5 }}>
                       Together with Full Auto preview above, decides what {configTarget.name}'s agents see on Log Ticket: both on shows a Mode toggle, exactly one on skips the toggle and locks to that mode — e.g. turn this off for a Full Auto-only operator so agents never see CoPilot's edit-grading flow. Can't turn both off at once.
                     </p>
                   </div>
@@ -2228,12 +2228,12 @@ export default function Settings({ initialTab }: SettingsProps) {
                 {configTarget.fullAutoEnabled && (
                   <div style={{ marginTop: 14 }}>
                     <label style={labelStyle}>Full Auto snapshots</label>
-                    <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 10 }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginBottom: 10 }}>
                       Three kinds of row, one date per kind (or per use case), all manually entered: <strong>All Tickets</strong> is the whole-operator number, <strong>Supported Use Cases</strong> is your own aggregate across just the use cases gameLM attempts, and <strong>individual use cases</strong> track one specific use case each. Leave any field blank if you don't have that number yet.
                     </p>
 
                     {snapshotsLoading ? (
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
                     ) : snapshots.length > 0 && (() => {
                       const groups: { title: string; rows: AutomationSnapshot[] }[] = [
                         { title: 'All Tickets', rows: snapshots.filter(s => s.useCase === ALL_TICKETS_USE_CASE) },
@@ -2244,24 +2244,24 @@ export default function Settings({ initialTab }: SettingsProps) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 12 }}>
                           {groups.filter(g => g.rows.length > 0).map(g => (
                             <div key={g.title}>
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 600, color: '#9B59D0', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{g.title}</p>
+                              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600, color: '#00787e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{g.title}</p>
                               <div style={{ border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: 10, overflow: 'hidden' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: g.title === 'Individual Use Cases' ? '90px 120px 1fr 1fr 1fr 1fr 1fr 130px' : '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
                                   {(g.title === 'Individual Use Cases' ? ['Date', 'Use case', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', ''] : ['Date', 'Tickets', 'Automation', 'Escalation', 'Res. time', 'Handle', '']).map(h => (
-                                    <span key={h} style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+                                    <span key={h} style={{ fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
                                   ))}
                                 </div>
                                 {g.rows.map((s, i) => (
                                   <div key={s.id} style={{ display: 'grid', gridTemplateColumns: g.title === 'Individual Use Cases' ? '90px 120px 1fr 1fr 1fr 1fr 1fr 130px' : '90px 1fr 1fr 1fr 1fr 1fr 130px', padding: '8px 12px', alignItems: 'center', borderTop: i === 0 ? 'none' : '1px solid rgba(0,0,0,0.05)' }}>
-                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#000' }}>{new Date(s.snapshotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#000' }}>{new Date(s.snapshotDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                                     {g.title === 'Individual Use Cases' && (
-                                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500, color: '#58595B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.useCase}</span>
+                                      <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, color: '#323232', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.useCase}</span>
                                     )}
-                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.totalTickets ?? '—'}</span>
-                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.automationRate !== null ? `${s.automationRate}%` : '—'}</span>
-                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.escalationRate !== null ? `${s.escalationRate}%` : '—'}</span>
-                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.resolutionTimeMinutes !== null ? `${s.resolutionTimeMinutes}m` : '—'}</span>
-                                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{s.handleRate !== null ? `${s.handleRate}%` : '—'}</span>
+                                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{s.totalTickets ?? '—'}</span>
+                                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{s.automationRate !== null ? `${s.automationRate}%` : '—'}</span>
+                                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{s.escalationRate !== null ? `${s.escalationRate}%` : '—'}</span>
+                                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{s.resolutionTimeMinutes !== null ? `${s.resolutionTimeMinutes}m` : '—'}</span>
+                                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{s.handleRate !== null ? `${s.handleRate}%` : '—'}</span>
                                     <div style={{ display: 'flex', gap: 4, justifySelf: 'end' }}>
                                       {deletingSnapshotId === s.id ? (
                                         <>
@@ -2285,8 +2285,8 @@ export default function Settings({ initialTab }: SettingsProps) {
                     })()}
 
                     {/* Add / edit form */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, border: '1.5px solid rgba(155,89,208,0.2)', background: 'rgba(155,89,208,0.03)' }}>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 10, border: '1.5px solid rgba(0,168,176,0.2)', background: 'rgba(0,168,176,0.03)' }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#323232' }}>
                         {editingSnapshotId ? 'Edit snapshot' : 'Add snapshot'}
                       </p>
 
@@ -2301,9 +2301,9 @@ export default function Settings({ initialTab }: SettingsProps) {
                             key={opt.key}
                             onClick={() => setSnapKind(opt.key)}
                             style={{
-                              padding: '5px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'Inter, sans-serif',
+                              padding: '5px 12px', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-body)',
                               background: snapKind === opt.key ? '#fff' : 'transparent',
-                              color: snapKind === opt.key ? '#000' : '#58595B',
+                              color: snapKind === opt.key ? '#000' : '#323232',
                               border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s',
                               boxShadow: snapKind === opt.key ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                             }}
@@ -2349,14 +2349,14 @@ export default function Settings({ initialTab }: SettingsProps) {
                           <input type="number" min={0} max={100} step={0.1} value={snapHandleRate} onChange={e => setSnapHandleRate(e.target.value)} placeholder="e.g. 91" style={inputStyle} />
                         </div>
                       </div>
-                      {snapError && <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#e53e3e' }}>{snapError}</p>}
+                      {snapError && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#e53e3e' }}>{snapError}</p>}
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           onClick={saveSnapshot}
                           disabled={snapSaving || !snapDate || (snapKind === 'individual' && !snapUseCase.trim())}
                           style={{
                             background: '#000', color: '#fff', border: 'none', borderRadius: 10,
-                            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                             padding: '9px 20px', cursor: 'pointer', opacity: snapSaving || !snapDate || (snapKind === 'individual' && !snapUseCase.trim()) ? 0.5 : 1, transition: 'opacity 0.15s',
                           }}
                         >
@@ -2366,7 +2366,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                           <button onClick={resetSnapForm} style={resetBtnStyle}>Cancel</button>
                         )}
                       </div>
-                      <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)' }}>
                         Saving on a date that already has a row for this kind/use case overwrites it.
                       </p>
                     </div>
@@ -2377,11 +2377,11 @@ export default function Settings({ initialTab }: SettingsProps) {
               {/* Issue Categories */}
               <div>
                 <label style={labelStyle}>Issue categories</label>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', marginBottom: 8 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginBottom: 8 }}>
                   Category taxonomy for {configTarget.name}. Agents use these when logging tickets.
                 </p>
                 {catsLoading ? (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>Loading…</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
                 ) : (() => {
                   // Group by main_category
                   const grouped: Record<string, OperatorCategory[]> = {}
@@ -2394,7 +2394,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                       {mains.length === 0 && !addingCat && (
-                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#aaa' }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(0,0,0,0.35)' }}>
                           No categories yet. Add one below.
                         </p>
                       )}
@@ -2402,12 +2402,12 @@ export default function Settings({ initialTab }: SettingsProps) {
                       {mains.map(main => (
                         <div key={main}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                            <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>
                               {main}
                             </span>
                             <span style={{
-                              fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9B59D0',
-                              background: 'rgba(155,89,208,0.08)', padding: '1px 8px', borderRadius: 100,
+                              fontFamily: 'var(--font-body)', fontSize: 11, color: '#00787e',
+                              background: 'rgba(0,168,176,0.08)', padding: '1px 8px', borderRadius: 100,
                             }}>
                               {grouped[main].length}
                             </span>
@@ -2445,7 +2445,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                                       onClick={() => saveEditCategory(cat.id)}
                                       style={{
                                         background: '#000', color: '#fff', border: 'none', borderRadius: 8,
-                                        fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+                                        fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
                                         padding: '5px 14px', cursor: 'pointer',
                                       }}
                                     >Save</button>
@@ -2453,16 +2453,16 @@ export default function Settings({ initialTab }: SettingsProps) {
                                   </>
                                 ) : (
                                   <>
-                                    <span style={{ flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#000' }}>
+                                    <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: 13, color: '#000' }}>
                                       {[cat.main_category, cat.sub_category, cat.detail].filter(Boolean).join(' › ')}
                                     </span>
                                     <button
                                       onClick={() => toggleCatActive(cat.id, cat.active)}
                                       style={{
-                                        fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 500,
+                                        fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500,
                                         padding: '3px 10px', borderRadius: 100, border: 'none', cursor: 'pointer',
-                                        background: cat.active ? 'rgba(155,89,208,0.1)' : 'rgba(0,0,0,0.06)',
-                                        color: cat.active ? '#9B59D0' : '#58595B',
+                                        background: cat.active ? 'rgba(0,168,176,0.1)' : 'rgba(0,0,0,0.06)',
+                                        color: cat.active ? '#00a8b0' : '#323232',
                                         transition: 'all 0.15s',
                                       }}
                                     >
@@ -2495,10 +2495,10 @@ export default function Settings({ initialTab }: SettingsProps) {
                         <div style={{
                           display: 'flex', flexDirection: 'column', gap: 12,
                           padding: 16, borderRadius: 12,
-                          border: '1.5px solid rgba(155,89,208,0.2)',
-                          background: 'rgba(155,89,208,0.03)',
+                          border: '1.5px solid rgba(0,168,176,0.2)',
+                          background: 'rgba(0,168,176,0.03)',
                         }}>
-                          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#58595B' }}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#323232' }}>
                             New category
                           </p>
                           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -2538,7 +2538,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                               disabled={!newCatMain.trim() || savingCat}
                               style={{
                                 background: '#000', color: '#fff', border: 'none', borderRadius: 10,
-                                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                                 padding: '9px 20px', cursor: newCatMain.trim() ? 'pointer' : 'not-allowed',
                                 opacity: newCatMain.trim() && !savingCat ? 1 : 0.4, transition: 'opacity 0.15s',
                               }}
@@ -2549,7 +2549,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                               onClick={() => { setAddingCat(false); setNewCatMain(''); setNewCatSub(''); setNewCatDetail('') }}
                               style={{
                                 background: 'none', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
-                                fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B',
+                                fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232',
                                 padding: '9px 18px', cursor: 'pointer',
                               }}
                             >Cancel</button>
@@ -2561,7 +2561,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                           style={{
                             alignSelf: 'flex-start', background: '#000', color: '#fff',
                             border: 'none', borderRadius: 10, cursor: 'pointer',
-                            fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                            fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                             padding: '9px 20px', transition: 'opacity 0.15s',
                           }}
                           onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
@@ -2580,9 +2580,9 @@ export default function Settings({ initialTab }: SettingsProps) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
               <GhostBtn danger onClick={() => deleteTeam(configTarget.id, configTarget.name)}>Delete operator</GhostBtn>
               <button onClick={closeConfigModal} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 18px', borderRadius: 10, cursor: 'pointer',
-                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
               }}>Close</button>
             </div>
           </div>
@@ -2604,10 +2604,10 @@ function SectionCard({ title, subtitle, children }: {
       border: '1.5px solid rgba(0,0,0,0.09)', padding: 24,
     }}>
       <div style={{ marginBottom: 20 }}>
-        <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000' }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000' }}>
           {title}
         </p>
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#58595B', marginTop: 3 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232', marginTop: 3 }}>
           {subtitle}
         </p>
       </div>
@@ -2621,8 +2621,8 @@ function GhostBtn({ onClick, children, danger }: {
 }) {
   return (
     <button onClick={onClick} style={{
-      fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-      color: danger ? '#e53e3e' : '#58595B',
+      fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+      color: danger ? '#e53e3e' : '#323232',
       background: 'none', border: 'none', cursor: 'pointer',
       padding: '4px 8px', borderRadius: 6, transition: 'opacity 0.15s',
     }}
@@ -2642,8 +2642,8 @@ function SaveBtn({ onClick, loading, saved }: {
       onClick={onClick}
       disabled={loading}
       style={{
-        background: saved ? '#166534' : '#000', color: '#fff',
-        fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+        background: saved ? '#00787e' : '#000', color: '#fff',
+        fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
         padding: '9px 18px', borderRadius: 10, border: 'none',
         cursor: loading ? 'not-allowed' : 'pointer',
         opacity: loading ? 0.6 : 1, transition: 'all 0.2s',
@@ -2662,16 +2662,16 @@ const inputStyle: React.CSSProperties = {
   padding: '9px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s',
   background: '#fff', width: '100%',
-  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
 }
 
 const labelStyle: React.CSSProperties = {
-  fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
-  color: '#58595B', display: 'block', marginBottom: 6,
+  fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
+  color: '#323232', display: 'block', marginBottom: 6,
 }
 
 const resetBtnStyle: React.CSSProperties = {
-  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
   padding: '9px 18px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
 }

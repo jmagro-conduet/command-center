@@ -20,7 +20,7 @@ interface HotEvent {
 const SEVERITY_STYLES: Record<Severity, { bg: string; color: string }> = {
   high:   { bg: 'rgba(229,62,62,0.12)',   color: '#e53e3e' },
   medium: { bg: 'rgba(234,179,8,0.15)',   color: '#854d0e' },
-  low:    { bg: 'rgba(0,0,0,0.07)',       color: '#58595B' },
+  low:    { bg: 'rgba(0,0,0,0.07)',       color: '#323232' },
 }
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -65,11 +65,11 @@ const inputStyle: React.CSSProperties = {
   border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 10,
   padding: '9px 12px', fontSize: 13, color: '#000',
   outline: 'none', transition: 'border-color 0.15s', background: '#fff', width: '100%',
-  fontFamily: 'Inter, sans-serif', boxSizing: 'border-box',
+  fontFamily: 'var(--font-body)', boxSizing: 'border-box',
 }
 
 const labelStyle: React.CSSProperties = {
-  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 5, display: 'block',
+  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, color: '#000', marginBottom: 5, display: 'block',
 }
 
 export default function Events() {
@@ -150,10 +150,10 @@ export default function Events() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 24, fontWeight: 600, color: '#000' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, color: '#000' }}>
             Events Calendar
           </h1>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#58595B', marginTop: 4 }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
             High-volume events requiring additional support coverage
           </p>
         </div>
@@ -163,10 +163,10 @@ export default function Events() {
           <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.09)', padding: 3 }}>
             {(['upcoming', 'all', 'past'] as EventFilter[]).map(f => (
               <button key={f} onClick={() => setFilter(f)} style={{
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: filter === f ? 500 : 400,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: filter === f ? 500 : 400,
                 padding: '6px 14px', borderRadius: 8,
                 background: filter === f ? '#000' : 'transparent',
-                color: filter === f ? '#fff' : '#58595B',
+                color: filter === f ? '#fff' : '#323232',
                 border: 'none', transition: 'all 0.15s', cursor: 'pointer',
               }}>
                 {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -179,7 +179,7 @@ export default function Events() {
               onClick={openAdd}
               style={{
                 background: '#000', color: '#fff',
-                fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                 padding: '9px 16px', borderRadius: 10, border: 'none',
                 cursor: 'pointer', transition: 'opacity 0.15s',
               }}
@@ -195,11 +195,11 @@ export default function Events() {
       {/* Cards */}
       {loading ? (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>Loading…</p>
         </div>
       ) : events.length === 0 ? (
         <div style={{ background: '#fff', borderRadius: 16, border: '1.5px solid rgba(0,0,0,0.09)', padding: 48, textAlign: 'center' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No {filter} events</p>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'rgba(0,0,0,0.35)' }}>No {filter} events</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -226,10 +226,10 @@ export default function Events() {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 style={{ fontFamily: 'Manrope, sans-serif', fontSize: 18, fontWeight: 600, color: '#000' }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: '#000' }}>
                 {editTarget ? 'Edit event' : 'Add event'}
               </h2>
-              <button onClick={() => setShowModal(false)} style={{ color: '#aaa', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
+              <button onClick={() => setShowModal(false)} style={{ color: 'rgba(0,0,0,0.35)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
 
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -239,7 +239,7 @@ export default function Events() {
                   required value={form.name} placeholder="e.g. Super Bowl LXI"
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
               </div>
@@ -251,7 +251,7 @@ export default function Events() {
                     value={form.event_type}
                     onChange={e => setForm(f => ({ ...f, event_type: e.target.value }))}
                     style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                   >
                     {Object.entries(EVENT_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -263,7 +263,7 @@ export default function Events() {
                     value={form.severity}
                     onChange={e => setForm(f => ({ ...f, severity: e.target.value as Severity }))}
                     style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                   >
                     <option value="low">Low</option>
@@ -276,7 +276,7 @@ export default function Events() {
                   <input type="date" required value={form.start_date}
                     onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
                     style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                   />
                 </div>
@@ -285,7 +285,7 @@ export default function Events() {
                   <input type="date" required value={form.end_date}
                     onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
                     style={inputStyle}
-                    onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                    onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                     onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                   />
                 </div>
@@ -297,7 +297,7 @@ export default function Events() {
                   value={form.primary_department}
                   onChange={e => setForm(f => ({ ...f, primary_department: e.target.value as typeof form.primary_department }))}
                   style={inputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 >
                   <option value="verifications">Verifications</option>
@@ -306,11 +306,11 @@ export default function Events() {
                 </select>
               </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 13, cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-body)', fontSize: 13, cursor: 'pointer' }}>
                 <input
                   type="checkbox" checked={form.pto_blackout}
                   onChange={e => setForm(f => ({ ...f, pto_blackout: e.target.checked }))}
-                  style={{ accentColor: '#9B59D0', width: 15, height: 15 }}
+                  style={{ accentColor: '#00a8b0', width: 15, height: 15 }}
                 />
                 PTO blackout period
               </label>
@@ -322,26 +322,26 @@ export default function Events() {
                   placeholder="Additional context…"
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#CEA4FF')}
+                  onFocus={e => (e.currentTarget.style.borderColor = '#00a8b0')}
                   onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.12)')}
                 />
               </div>
 
               {error && (
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: '#e53e3e' }}>{error}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#e53e3e' }}>{error}</p>
               )}
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, cursor: 'pointer',
-                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#58595B',
+                  border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#323232',
                 }}>
                   Cancel
                 </button>
                 <button type="submit" disabled={saving} style={{
                   background: '#000', color: '#fff',
-                  fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 500,
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                   padding: '9px 16px', borderRadius: 10, border: 'none',
                   cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1,
                   transition: 'opacity 0.15s',
@@ -375,10 +375,10 @@ function EventCard({ evt, isAdmin, onEdit, onDelete }: {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <div>
-          <p style={{ fontFamily: 'Manrope, sans-serif', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 3 }}>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#000', marginBottom: 3 }}>
             {evt.name}
           </p>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>
             {EVENT_TYPE_LABELS[evt.event_type] ?? evt.event_type}
             {evt.pto_blackout && (
               <span style={{
@@ -390,7 +390,7 @@ function EventCard({ evt, isAdmin, onEdit, onDelete }: {
           </p>
         </div>
         <span style={{
-          fontFamily: 'Inter, sans-serif', fontSize: 10, fontWeight: 700,
+          fontFamily: 'var(--font-body)', fontSize: 10, fontWeight: 700,
           padding: '4px 10px', borderRadius: 100, flexShrink: 0, letterSpacing: '0.06em',
           textTransform: 'uppercase',
           background: sev.bg, color: sev.color,
@@ -407,7 +407,7 @@ function EventCard({ evt, isAdmin, onEdit, onDelete }: {
 
       {/* Countdown */}
       <div style={{ background: 'rgba(0,0,0,0.04)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-        <span style={{ fontFamily: 'Manrope, sans-serif', fontSize: 13, fontWeight: 600, color: '#000' }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: '#000' }}>
           {isPast ? 'Event concluded' : days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days until event`}
         </span>
       </div>
@@ -418,7 +418,7 @@ function EventCard({ evt, isAdmin, onEdit, onDelete }: {
       </div>
 
       {evt.notes && (
-        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B', lineHeight: 1.5 }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', lineHeight: 1.5 }}>
           {evt.notes}
         </p>
       )}
@@ -426,7 +426,7 @@ function EventCard({ evt, isAdmin, onEdit, onDelete }: {
       {isAdmin && (
         <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
           <button onClick={onEdit} style={{
-            flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            flex: 1, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
             padding: '7px 0', borderRadius: 8, cursor: 'pointer',
             border: '1.5px solid rgba(0,0,0,0.12)', background: '#fff', color: '#000',
             transition: 'all 0.15s',
@@ -434,7 +434,7 @@ function EventCard({ evt, isAdmin, onEdit, onDelete }: {
             Edit
           </button>
           <button onClick={onDelete} style={{
-            flex: 1, fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500,
+            flex: 1, fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500,
             padding: '7px 0', borderRadius: 8, cursor: 'pointer',
             border: '1.5px solid rgba(229,62,62,0.3)', background: 'rgba(229,62,62,0.06)', color: '#e53e3e',
             transition: 'all 0.15s',
@@ -450,8 +450,8 @@ function EventCard({ evt, isAdmin, onEdit, onDelete }: {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#58595B' }}>{label}</span>
-      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 500, color: '#000' }}>{value}</span>
+      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{label}</span>
+      <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#000' }}>{value}</span>
     </div>
   )
 }

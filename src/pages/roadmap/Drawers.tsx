@@ -44,12 +44,12 @@ function ChunkDrawer({ ctx, id }: { ctx: Ctx; id: string }) {
 
   return (
     <Modal eyebrow={(isI ? (c.depth ? 'Sub-initiative' : 'Initiative') + ' in Linear' : 'Piece of work') + (TRACKS[c.track] ? ' · mostly ' + TRACKS[c.track].t + ' ' + TRACKS[c.track].n : '')} title={c.name} onClose={ctx.closeDrawer}>
-      {c.plain && <p style={{ margin: '10px 0 0', color: '#58595B', fontSize: 14 }}>{c.plain}</p>}
+      {c.plain && <p style={{ margin: '10px 0 0', color: '#323232', fontSize: 14 }}>{c.plain}</p>}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}><StatusChip s={c.status} /></div>
       <div className="rm-why"><small>Why this status</small>{c.why}
         {tot > 0 && c.status !== 'ongoing' && <>
           <div className="rm-prog" aria-label={`${pct}% of issues closed`}><i style={{ width: pct + '%' }} /></div>
-          <div style={{ fontSize: 12, color: '#58595B', marginTop: 4 }}>{c.done} closed · {c.inProgress} in progress{c.blocked ? ` · ${c.blocked} blocked` : ''} · {c.open - c.inProgress - c.blocked} to do, across its open projects</div>
+          <div style={{ fontSize: 12, color: '#323232', marginTop: 4 }}>{c.done} closed · {c.inProgress} in progress{c.blocked ? ` · ${c.blocked} blocked` : ''} · {c.open - c.inProgress - c.blocked} to do, across its open projects</div>
         </>}
       </div>
       <dl className="rm-facts">
@@ -63,12 +63,12 @@ function ChunkDrawer({ ctx, id }: { ctx: Ctx; id: string }) {
           : c.id === 'c-klo' && lo ? 'Bug and Tech Debt labels in Linear, plus any running-log projects' : 'Grouped in this dashboard until this work has a goal initiative in Linear'}</dd>
       </dl>
       {c.milestones.length > 0 && <ul className="rm-kids">{c.milestones.map((m, i) =>
-        <li key={i}><span>{(+(m.progress || 0)) >= 100 ? '✓' : '◇'} {m.name} <span style={{ color: '#58595B' }}>· {m.project}</span></span>
-          <span style={{ color: '#58595B' }}>{m.target ? fmt(m.target) + ' · ' : ''}{+(m.progress || 0)}%</span></li>)}</ul>}
+        <li key={i}><span>{(+(m.progress || 0)) >= 100 ? '✓' : '◇'} {m.name} <span style={{ color: '#323232' }}>· {m.project}</span></span>
+          <span style={{ color: '#323232' }}>{m.target ? fmt(m.target) + ' · ' : ''}{+(m.progress || 0)}%</span></li>)}</ul>}
       <ul className="rm-kids">
         {c.kids.slice().sort((a, b) => WORST.indexOf(a.status) - WORST.indexOf(b.status)).map(p =>
           <li key={p.id}><button type="button" onClick={() => ctx.open({ kind: 'project', id: p.id })}>{p.name}</button><StatusChip s={p.status} /></li>)}
-        {!c.kids.length && <li style={{ color: '#58595B' }}>No Linear projects yet</li>}
+        {!c.kids.length && <li style={{ color: '#323232' }}>No Linear projects yet</li>}
       </ul>
       <div className="rm-actions" style={{ marginTop: 14 }}>
         <button type="button" className="rm-btn rm-btn--ghost" onClick={() => { ctx.setBoardChunk(c.id); ctx.closeDrawer(); ctx.goTab('board') }}>See these projects on the Board</button>
@@ -76,7 +76,7 @@ function ChunkDrawer({ ctx, id }: { ctx: Ctx; id: string }) {
       {editable && (
         <form className="rm-form" onSubmit={save} noValidate>
           {isI
-            ? <p className="full" style={{ margin: 0, fontSize: 12, color: '#58595B' }}>The name, owner and projects come from Linear. The plain-language line, goal links and status set by hand are kept here.</p>
+            ? <p className="full" style={{ margin: 0, fontSize: 12, color: '#323232' }}>The name, owner and projects come from Linear. The plain-language line, goal links and status set by hand are kept here.</p>
             : <label className="full">Name<input value={name} onChange={e => setName(e.target.value)} /></label>}
           <label className="full">In plain terms<textarea style={{ minHeight: 60 }} value={plain} onChange={e => setPlain(e.target.value)} /></label>
           <label>Status<select value={ms} onChange={e => setMs(e.target.value)}>
@@ -84,7 +84,7 @@ function ChunkDrawer({ ctx, id }: { ctx: Ctx; id: string }) {
             {['on', 'risk', 'off'].map(k => <option key={k} value={k}>{STATUS[k]} (set by hand)</option>)}
           </select></label>
           <label>Why, if set by hand<input value={why} onChange={e => setWhy(e.target.value)} placeholder="One line the ELT will read" /></label>
-          <div className="full"><span style={{ fontSize: 12, color: '#58595B' }}>Key results this work moves</span>
+          <div className="full"><span style={{ fontSize: 12, color: '#323232' }}>Key results this work moves</span>
             <div className="rm-checks">{all.map(k => <label key={k.id}><input type="checkbox" checked={krs.includes(k.id)}
               onChange={e => setKrs(s => e.target.checked ? [...s, k.id] : s.filter(x => x !== k.id))} />{k.id}</label>)}</div></div>
           <div className="full rm-actions"><button type="button" className="rm-btn rm-btn--ghost" onClick={ctx.closeDrawer}>Cancel</button><button type="submit" className="rm-btn">Save</button></div>
@@ -127,30 +127,30 @@ function ProjectDrawer({ ctx, id }: { ctx: Ctx; id: string }) {
       <div className="rm-why"><small>Why this status</small>{r.why}
         {total > 0 && <>
           <div className="rm-prog" aria-label={`${pct}% of issues closed`}><i style={{ width: pct + '%' }} /></div>
-          <div style={{ fontSize: 12, color: '#58595B', marginTop: 4 }}>{+r.done || 0} closed · {+r.inProgress || 0} in progress{+r.blocked ? ` · ${+r.blocked} blocked` : ''} · {(+r.open || 0) - (+r.inProgress || 0) - (+r.blocked || 0)} to do</div>
+          <div style={{ fontSize: 12, color: '#323232', marginTop: 4 }}>{+r.done || 0} closed · {+r.inProgress || 0} in progress{+r.blocked ? ` · ${+r.blocked} blocked` : ''} · {(+r.open || 0) - (+r.inProgress || 0) - (+r.blocked || 0)} to do</div>
         </>}
       </div>
       <dl className="rm-facts">
         <dt>Part of</dt><dd>{ch ? <button type="button" className="rm-lk" onClick={() => ctx.open({ kind: 'chunk', id: ch.id })}>{ch.name}</button> : 'Other work'}</dd>
-        <dt>Team</dt><dd>{TEAMS[r.team] || 'Not assigned'} <span style={{ color: '#58595B' }}>· {r.teamFrom === 'set' ? 'set in this dashboard' : r.teamFrom === 'assignees' ? 'from issue assignees' : r.teamFrom === 'lead' ? 'from project lead' : 'no one assigned'}</span></dd>
+        <dt>Team</dt><dd>{TEAMS[r.team] || 'Not assigned'} <span style={{ color: '#323232' }}>· {r.teamFrom === 'set' ? 'set in this dashboard' : r.teamFrom === 'assignees' ? 'from issue assignees' : r.teamFrom === 'lead' ? 'from project lead' : 'no one assigned'}</span></dd>
         {r.lead && <><dt>Lead in Linear</dt><dd>{r.lead}</dd></>}
         <dt>Dates</dt><dd>{r.start ? 'Start ' + fmt(r.start) : 'No start date'} · {r.target ? 'target ' + fmt(r.target) : 'no target date'}{r.completedAt ? ' · closed ' + fmt(r.completedAt) : ''}{r.canceledAt ? ' · cancelled ' + fmt(r.canceledAt) : ''}</dd>
         {r.initiatives && r.initiatives.length > 0 && <><dt>Initiatives</dt><dd>{r.initiatives.join(', ')}</dd></>}
         {safeUrl(r.url) && <><dt>Linear</dt><dd><ExtLink href={r.url}>Open the project in Linear ↗</ExtLink></dd></>}
       </dl>
       {(r.milestones || []).length > 0 && <ul className="rm-kids">{r.milestones.map((m: Doc, i: number) =>
-        <li key={i}><span>{(+m.progress || 0) >= 100 ? '✓' : '◇'} {m.name}</span><span style={{ color: '#58595B' }}>{m.target ? fmt(m.target) + ' · ' : ''}{+m.progress || 0}%</span></li>)}</ul>}
-      {!r.target && !['done', 'canceled'].includes(r.status) && <p style={{ fontSize: 12, color: '#58595B', margin: '12px 0 0' }}>Projects should have an end date. If this is ongoing work, it's better as a label or a saved view in Linear.</p>}
+        <li key={i}><span>{(+m.progress || 0) >= 100 ? '✓' : '◇'} {m.name}</span><span style={{ color: '#323232' }}>{m.target ? fmt(m.target) + ' · ' : ''}{+m.progress || 0}%</span></li>)}</ul>}
+      {!r.target && !['done', 'canceled'].includes(r.status) && <p style={{ fontSize: 12, color: '#323232', margin: '12px 0 0' }}>Projects should have an end date. If this is ongoing work, it's better as a label or a saved view in Linear.</p>}
       {ctx.canEdit && (
         <form className="rm-form" onSubmit={save} noValidate>
           <label>Delivery team<select value={team} onChange={e => setTeam(e.target.value)}>{Object.entries(TEAMS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
           {r.initiative
-            ? <p style={{ margin: 0, fontSize: 12, color: '#58595B', alignSelf: 'end' }}>Its goal is set by its initiative in Linear.</p>
+            ? <p style={{ margin: 0, fontSize: 12, color: '#323232', alignSelf: 'end' }}>Its goal is set by its initiative in Linear.</p>
             : <label>Piece of work<select value={to} onChange={e => setTo(e.target.value)}>
               {ctx.C.filter(c => c.id !== 'c-other' && c.kind === 'chunk').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               {r.chunk === 'c-other' && <option value="c-other">Other work</option>}
             </select></label>}
-          <p className="full" style={{ margin: 0, fontSize: 12, color: '#58595B' }}>Dates, status and track come from Linear. Change them there and the next daily sync picks them up.</p>
+          <p className="full" style={{ margin: 0, fontSize: 12, color: '#323232' }}>Dates, status and track come from Linear. Change them there and the next daily sync picks them up.</p>
           <div className="full rm-actions"><button type="button" className="rm-btn rm-btn--ghost" onClick={ctx.closeDrawer}>Cancel</button><button type="submit" className="rm-btn">Save</button></div>
         </form>
       )}
@@ -207,8 +207,8 @@ function CandidateDrawer({ ctx, id }: { ctx: Ctx; id: string }) {
         {it && it.reason && <><dt>Why parked</dt><dd>{it.reason}</dd></>}
         {it && safeUrl(it.docUrl) && <><dt>Document</dt><dd><ExtLink href={it.docUrl}>Open the full doc ↗</ExtLink></dd></>}
         {lp && safeUrl(lp.url) && <><dt>Linear</dt><dd><ExtLink href={lp.url}>Open the project in Linear ↗</ExtLink></dd></>}
-        <dt>RICE</dt><dd>{c.score != null ? `Score ${c.score.toFixed(1)} (R ${r.reach} · I ${r.impact} · C ${r.conf}% · E ${r.effort})` : 'Not scored'}{r.scoredAt && <span style={{ color: '#58595B' }}> · updated {fmt(String(r.scoredAt).slice(0, 10))}</span>}</dd>
-        {c.must && <><dt>Must have because</dt><dd>{r.mustReason || ''}</dd><dt>Aligned to</dt><dd>{ALIGN[r.mustAlign] || ''}{r.mustAlignDetail ? ': ' + r.mustAlignDetail : ''}{r.mustAt && <span style={{ color: '#58595B' }}> · set {fmt(String(r.mustAt).slice(0, 10))}</span>}</dd></>}
+        <dt>RICE</dt><dd>{c.score != null ? `Score ${c.score.toFixed(1)} (R ${r.reach} · I ${r.impact} · C ${r.conf}% · E ${r.effort})` : 'Not scored'}{r.scoredAt && <span style={{ color: '#323232' }}> · updated {fmt(String(r.scoredAt).slice(0, 10))}</span>}</dd>
+        {c.must && <><dt>Must have because</dt><dd>{r.mustReason || ''}</dd><dt>Aligned to</dt><dd>{ALIGN[r.mustAlign] || ''}{r.mustAlignDetail ? ': ' + r.mustAlignDetail : ''}{r.mustAt && <span style={{ color: '#323232' }}> · set {fmt(String(r.mustAt).slice(0, 10))}</span>}</dd></>}
       </dl>
       {ctx.canEdit && <>
         <form className="rm-form" onSubmit={saveScore} noValidate>
@@ -268,7 +268,7 @@ function NewsDrawer({ ctx, id }: { ctx: Ctx; id: string }) {
       <dl className="rm-facts">
         <dt>Source</dt><dd>{n.source || ''}{url && <> · <ExtLink href={url}>Open link ↗</ExtLink></>}</dd>
         {n.relevance && <><dt>Why it might matter</dt><dd>{n.relevance}</dd></>}
-        <dt>Team notes</dt><dd>{n.discussion || <span style={{ color: '#58595B' }}>Not discussed yet</span>}</dd>
+        <dt>Team notes</dt><dd>{n.discussion || <span style={{ color: '#323232' }}>Not discussed yet</span>}</dd>
       </dl>
       {ctx.canEdit && (
         <form className="rm-form" onSubmit={save} noValidate>
@@ -325,17 +325,17 @@ function SprintDrawer({ ctx }: { ctx: Ctx }) {
   }
   return (
     <Modal eyebrow="Status this sprint" title="Edit sprint status" onClose={ctx.closeDrawer}>
-      <p style={{ margin: '8px 0 0', fontSize: 13, color: '#58595B' }}>Write what the kickoff call agreed. Leave focus unticked to rank by Linear activity. To change a status by hand, open the piece of work on the Roadmap.</p>
+      <p style={{ margin: '8px 0 0', fontSize: 13, color: '#323232' }}>Write what the kickoff call agreed. Leave focus unticked to rank by Linear activity. To change a status by hand, open the piece of work on the Roadmap.</p>
       <form className="rm-form" onSubmit={e => { e.preventDefault(); save({ start, end, summary: summary.trim(), focus }) }} noValidate>
         <label>Sprint starts<input type="date" value={start} onChange={e => setStart(e.target.value)} /></label>
         <label>Sprint ends<input type="date" value={end} onChange={e => setEnd(e.target.value)} /></label>
         <div className="full" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button type="button" className="rm-btn rm-btn--ghost" onClick={draft} disabled={drafting}>{drafting ? 'Drafting…' : 'Draft with Claude'}</button>
-          <span style={{ fontSize: 12, color: '#58595B' }}>Fills the summary and focus from the live Linear data. Edit it, then Save.</span>
+          <span style={{ fontSize: 12, color: '#323232' }}>Fills the summary and focus from the live Linear data. Edit it, then Save.</span>
           {draftErr && <span className="rm-err">{draftErr}</span>}
         </div>
         <label className="full">Sprint summary<textarea value={summary} onChange={e => setSummary(e.target.value)} placeholder="Two or three lines: what we're shipping this sprint and anything the ELT should know" /></label>
-        <div className="full"><span style={{ fontSize: 12, color: '#58595B' }}>Focus this sprint</span>
+        <div className="full"><span style={{ fontSize: 12, color: '#323232' }}>Focus this sprint</span>
           <div className="rm-checks col">{C.map(c => <label key={c.id}><input type="checkbox" checked={focus.includes(c.id)}
             onChange={e => setFocus(s => e.target.checked ? [...s, c.id] : s.filter(x => x !== c.id))} />{c.name}</label>)}</div></div>
         <div className="full rm-actions">
