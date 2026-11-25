@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Ticket, Megaphone, Trophy, Inbox, LayoutDashboard,
-  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch, Milestone,
+  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch, Milestone, Target,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
@@ -39,6 +39,7 @@ export type Page =
   | 'settings'
   | 'eval-reports'
   | 'roadmap'
+  | 'strategy'
 
 interface NavItem {
   id: Page
@@ -61,6 +62,7 @@ const ReportCardIcon  = () => <ClipboardCheck {...ICON} />
 const BugTrackerIcon  = () => <Bug {...ICON} />
 const EvalReportsIcon = () => <FileSearch {...ICON} />
 const RoadmapIcon     = () => <Milestone {...ICON} />
+const StrategyIcon    = () => <Target {...ICON} />
 const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.5} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
@@ -149,6 +151,13 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
       const roadmapItem: NavItem = { id: 'roadmap', label: 'Roadmap', icon: <RoadmapIcon /> }
       const idx = items.findIndex(i => i.id === 'bug-tracker')
       items = idx === -1 ? [...items, roadmapItem] : [...items.slice(0, idx + 1), roadmapItem, ...items.slice(idx + 1)]
+    }
+    // Gated, ELT-only Strategy (OKRs): same per-user access as the Roadmap, slotted right after it.
+    if (pageAccessFor(user, 'strategy').allowed) {
+      const strategyItem: NavItem = { id: 'strategy', label: 'Strategy', icon: <StrategyIcon /> }
+      const idx = items.findIndex(i => i.id === 'roadmap')
+      const at = idx === -1 ? items.findIndex(i => i.id === 'bug-tracker') : idx
+      items = at === -1 ? [...items, strategyItem] : [...items.slice(0, at + 1), strategyItem, ...items.slice(at + 1)]
     }
     return items
   })()

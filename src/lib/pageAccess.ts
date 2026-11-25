@@ -13,6 +13,7 @@ export type PageAccessMap = Record<string, PageGrant>
 export interface GatedPage { key: string; label: string; description: string }
 export const GATED_PAGES: GatedPage[] = [
   { key: 'roadmap', label: 'Product Roadmap', description: 'ELT view of the product roadmap, fed from Linear.' },
+  { key: 'strategy', label: 'Strategy', description: 'OKRs: Strategy on a Page, the monthly ELT review and its actions.' },
 ]
 
 // Fallback-safe: if the page_access table hasn't been created yet (migration
