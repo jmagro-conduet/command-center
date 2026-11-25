@@ -24,6 +24,13 @@ async function canEditStrategy(token: string): Promise<boolean> {
   if (!u.ok) return false
   const email = String((await u.json()).email || '')
   if (!email) return false
+  // Access is resolved in the database (access profile + per-person overrides), the same
+  // way row-level security does it.
+  const rpc = await fetch(`${SUPABASE_URL}/rest/v1/rpc/page_level_for_email`, {
+    method: 'POST', headers: { ...sb, 'content-type': 'application/json' }, body: JSON.stringify({ p_email: email, p_page: 'strategy' }),
+  })
+  if (rpc.ok) return (await rpc.json()) === 'edit'
+  // Before the access-profiles migration exists: the original rule (SuperAdmin, or an edit grant).
   const r = await fetch(`${SUPABASE_URL}/rest/v1/users?email=ilike.${encodeURIComponent(email)}&select=id,role&limit=1`, { headers: sb })
   const row = r.ok ? (await r.json())[0] : null
   if (!row || row.role === 'operator') return false

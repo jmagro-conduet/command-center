@@ -6,8 +6,10 @@ import { TARGET_MIN_KEY, TARGET_MAX_KEY, getDailyTarget } from '../lib/settings'
 import { computeHealthIssues, fetchDismissals, filterActive, dismissIssue } from '../lib/dataHealth'
 import type { HealthIssue } from '../lib/dataHealth'
 import Users from './Users'
+import RolesAccess from './RolesAccess'
+import { canOpen } from '../lib/access/core'
 
-type SettingsTab = 'general' | 'users' | 'evals' | 'config'
+type SettingsTab = 'general' | 'users' | 'roles' | 'evals' | 'config'
 
 interface Team {
   id: string; name: string; zendeskBrandId: string | null; isQaMode: boolean; fullAutoEnabled: boolean
@@ -159,18 +161,22 @@ const settingsTabKey = (email: string) => `settings_tab_${email}`
 function initialSettingsTab(email: string | undefined): SettingsTab {
   if (!email) return 'general'
   const saved = localStorage.getItem(settingsTabKey(email))
-  return saved === 'general' || saved === 'users' || saved === 'evals' || saved === 'config' ? saved : 'general'
+  return saved === 'general' || saved === 'users' || saved === 'roles' || saved === 'evals' || saved === 'config' ? saved : 'general'
 }
 
 export default function Settings({ initialTab }: SettingsProps) {
   const { user } = useAuth()
-  // Admin Settings (users / evals / config tabs) are SuperAdmin-only. Regular
-  // admins keep all their other features but see only the personal "general" tab.
-  const isAdmin = !!user?.isSuperAdmin
+  // Admin Settings tabs are per-person: Users and Roles & access need the 'users' page,
+  // Evals and Config need 'admin-settings' (see lib/access/core.ts). Everyone else sees
+  // only their personal "general" tab.
+  const canUsers = canOpen(user?.access, 'users')
+  const canAdminSettings = canOpen(user?.access, 'admin-settings')
+  const isAdmin = canUsers || canAdminSettings
+  const allowedTabs: SettingsTab[] = ['general', ...(canUsers ? ['users', 'roles'] as SettingsTab[] : []), ...(canAdminSettings ? ['evals', 'config'] as SettingsTab[] : [])]
   const { selectedOperator } = useOperator()
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(() =>
-    isAdmin ? (initialTab ?? initialSettingsTab(user?.email)) : 'general'
+    isAdmin ? ([initialTab, initialSettingsTab(user?.email)].find(t => t && allowedTabs.includes(t)) ?? 'general') : 'general'
   )
   useEffect(() => {
     if (user?.email) localStorage.setItem(settingsTabKey(user.email), activeTab)
@@ -507,7 +513,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     setDeletingCatId(null)
   }
 
-  useEffect(() => { if (isAdmin && activeTab === 'evals') loadRegressionData() }, [isAdmin, activeTab, selectedOperator])
+  useEffect(() => { if (canAdminSettings && activeTab === 'evals') loadRegressionData() }, [canAdminSettings, activeTab, selectedOperator])
 
   async function loadRegressionData() {
     setRegressionLoading(true)
@@ -561,7 +567,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     setRegressionRunning(false)
   }
 
-  useEffect(() => { if (isAdmin) loadTeams() }, [isAdmin])
+  useEffect(() => { if (canAdminSettings) loadTeams() }, [canAdminSettings])
 
   // Data Health: surface known data/eval gaps loudly, with severity split by how
   // urgent they are (red = needs a person to fix data/config now; orange = usually
@@ -571,7 +577,7 @@ export default function Settings({ initialTab }: SettingsProps) {
     setHealthIssues(issues)
     setHealthDismissals(dismissals)
   }
-  useEffect(() => { if (isAdmin) loadHealth() }, [isAdmin])
+  useEffect(() => { if (canAdminSettings) loadHealth() }, [canAdminSettings])
 
   async function handleDismissHealthIssue(issue: HealthIssue) {
     await dismissIssue(issue.key, issue.count, user?.email ?? null)
@@ -1048,7 +1054,7 @@ export default function Settings({ initialTab }: SettingsProps) {
             background: 'rgba(0,0,0,0.05)', borderRadius: 12,
             alignSelf: 'flex-start',
           }}>
-            {(['general', 'users', 'evals', 'config'] as SettingsTab[]).map(tab => (
+            {allowedTabs.map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -1061,7 +1067,7 @@ export default function Settings({ initialTab }: SettingsProps) {
                   transition: 'all 0.15s',
                 }}
               >
-                {tab === 'general' ? 'General' : tab === 'users' ? 'Users' : tab === 'evals' ? 'Evals' : 'Config'}
+                {tab === 'general' ? 'General' : tab === 'users' ? 'Users' : tab === 'roles' ? 'Roles & access' : tab === 'evals' ? 'Evals' : 'Config'}
               </button>
             ))}
           </div>
@@ -1069,7 +1075,7 @@ export default function Settings({ initialTab }: SettingsProps) {
       </div>
 
       {/* ── Evals tab ───────────────────────────────────────────────────────── */}
-      {isAdmin && activeTab === 'evals' && (
+      {canAdminSettings && activeTab === 'evals' && (
         <>
           {/* Gold case counts */}
           <SectionCard title={`Gold Case Library — ${selectedOperator?.name ?? 'no operator selected'}`} subtitle="Curated examples with known-correct outputs used as regression anchors. Scoped to the selected operator.">
@@ -1632,7 +1638,8 @@ export default function Settings({ initialTab }: SettingsProps) {
       )}
 
       {/* ── Users tab ───────────────────────────────────────────────────────── */}
-      {isAdmin && activeTab === 'users' && <Users />}
+      {canUsers && activeTab === 'users' && <Users />}
+      {canUsers && activeTab === 'roles' && <RolesAccess />}
 
       {/* ── General tab ─────────────────────────────────────────────────────── */}
       {activeTab === 'general' && <>
@@ -1659,7 +1666,7 @@ export default function Settings({ initialTab }: SettingsProps) {
       </SectionCard>
 
       {/* ── Admin-only ──────────────────────────────────────────────────────── */}
-      {isAdmin && (
+      {canAdminSettings && (
         <>
           {/* Data Health */}
           <SectionCard
@@ -1901,7 +1908,7 @@ export default function Settings({ initialTab }: SettingsProps) {
       </> /* end General tab */}
 
       {/* ── Config tab (SuperAdmin only) ────────────────────────────────────── */}
-      {isAdmin && activeTab === 'config' && (
+      {canAdminSettings && activeTab === 'config' && (
         <SectionCard
           title="Operators"
           subtitle="Client operators you support. Click Edit to rename, configure Zendesk tracking, or manage issue categories."
@@ -1993,7 +2000,7 @@ export default function Settings({ initialTab }: SettingsProps) {
       )}
 
       {/* ── Edit operator modal (SuperAdmin only) ───────────────────────────── */}
-      {isAdmin && configTarget && (
+      {canAdminSettings && configTarget && (
         <div
           onClick={closeConfigModal}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}

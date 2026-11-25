@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
-import { pageAccessFor } from '../../lib/pageAccess'
+import { canOpen, navPages } from '../../lib/access/core'
 import { computeHealthIssues, fetchDismissals, filterActive } from '../../lib/dataHealth'
 import type { HealthSeverity } from '../../lib/dataHealth'
 
@@ -69,43 +69,27 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   return <ChevronLeft size={16} strokeWidth={1.5} style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.25s ease' }} />
 }
 
-const AGENT_NAV: NavItem[] = [
-  { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
-  { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
-  { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
-  { id: 'bug-tracker', label: 'Bug Tracker', icon: <BugTrackerIcon /> },
-  { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
-]
-
 // Feature-flagged pages (not shown in nav but Page type kept for routing)
 // 'report' — hidden until reporting feature is ready
 // 'users'  — moved to bottom section (under Settings)
 // 'events' — sunset 2026-06-30, unused; Page type + route kept in case it's revived
 
-const ADMIN_NAV: NavItem[] = [
-  { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
-  { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
-  { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
-  { id: 'submissions', label: 'Submissions', icon: <SubmissionsIcon /> },
-  { id: 'executive-summary', label: 'Executive Summary', icon: <ExecSummaryIcon /> },
-  { id: 'analytics',   label: 'Analytics',   icon: <AnalyticsIcon /> },
-  { id: 'report-card', label: 'Report Card', icon: <ReportCardIcon /> },
-  { id: 'bug-tracker', label: 'Bug Tracker', icon: <BugTrackerIcon /> },
-  { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
-]
-
-const QA_NAV: NavItem[] = [
-  { id: 'log-ticket',  label: 'Log ticket',  icon: <TicketIcon /> },
-  { id: 'bulletin',    label: 'Bulletin',    icon: <BulletinIcon /> },
-  { id: 'leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon /> },
-  { id: 'report-card', label: 'Report Card', icon: <ReportCardIcon /> },
-  { id: 'bug-tracker', label: 'Bug Tracker', icon: <BugTrackerIcon /> },
-  { id: 'learn',       label: 'Learn',       icon: <LearnIcon /> },
-]
-
-const OPERATOR_NAV: NavItem[] = [
-  { id: 'executive-summary', label: 'Executive Summary', icon: <ExecSummaryIcon /> },
-]
+// The sidebar's main list is no longer hard-coded per role: it is every page the signed-in
+// user can open (their access profile + overrides, lib/access/core.ts), in registry order.
+const NAV_ICONS: Record<string, React.ReactNode> = {
+  'log-ticket':        <TicketIcon />,
+  'bulletin':          <BulletinIcon />,
+  'leaderboard':       <LeaderboardIcon />,
+  'submissions':       <SubmissionsIcon />,
+  'executive-summary': <ExecSummaryIcon />,
+  'analytics':         <AnalyticsIcon />,
+  'report-card':       <ReportCardIcon />,
+  'eval-reports':      <EvalReportsIcon />,
+  'bug-tracker':       <BugTrackerIcon />,
+  'roadmap':           <RoadmapIcon />,
+  'strategy':          <StrategyIcon />,
+  'learn':             <LearnIcon />,
+}
 
 interface Props {
   activePage: Page
@@ -119,48 +103,22 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   const { operators, selectedOperator, setSelectedOperator } = useOperator()
   const initial    = user?.name ? user.name[0].toUpperCase() : '?'
   const isOperator = user?.role === 'operator'
-  const isSuperAdmin = !!user?.isSuperAdmin
+  // Admin settings (Users, Evals, Config tabs) are per-person now, not tied to the SuperAdmin role.
+  const hasAdminSettings = canOpen(user?.access, 'users') || canOpen(user?.access, 'admin-settings')
   const [healthSeverity, setHealthSeverity] = useState<HealthSeverity | null>(null)
 
   useEffect(() => {
-    if (!isSuperAdmin) return
+    if (!canOpen(user?.access, 'admin-settings')) return
     let cancelled = false
     const run = () => checkHealthSeverity().then(sev => { if (!cancelled) setHealthSeverity(sev) })
     run()
     const interval = setInterval(run, HEALTH_CHECK_INTERVAL_MS)
     return () => { cancelled = true; clearInterval(interval) }
-  }, [isSuperAdmin])
+  }, [user?.access])
   // Anyone (admin, or a QA/agent granted extra operators) who has more than one
   // operator to choose from gets the switcher — not just admins.
   const canSwitchOperator = !isOperator && operators.length > 1
-  const baseNav = user?.role === 'admin' ? ADMIN_NAV : user?.role === 'qa' ? QA_NAV : user?.role === 'operator' ? OPERATOR_NAV : AGENT_NAV
-  // SuperAdmins get an extra top-level item — the eval triage report builder is its
-  // own page now (moved out of Admin Settings) since it needs room for a data-window
-  // toggle and report history, not just a settings sub-tab. Slotted right after Report
-  // Card since they're both eval-driven views; falls back to appending at the end for
-  // any nav (e.g. agent/operator) that doesn't have a Report Card item to anchor on.
-  const navItems = (() => {
-    let items = baseNav
-    if (isSuperAdmin) {
-      const evalReportsItem: NavItem = { id: 'eval-reports', label: 'Eval Reports', icon: <EvalReportsIcon /> }
-      const idx = baseNav.findIndex(i => i.id === 'report-card')
-      items = idx === -1 ? [...baseNav, evalReportsItem] : [...baseNav.slice(0, idx + 1), evalReportsItem, ...baseNav.slice(idx + 1)]
-    }
-    // Gated, ELT-only Product Roadmap: SuperAdmins plus anyone granted it in Admin settings -> Users.
-    if (pageAccessFor(user, 'roadmap').allowed) {
-      const roadmapItem: NavItem = { id: 'roadmap', label: 'Roadmap', icon: <RoadmapIcon /> }
-      const idx = items.findIndex(i => i.id === 'bug-tracker')
-      items = idx === -1 ? [...items, roadmapItem] : [...items.slice(0, idx + 1), roadmapItem, ...items.slice(idx + 1)]
-    }
-    // Gated, ELT-only Strategy (OKRs): same per-user access as the Roadmap, slotted right after it.
-    if (pageAccessFor(user, 'strategy').allowed) {
-      const strategyItem: NavItem = { id: 'strategy', label: 'Strategy', icon: <StrategyIcon /> }
-      const idx = items.findIndex(i => i.id === 'roadmap')
-      const at = idx === -1 ? items.findIndex(i => i.id === 'bug-tracker') : idx
-      items = at === -1 ? [...items, strategyItem] : [...items.slice(0, at + 1), strategyItem, ...items.slice(at + 1)]
-    }
-    return items
-  })()
+  const navItems: NavItem[] = navPages(user?.access || {}).map(p => ({ id: p.key as Page, label: p.label, icon: NAV_ICONS[p.key] }))
 
   return (
     <div className="app-sidebar" style={{
@@ -432,7 +390,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
 
         {!isOperator && <button
           onClick={() => onNavigate('settings')}
-          title={collapsed ? (isSuperAdmin ? 'Admin settings' : 'Settings') : undefined}
+          title={collapsed ? (hasAdminSettings ? 'Admin settings' : 'Settings') : undefined}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -462,7 +420,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             flexShrink: 0,
           }}>
             <SettingsIcon />
-            {isSuperAdmin && healthSeverity && (
+            {canOpen(user?.access, 'admin-settings') && healthSeverity && (
               <span
                 title={healthSeverity === 'red' ? 'Data Health issue needs attention — see Settings' : 'Data Health issue detected — see Settings'}
                 style={{
@@ -474,7 +432,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
               />
             )}
           </span>
-          {!collapsed && (isSuperAdmin ? 'Admin settings' : 'Settings')}
+          {!collapsed && (hasAdminSettings ? 'Admin settings' : 'Settings')}
         </button>}
 
         <button

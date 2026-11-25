@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { authClient, supabase } from '../lib/supabase'
-import { fetchPageAccess } from '../lib/pageAccess'
-import type { PageAccessMap } from '../lib/pageAccess'
+import { fetchUserAccess } from '../lib/pageAccess'
+import type { AccessMap } from '../lib/pageAccess'
 
 export interface AppUser {
   id: string
@@ -14,12 +14,15 @@ export interface AppUser {
   isSuperAdmin: boolean
   operatorTeam: string | null
   operatorId: string | null
-  // Gated pages this user was granted (e.g. the ELT-only Product Roadmap).
-  // SuperAdmins pass every gate regardless; see lib/pageAccess.ts.
-  pageAccess: PageAccessMap
+  // users.role as stored (agent | qa | admin | superadmin | operator). `role` above
+  // normalizes superadmin to admin for the many in-page checks; this keeps the truth.
+  baseRole: string
+  // Effective access to every page (none | view | edit): the user's access profile
+  // plus their per-page overrides. See lib/access/core.ts.
+  access: AccessMap
 }
 
-function toAppUser(profile: any, pageAccess: PageAccessMap = {}): AppUser {
+function toAppUser(profile: any, access: AccessMap = {}): AppUser {
   const isSuperAdmin = profile.role === 'superadmin'
   return {
     id:           profile.id,
@@ -29,7 +32,8 @@ function toAppUser(profile: any, pageAccess: PageAccessMap = {}): AppUser {
     isSuperAdmin,
     operatorTeam: profile.operator_team,
     operatorId:   profile.operator_id ?? null,
-    pageAccess,
+    baseRole:     profile.role,
+    access,
   }
 }
 
@@ -63,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user?.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser(toAppUser(profile, await fetchPageAccess(profile.id)))
+          setUser(toAppUser(profile, await fetchUserAccess(profile.id, profile.role)))
         }
       }
       setLoading(false)
@@ -75,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session.user.email) {
         const profile = await loadUser(session.user.email)
         if (profile) {
-          setUser(toAppUser(profile, await fetchPageAccess(profile.id)))
+          setUser(toAppUser(profile, await fetchUserAccess(profile.id, profile.role)))
         }
       }
     })
@@ -103,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (session?.user?.email) {
       const profile = await loadUser(session.user.email)
       if (profile) {
-        setUser(toAppUser(profile, await fetchPageAccess(profile.id)))
+        setUser(toAppUser(profile, await fetchUserAccess(profile.id, profile.role)))
       }
     }
     return { error: null }

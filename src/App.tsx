@@ -20,7 +20,7 @@ import BugTracker from './pages/BugTracker'
 import EvalReport from './pages/EvalReport'
 import Roadmap from './pages/Roadmap'
 import Strategy from './pages/Strategy'
-import { pageAccessFor } from './lib/pageAccess'
+import { canOpen, navPages } from './lib/access/core'
 
 const FOCUS_STALE_MS = 2 * 60 * 1000 // treat data as stale after 2 min away
 
@@ -86,30 +86,36 @@ function AppShell() {
   if (recoveryMode) return <ResetPasswordPage updatePassword={updatePassword} />
   if (!user) return <Login />
 
-  const isAdmin      = user?.role === 'admin'
-  const isQA         = user?.role === 'qa'
   const isOperator   = user?.role === 'operator'
-  const isSuperAdmin = !!user?.isSuperAdmin
+  const isAdmin      = user?.role === 'admin'   // only for the two sunset/hidden routes below
+
+  // Which pages this person can open comes from their access profile + overrides
+  // (lib/access/core.ts), not from a fixed role list. Settings (their own account) is
+  // always available. A page they cannot open falls back to the first one they can.
+  const can = (k: string) => canOpen(user.access, k)
+  const legacyOk = (activePage === 'events' || activePage === 'report') && isAdmin
+  const landing = navPages(user.access)[0]?.key as Page | undefined
+  const page: Page = activePage === 'settings' || legacyOk || can(activePage) ? activePage : (landing ?? 'settings')
 
   function renderPage() {
     if (isOperator) return <ExecutiveSummary key={pageKey} />
-    switch (activePage) {
+    switch (page) {
       case 'log-ticket':  return <LogTicket    key={pageKey} />
       case 'bulletin':    return <Bulletin     key={pageKey} />
       case 'leaderboard': return <Leaderboard  key={pageKey} />
-      case 'events':      return isAdmin ? <Events      key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'submissions': return isAdmin ? <Submissions key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'report':      return isAdmin ? <Report      key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'executive-summary': return isAdmin ? <ExecutiveSummary key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'analytics':   return isAdmin ? <Analytics   key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'report-card': return (isAdmin || isQA) ? <ReportCard key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'bug-tracker': return <BugTracker key={pageKey} />
-      case 'eval-reports': return isSuperAdmin ? <EvalReport key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'roadmap':     return pageAccessFor(user, 'roadmap').allowed ? <Roadmap key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'strategy':    return pageAccessFor(user, 'strategy').allowed ? <Strategy key={pageKey} /> : <LogTicket key={pageKey} />
-      case 'users':       return isSuperAdmin ? <Settings key={pageKey} initialTab="users" /> : <LogTicket key={pageKey} />
-      case 'learn':       return <Learn       key={pageKey} />
-      case 'settings':    return isAdmin ? <Settings key={pageKey} /> : <Settings key={pageKey} />
+      case 'events':      return <Events       key={pageKey} />
+      case 'submissions': return <Submissions  key={pageKey} />
+      case 'report':      return <Report       key={pageKey} />
+      case 'executive-summary': return <ExecutiveSummary key={pageKey} />
+      case 'analytics':   return <Analytics    key={pageKey} />
+      case 'report-card': return <ReportCard   key={pageKey} />
+      case 'bug-tracker': return <BugTracker   key={pageKey} />
+      case 'eval-reports': return <EvalReport  key={pageKey} />
+      case 'roadmap':     return <Roadmap      key={pageKey} />
+      case 'strategy':    return <Strategy     key={pageKey} />
+      case 'users':       return <Settings     key={pageKey} initialTab="users" />
+      case 'learn':       return <Learn        key={pageKey} />
+      case 'settings':    return <Settings     key={pageKey} />
     }
   }
 
@@ -118,7 +124,7 @@ function AppShell() {
       height: '100vh', display: 'flex', gap: 16, padding: 16,
       background: '#f0eeec', overflow: 'hidden', boxSizing: 'border-box',
     }}>
-      <Sidebar activePage={activePage} onNavigate={handleNavigate} />
+      <Sidebar activePage={page} onNavigate={handleNavigate} />
       <main ref={mainRef} className="app-main" style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
         {renderPage()}
       </main>
