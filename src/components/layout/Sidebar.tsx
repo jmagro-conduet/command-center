@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
   Ticket, Megaphone, Trophy, Inbox, LayoutDashboard,
-  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch, Milestone, Target, House, Building2,
+  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch, Milestone, Target, House, Building2, Handshake, Funnel,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
-import { canOpen, navGroups, navPages } from '../../lib/access/core'
+import { canOpen, navGroups, navPages, pageDef } from '../../lib/access/core'
 import { computeHealthIssues, fetchDismissals, filterActive } from '../../lib/dataHealth'
 import type { HealthSeverity } from '../../lib/dataHealth'
 
@@ -26,6 +26,8 @@ async function checkHealthSeverity(): Promise<HealthSeverity | null> {
 export type Page =
   | 'home'
   | 'operators'
+  | 'customer-success'
+  | 'client-status'
   | 'log-ticket'
   | 'bulletin'
   | 'leaderboard'
@@ -67,6 +69,8 @@ const RoadmapIcon     = () => <Milestone {...ICON} />
 const StrategyIcon    = () => <Target {...ICON} />
 const HomeIcon        = () => <House {...ICON} />
 const OperatorsIcon   = () => <Building2 {...ICON} />
+const CustomerSuccessIcon = () => <Handshake {...ICON} />
+const ClientStatusIcon    = () => <Funnel {...ICON} />
 const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.5} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
@@ -93,6 +97,8 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   'roadmap':           <RoadmapIcon />,
   'strategy':          <StrategyIcon />,
   'operators':         <OperatorsIcon />,
+  'customer-success':  <CustomerSuccessIcon />,
+  'client-status':     <ClientStatusIcon />,
   'learn':             <LearnIcon />,
 }
 
@@ -174,6 +180,9 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             {item.icon}
           </span>
           {!collapsed && item.label}
+          {!collapsed && pageDef(item.id)?.soon && (
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, padding: '1px 8px', borderRadius: 100, background: 'rgba(0,0,0,0.06)', color: '#323232' }}>Soon</span>
+          )}
         </button>
       )
   }

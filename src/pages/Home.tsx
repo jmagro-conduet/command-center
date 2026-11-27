@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useOperator } from '../context/OperatorContext'
-import { canOpen, pageDef, navPages } from '../lib/access/core'
+import { canOpen, pageDef, navPages, PAGES } from '../lib/access/core'
 import type { AccessMap } from '../lib/access/core'
 import { homeLayout } from '../lib/home/layout'
 import type { WidgetDef } from '../lib/home/layout'
@@ -10,6 +10,7 @@ import * as D from '../lib/home/data'
 import { pct, plural } from '../lib/home/metrics'
 import { QUALITY_TARGET } from '../lib/home/metrics'
 import { getDailyTarget } from '../lib/settings'
+import { PLANNED } from '../lib/comingSoon'
 import { actionList, allSessions, isOverdue, pickPlan, statusCounts, allKrs, fmtDate } from '../lib/strategy/logic'
 import PageHeader from '../components/PageHeader'
 import { OPEN_SEARCH_EVENT } from '../components/CommandPalette'
@@ -223,6 +224,19 @@ function StrategyCards({ c, which }: { c: Ctx; which: 'kr' | 'actions' }) {
     </Card>
   )
 }
+function OnTheWayCard({ c }: { c: Ctx }) {
+  const planned = PAGES.filter(p => p.soon && canOpen(c.access, p.key))
+  return (
+    <Card title="On the way" sub="Being built" wide>
+      {planned.map(p => (
+        <div className="hub-row" key={p.key}>
+          <span><b style={{ fontWeight: 500 }}>{p.label}</b><span className="hub-sub" style={{ display: 'block' }}>{PLANNED[p.key]?.summary}</span></span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 'none' }}><span className="hub-pill hub-pill--grey">Planned</span><button type="button" className="hub-link" onClick={() => c.go(p.key as Page)}>View plan</button></span>
+        </div>
+      ))}
+    </Card>
+  )
+}
 function RoadmapCard({ c }: { c: Ctx }) {
   const s = useLoad(() => D.fetchRoadmapGlance())
   return (
@@ -252,6 +266,7 @@ function renderWidget(w: WidgetDef, c: Ctx): ReactNode {
     case 'kr-summary': return <StrategyCards c={c} which="kr" />
     case 'actions-next': return <StrategyCards c={c} which="actions" />
     case 'roadmap-glance': return <RoadmapCard c={c} />
+    case 'on-the-way': return <OnTheWayCard c={c} />
     default: return null
   }
 }

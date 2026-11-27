@@ -31,6 +31,8 @@ export const WIDGETS: WidgetDef[] = [
   // SuperAdmin
   { id: 'platform-health', title: 'Platform health', requires: ['admin-settings'], span: 2 },
   { id: 'people-access', title: 'People and access', requires: ['users'], span: 1 },
+  // planned pages (ELT and SuperAdmin see what is being built)
+  { id: 'on-the-way', title: 'On the way', requires: ['customer-success', 'client-status'], span: 2 },
   // company (ELT and SuperAdmin)
   { id: 'kr-summary', title: 'Key results', requires: ['strategy'], span: 1 },
   { id: 'actions-next', title: 'Actions and next ELT', requires: ['strategy'], span: 1 },
@@ -42,9 +44,9 @@ const ROLE_ORDER: Record<string, string[]> = {
   agent: ['today', 'bulletin-unread', 'training', 'my-week'],
   qa: ['quality-week', 'accuracy-errors', 'needs-decision'],
   admin: ['operators-glance', 'team-today', 'waiting-on-you'],
-  superadmin: ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'operators-glance'],
+  superadmin: ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'operators-glance', 'on-the-way'],
 }
-const GENERAL = ['kr-summary', 'actions-next', 'roadmap-glance', 'operators-glance', 'platform-health', 'people-access',
+const GENERAL = ['kr-summary', 'actions-next', 'roadmap-glance', 'operators-glance', 'on-the-way', 'platform-health', 'people-access',
   'quality-week', 'accuracy-errors', 'needs-decision', 'team-today', 'waiting-on-you', 'today', 'bulletin-unread', 'training', 'my-week']
 
 export interface QuickLink { page: string; label: string; primary: boolean }

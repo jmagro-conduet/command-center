@@ -31,6 +31,8 @@ export interface PageDef {
   /** true: only people whose data role is SuperAdmin can ever have it. A profile or
    *  override that grants it to anyone else is ignored. */
   superadminOnly?: boolean
+  /** true: planned, not built yet. Shown with a "Soon" tag and a short plan page. */
+  soon?: boolean
 }
 
 // Sidebar sections, in order. 'Admin' pages are not part of the main list.
@@ -44,6 +46,8 @@ export const PAGES: PageDef[] = [
   { key: 'analytics', label: 'Analytics', description: 'Ticket and adoption analytics.', group: 'Dashboards', hasEdit: false, nav: true },
   { key: 'report-card', label: 'Report Card', description: 'AI quality report card.', group: 'Dashboards', hasEdit: false, nav: true },
   { key: 'operators', label: 'Operators', description: 'Performance across every operator you can access, at a glance. Off by default.', group: 'Dashboards', hasEdit: false, nav: true },
+  { key: 'customer-success', label: 'Customer Success', description: "Every client's stage, mode and next step in one view. Planned, off by default.", group: 'Dashboards', hasEdit: false, nav: true, soon: true },
+  { key: 'client-status', label: 'Client Status', description: 'Where each client is in its journey, and the sales funnel behind it. Planned, off by default.', group: 'Dashboards', hasEdit: false, nav: true, soon: true },
   { key: 'eval-reports', label: 'Eval Reports', description: 'Engineering triage report from eval findings.', group: 'Dashboards', hasEdit: false, nav: true },
   { key: 'log-ticket', label: 'Log ticket', description: 'Log a support ticket.', group: 'Client operations', hasEdit: false, nav: true },
   { key: 'submissions', label: 'Submissions', description: 'Review submitted tickets.', group: 'Client operations', hasEdit: false, nav: true },
