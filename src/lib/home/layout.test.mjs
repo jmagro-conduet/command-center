@@ -36,7 +36,7 @@ test('Admin: operators at a glance (via Executive Summary), team today, waiting 
 
 test('SuperAdmin: platform health, people and access, company, operators; quick link is Admin settings', () => {
   const h = home('superadmin')
-  assert.deepEqual(ids(h), ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'operators-glance', 'on-the-way'])
+  assert.deepEqual(ids(h), ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'operators-glance'])
   assert.deepEqual(quick(h), ['settings', 'executive-summary', 'eval-reports']); assert.equal(h.quick[0].label, 'Admin settings')
 })
 
@@ -45,12 +45,6 @@ test('custom ELT profile on an agent: company cards only, never the agent or adm
   const h = home('agent', 'elt', { profiles: p })
   assert.deepEqual(ids(h), ['kr-summary', 'actions-next', 'roadmap-glance', 'operators-glance'])
   assert.deepEqual(quick(h), ['strategy', 'roadmap', 'operators'])
-})
-
-test('ELT sees what is on the way once the planned pages are granted; nobody else does', () => {
-  const p = profiles(); p.elt = { strategy: 'view', roadmap: 'view', operators: 'view', 'customer-success': 'view', 'client-status': 'view' }
-  assert.deepEqual(ids(home('agent', 'elt', { profiles: p })), ['kr-summary', 'actions-next', 'roadmap-glance', 'operators-glance', 'on-the-way'])
-  for (const r of ['agent', 'qa', 'admin']) assert.ok(!ids(home(r)).includes('on-the-way'))
 })
 
 test('a card never appears for someone who cannot open its page', () => {
