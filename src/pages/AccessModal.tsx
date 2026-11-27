@@ -39,7 +39,7 @@ export default function AccessModal({ target, data, users, grantedBy, onClose, o
     [target.role, profile, data.pages, overrides])
   const profileNameOf = (k: string) => data.profiles.find(p => p.key === k)?.name || k
   const choices = data.profiles.filter(p => p.key !== 'operator')
-  const groups = ['Support', 'Insights', 'Leadership', 'Admin'] as const
+  const groups = ['Company', 'Dashboards', 'Client operations', 'Admin'] as const
 
   async function save() {
     setSaving(true); setError('')
@@ -108,13 +108,13 @@ export default function AccessModal({ target, data, users, grantedBy, onClose, o
                     </div>
                     <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>{p.description}</div>
                   </div>
-                  <select aria-label={`Override for ${p.label}`} value={ov[p.key]} disabled={saving || target.role === 'operator'}
+                  {p.superadminOnly && target.role !== 'superadmin' ? <span style={{ width: 190, fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232' }}>SuperAdmin only</span> : <select aria-label={`Override for ${p.label}`} value={ov[p.key]} disabled={saving || target.role === 'operator'}
                     onChange={e => setOv(prev => ({ ...prev, [p.key]: e.target.value as Override }))} style={{ ...field, width: 190 }}>
                     <option value="">{`Use profile (${LEVEL_TEXT(p.hasEdit, fp)})`}</option>
                     <option value="none">No access</option>
                     <option value="view">{p.hasEdit ? 'Can view' : 'Can open'}</option>
                     {p.hasEdit && <option value="edit">Can view and edit</option>}
-                  </select>
+                  </select>}
                 </div>
               )
             })}

@@ -23,8 +23,10 @@ access profile **ELT**.
 - **Lockout guard:** a change that would leave nobody with the *Users and access* page is refused (profile edits, per-person
   changes, role changes and user deletion all check it).
 - **Fallback-safe:** if the tables are missing, the app uses the built-in defaults, which reproduce the old behaviour.
-- **SuperAdmin** is configurable but defaults to every page. Anyone with *Users and access* can change anyone's access
-  (including their own), so grant it deliberately.
+- **SuperAdmin** is configurable but defaults to every page.
+- **Users and access** and **Admin settings** are SuperAdmin-only. They resolve to none for anyone whose role is not
+  SuperAdmin, whatever a profile or override says, so managing roles, access and passwords can never be handed to an
+  Admin by accident. Admin keeps full access to the feature pages.
 - **Enforcement:** Roadmap and Strategy data are protected by row-level security through `has_page_access()`, which now
   resolves profiles and overrides. For the other pages this controls what the app shows; those pages still read data with the
   app's service client, so that part is UI-level until the service-role-key work lands.
@@ -52,4 +54,26 @@ Add it to `PAGES` in `core.ts` (and to the sidebar icon map / App route), then s
 
 ```powershell
 node --test src/lib/access/core.test.mjs
+```
+
+
+## Home and navigation (Raphie Hub shell)
+
+- **Real URLs.** The page is the address (`/`, `/strategy`, `/analytics`, `/settings`). Back and forward work, links can be
+  shared, and a page you cannot open falls back to Home.
+- **Home is everyone's default landing** (customer logins still land on Executive Summary). It shows quick links and small
+  cards chosen by role. Every card belongs to a page and appears only if the person can open that page
+  (`src/lib/home/layout.ts`), so Home never shows data from a page you cannot see. Custom profiles get cards from the pages
+  they have.
+- **Grouped sidebar:** Company (Strategy, Roadmap), Dashboards (Executive Summary, Analytics, Report Card, Operators, Eval
+  Reports), Client operations (Log ticket, Submissions, Bug Tracker, Bulletin, Leaderboard, Learn). A section with nothing
+  to open is hidden. The operator switcher is unchanged.
+- **Operators** (new, off by default; SuperAdmin only until a profile turns it on) compares the operators a person can
+  already access. It never widens operator access: an agent on one operator sees that operator only.
+- **Search:** Ctrl/Cmd+K jumps to pages and to operators the person can already access.
+- Numbers on Home use the same definitions as the existing pages (perfect rate as in Analytics, quality and accuracy as in
+  Report Card). `operator_perf_summary()` (migration `20261126_hub_shell.sql`) supplies per-operator totals in one query.
+
+```powershell
+node --test src/lib/access/core.test.mjs src/lib/home/layout.test.mjs src/lib/home/metrics.test.mjs
 ```

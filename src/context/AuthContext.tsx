@@ -20,9 +20,11 @@ export interface AppUser {
   // Effective access to every page (none | view | edit): the user's access profile
   // plus their per-page overrides. See lib/access/core.ts.
   access: AccessMap
+  // users.access_profile (null = the profile named after the role)
+  accessProfile: string | null
 }
 
-function toAppUser(profile: any, access: AccessMap = {}): AppUser {
+function toAppUser(profile: any, a: { access: AccessMap; accessProfile: string | null } = { access: {}, accessProfile: null }): AppUser {
   const isSuperAdmin = profile.role === 'superadmin'
   return {
     id:           profile.id,
@@ -33,7 +35,8 @@ function toAppUser(profile: any, access: AccessMap = {}): AppUser {
     operatorTeam: profile.operator_team,
     operatorId:   profile.operator_id ?? null,
     baseRole:     profile.role,
-    access,
+    access:       a.access,
+    accessProfile: a.accessProfile,
   }
 }
 

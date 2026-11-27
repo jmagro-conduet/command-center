@@ -36,7 +36,7 @@ async function loadOverrides(userId: string): Promise<PageLevels> {
 }
 
 // The signed-in user's effective access for every page.
-export async function fetchUserAccess(userId: string, baseRole: string): Promise<AccessMap> {
+export async function fetchUserAccess(userId: string, baseRole: string): Promise<{ access: AccessMap; accessProfile: string | null }> {
   let accessProfile: string | null = null
   try {
     const r = await supabase.from('users').select('access_profile').eq('id', userId).maybeSingle()
@@ -51,7 +51,7 @@ export async function fetchUserAccess(userId: string, baseRole: string): Promise
   } catch { /* tables not there yet */ }
   if (pages === null) pages = { ...(BUILTIN_PAGES[key] || {}) }
 
-  return computeAccess({ baseRole, accessProfile, profiles: { [key]: pages }, overrides: await loadOverrides(userId) })
+  return { access: computeAccess({ baseRole, accessProfile, profiles: { [key]: pages }, overrides: await loadOverrides(userId) }), accessProfile }
 }
 
 // ---- everything the admin screens need (profiles, their pages, every user's overrides)

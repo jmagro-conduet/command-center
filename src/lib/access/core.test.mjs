@@ -6,19 +6,47 @@ import * as A from './core.ts'
 const profiles = () => JSON.parse(JSON.stringify(A.BUILTIN_PAGES))
 const nav = (role, extra = {}) => A.navPages(A.computeAccess({ baseRole: role, accessProfile: null, profiles: profiles(), overrides: {}, ...extra })).map(p => p.key)
 
-test('built-in profiles reproduce exactly what each role saw before profiles existed', () => {
-  // The old hard-coded sidebars (Sidebar.tsx AGENT_NAV / QA_NAV / ADMIN_NAV / OPERATOR_NAV, + extras).
-  assert.deepEqual(nav('agent'), ['log-ticket', 'bulletin', 'leaderboard', 'bug-tracker', 'learn'])
-  assert.deepEqual(nav('qa'), ['log-ticket', 'bulletin', 'leaderboard', 'report-card', 'bug-tracker', 'learn'])
-  assert.deepEqual(nav('admin'), ['log-ticket', 'bulletin', 'leaderboard', 'submissions', 'executive-summary', 'analytics', 'report-card', 'bug-tracker', 'learn'])
+test('built-in profiles give each role exactly the pages it could always open, now grouped in the sidebar', () => {
+  // Same pages as the old hard-coded sidebars; only the ORDER changed (sections: Company, Dashboards, Client operations).
+  assert.deepEqual(nav('agent'), ['log-ticket', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
+  assert.deepEqual(nav('qa'), ['report-card', 'log-ticket', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
+  assert.deepEqual(nav('admin'), ['executive-summary', 'analytics', 'report-card', 'log-ticket', 'submissions', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
   assert.deepEqual(nav('operator'), ['executive-summary'])
-  // SuperAdmin: admin's list + Eval Reports after Report Card, Roadmap + Strategy after Bug Tracker
-  assert.deepEqual(nav('superadmin'), ['log-ticket', 'bulletin', 'leaderboard', 'submissions', 'executive-summary', 'analytics', 'report-card', 'eval-reports', 'bug-tracker', 'roadmap', 'strategy', 'learn'])
+  assert.deepEqual(nav('superadmin'), ['strategy', 'roadmap', 'executive-summary', 'analytics', 'report-card', 'operators', 'eval-reports', 'log-ticket', 'submissions', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
+  // the same page SETS as before the regrouping (nothing gained or lost)
+  const OLD = { agent: ['log-ticket', 'bulletin', 'leaderboard', 'bug-tracker', 'learn'], qa: ['log-ticket', 'bulletin', 'leaderboard', 'report-card', 'bug-tracker', 'learn'], admin: ['log-ticket', 'bulletin', 'leaderboard', 'submissions', 'executive-summary', 'analytics', 'report-card', 'bug-tracker', 'learn'] }
+  for (const [r, list] of Object.entries(OLD)) assert.deepEqual([...nav(r)].sort(), [...list].sort())
+})
+
+test('sidebar groups: sections with nothing to open are left out', () => {
+  const g = (role, extra = {}) => A.navGroups(A.computeAccess({ baseRole: role, accessProfile: null, profiles: profiles(), overrides: {}, ...extra })).map(x => x.label)
+  assert.deepEqual(g('agent'), ['Client operations'])
+  assert.deepEqual(g('qa'), ['Dashboards', 'Client operations'])
+  assert.deepEqual(g('superadmin'), ['Company', 'Dashboards', 'Client operations'])
+})
+
+test('Operators is optional: off for everyone but SuperAdmin until a profile or override turns it on', () => {
+  for (const r of ['agent', 'qa', 'admin']) assert.equal(nav(r).includes('operators'), false)
+  assert.equal(nav('superadmin').includes('operators'), true)
+  assert.equal(nav('agent', { overrides: { operators: 'view' } }).includes('operators'), true)
+  const p = profiles(); p.elt = { roadmap: 'edit', strategy: 'view', operators: 'view' }
+  assert.deepEqual(A.navPages(A.computeAccess({ baseRole: 'agent', accessProfile: 'elt', profiles: p, overrides: {} })).map(x => x.key), ['strategy', 'roadmap', 'operators'])
+})
+
+test('Users and Admin settings are SuperAdmin-only: no profile or override can grant them to anyone else', () => {
+  const p = profiles(); p.custom = { users: 'view', 'admin-settings': 'view', roadmap: 'view' }
+  for (const role of ['agent', 'qa', 'admin']) {
+    const m = A.computeAccess({ baseRole: role, accessProfile: 'custom', profiles: p, overrides: { users: 'edit' } })
+    assert.equal(m.users, 'none'); assert.equal(m['admin-settings'], 'none'); assert.equal(m.roadmap, 'view')
+  }
+  const sa = A.computeAccess({ baseRole: 'superadmin', accessProfile: 'custom', profiles: p, overrides: {} })
+  assert.equal(sa.users, 'view')                                   // a SuperAdmin on a profile that includes it keeps it
+  assert.equal(A.computeAccess({ baseRole: 'superadmin', accessProfile: 'elt', profiles: { ...p, elt: { roadmap: 'edit' } }, overrides: {} }).users, 'none') // and can still be narrowed
 })
 
 test('built-in admin-area access: only SuperAdmin by default; Roadmap/Strategy are edit for SuperAdmin only', () => {
   const m = (role) => A.computeAccess({ baseRole: role, accessProfile: null, profiles: profiles(), overrides: {} })
-  for (const r of ['agent', 'qa', 'admin', 'operator']) { assert.equal(m(r).users, 'none'); assert.equal(m(r)['admin-settings'], 'none'); assert.equal(m(r).roadmap, 'none'); assert.equal(m(r).strategy, 'none') }
+  for (const r of ['agent', 'qa', 'admin', 'operator']) { assert.equal(m(r).users, 'none'); assert.equal(m(r)['admin-settings'], 'none'); assert.equal(m(r).roadmap, 'none'); assert.equal(m(r).strategy, 'none'); assert.equal(m(r).operators, 'none') }
   assert.equal(m('superadmin').users, 'view'); assert.equal(m('superadmin')['admin-settings'], 'view')
   assert.equal(m('superadmin').roadmap, 'edit'); assert.equal(m('superadmin').strategy, 'edit')
 })
@@ -26,12 +54,12 @@ test('built-in admin-area access: only SuperAdmin by default; Roadmap/Strategy a
 test('a custom ELT profile: Roadmap and Strategy only, on any data role', () => {
   const p = profiles(); p.elt = { roadmap: 'edit', strategy: 'view' }
   const m = A.computeAccess({ baseRole: 'agent', accessProfile: 'elt', profiles: p, overrides: {} })
-  assert.deepEqual(A.navPages(m).map(x => x.key), ['roadmap', 'strategy'])
+  assert.deepEqual(A.navPages(m).map(x => x.key), ['strategy', 'roadmap'])
   assert.equal(A.canEditPage(m, 'roadmap'), true); assert.equal(A.canEditPage(m, 'strategy'), false)
   assert.equal(A.canOpen(m, 'log-ticket'), false)
   // a SuperAdmin on the same profile is narrowed too (SuperAdmin is only "full" by default)
   const sa = A.computeAccess({ baseRole: 'superadmin', accessProfile: 'elt', profiles: p, overrides: {} })
-  assert.deepEqual(A.navPages(sa).map(x => x.key), ['roadmap', 'strategy']); assert.equal(sa.users, 'none')
+  assert.deepEqual(A.navPages(sa).map(x => x.key), ['strategy', 'roadmap']); assert.equal(sa.users, 'none')
 })
 
 test('per-user overrides beat the profile, both to add and to remove', () => {
@@ -61,7 +89,8 @@ test('lockout guard: someone must always keep Users and access', () => {
   assert.equal(A.lockoutProblem(users, profiles(), {}), '')
   const p = profiles(); delete p.superadmin.users                       // remove it from the SuperAdmin profile
   assert.match(A.lockoutProblem(users, p, {}), /nobody with access/)
-  assert.equal(A.lockoutProblem(users, p, { c: { users: 'view' } }), '')   // an override on someone else keeps it safe
+  assert.match(A.lockoutProblem(users, p, { c: { users: 'view' } }), /nobody/)  // an agent can never hold it, so this does not help
+  assert.equal(A.lockoutProblem(users, p, { a: { users: 'view' } }), '')       // an override on a SuperAdmin does
   const p2 = profiles(); p2.elt = { roadmap: 'edit' }                    // moving both SuperAdmins to ELT removes it
   assert.match(A.lockoutProblem(users.map(u => u.role === 'superadmin' ? { ...u, accessProfile: 'elt' } : u), p2, {}), /nobody/)
   assert.equal(A.holders('users', users, profiles(), {}).length, 2)

@@ -17,33 +17,42 @@
 export type Level = 'none' | 'view' | 'edit'
 export const LEVELS: Level[] = ['none', 'view', 'edit']
 
+export type PageGroup = 'Company' | 'Dashboards' | 'Client operations' | 'Admin'
 export interface PageDef {
   key: string
   label: string
   description: string
-  group: 'Support' | 'Insights' | 'Leadership' | 'Admin'
+  /** Sidebar section (and the grouping in the access grids). */
+  group: PageGroup
   /** true: none / view / edit are meaningful. false: just on or off. */
   hasEdit: boolean
   /** true: shown as an item in the sidebar's main list. */
   nav: boolean
+  /** true: only people whose data role is SuperAdmin can ever have it. A profile or
+   *  override that grants it to anyone else is ignored. */
+  superadminOnly?: boolean
 }
 
-// Order here is the order of the sidebar's main list.
+// Sidebar sections, in order. 'Admin' pages are not part of the main list.
+export const NAV_GROUPS: PageGroup[] = ['Company', 'Dashboards', 'Client operations']
+
+// Order here is the order within each sidebar section.
 export const PAGES: PageDef[] = [
-  { key: 'log-ticket', label: 'Log ticket', description: 'Log a support ticket.', group: 'Support', hasEdit: false, nav: true },
-  { key: 'bulletin', label: 'Bulletin', description: 'Team announcements.', group: 'Support', hasEdit: false, nav: true },
-  { key: 'leaderboard', label: 'Leaderboard', description: 'Team leaderboard.', group: 'Support', hasEdit: false, nav: true },
-  { key: 'submissions', label: 'Submissions', description: 'Review submitted tickets.', group: 'Support', hasEdit: false, nav: true },
-  { key: 'executive-summary', label: 'Executive Summary', description: 'Operator performance summary.', group: 'Insights', hasEdit: false, nav: true },
-  { key: 'analytics', label: 'Analytics', description: 'Ticket and adoption analytics.', group: 'Insights', hasEdit: false, nav: true },
-  { key: 'report-card', label: 'Report Card', description: 'AI quality report card.', group: 'Insights', hasEdit: false, nav: true },
-  { key: 'eval-reports', label: 'Eval Reports', description: 'Engineering triage report from eval findings.', group: 'Insights', hasEdit: false, nav: true },
-  { key: 'bug-tracker', label: 'Bug Tracker', description: 'Bug reports and triage.', group: 'Support', hasEdit: false, nav: true },
-  { key: 'roadmap', label: 'Roadmap', description: 'ELT view of the product roadmap, fed from Linear.', group: 'Leadership', hasEdit: true, nav: true },
-  { key: 'strategy', label: 'Strategy', description: 'OKRs: Strategy on a Page, the monthly ELT review and its actions.', group: 'Leadership', hasEdit: true, nav: true },
-  { key: 'learn', label: 'Learn', description: 'Learning centre.', group: 'Support', hasEdit: false, nav: true },
-  { key: 'users', label: 'Users and access', description: 'Add users, set roles, manage access profiles and per-person access.', group: 'Admin', hasEdit: false, nav: false },
-  { key: 'admin-settings', label: 'Admin settings', description: 'Evals and Config tabs in Settings.', group: 'Admin', hasEdit: false, nav: false },
+  { key: 'strategy', label: 'Strategy', description: 'OKRs: Strategy on a Page, the monthly ELT review and its actions.', group: 'Company', hasEdit: true, nav: true },
+  { key: 'roadmap', label: 'Roadmap', description: 'ELT view of the product roadmap, fed from Linear.', group: 'Company', hasEdit: true, nav: true },
+  { key: 'executive-summary', label: 'Executive Summary', description: 'Operator performance summary.', group: 'Dashboards', hasEdit: false, nav: true },
+  { key: 'analytics', label: 'Analytics', description: 'Ticket and adoption analytics.', group: 'Dashboards', hasEdit: false, nav: true },
+  { key: 'report-card', label: 'Report Card', description: 'AI quality report card.', group: 'Dashboards', hasEdit: false, nav: true },
+  { key: 'operators', label: 'Operators', description: 'Performance across every operator you can access, at a glance. Off by default.', group: 'Dashboards', hasEdit: false, nav: true },
+  { key: 'eval-reports', label: 'Eval Reports', description: 'Engineering triage report from eval findings.', group: 'Dashboards', hasEdit: false, nav: true },
+  { key: 'log-ticket', label: 'Log ticket', description: 'Log a support ticket.', group: 'Client operations', hasEdit: false, nav: true },
+  { key: 'submissions', label: 'Submissions', description: 'Review submitted tickets.', group: 'Client operations', hasEdit: false, nav: true },
+  { key: 'bug-tracker', label: 'Bug Tracker', description: 'Bug reports and triage.', group: 'Client operations', hasEdit: false, nav: true },
+  { key: 'bulletin', label: 'Bulletin', description: 'Team announcements.', group: 'Client operations', hasEdit: false, nav: true },
+  { key: 'leaderboard', label: 'Leaderboard', description: 'Team leaderboard.', group: 'Client operations', hasEdit: false, nav: true },
+  { key: 'learn', label: 'Learn', description: 'Learning centre.', group: 'Client operations', hasEdit: false, nav: true },
+  { key: 'users', label: 'Users and access', description: 'Add users, set roles, reset passwords, manage access profiles. SuperAdmin only.', group: 'Admin', hasEdit: false, nav: false, superadminOnly: true },
+  { key: 'admin-settings', label: 'Admin settings', description: 'Evals and Config tabs in Settings. SuperAdmin only.', group: 'Admin', hasEdit: false, nav: false, superadminOnly: true },
 ]
 export const PAGE_KEYS = PAGES.map(p => p.key)
 export const pageDef = (key: string): PageDef | undefined => PAGES.find(p => p.key === key)
@@ -96,7 +105,10 @@ const clamp = (page: string, l: Level | undefined): Level => {
 }
 
 export function resolveLevel(page: string, a: AccessInputs): Level {
-  if (!pageDef(page)) return 'none'
+  const def = pageDef(page)
+  if (!def) return 'none'
+  // Managing people and access is for SuperAdmins only, whatever a profile or override says.
+  if (def.superadminOnly && a.baseRole !== 'superadmin') return 'none'
   const profile = a.profiles[effectiveProfileKey(a.baseRole, a.accessProfile)] || {}
   if (a.baseRole === 'operator') return clamp(page, profile[page]) // operators: fixed, no overrides
   const ov = a.overrides[page]
@@ -107,7 +119,10 @@ export function computeAccess(a: AccessInputs): AccessMap {
 }
 export const canOpen = (m: AccessMap | undefined, page: string) => !!m && !!m[page] && m[page] !== 'none'
 export const canEditPage = (m: AccessMap | undefined, page: string) => !!m && m[page] === 'edit'
-export const navPages = (m: AccessMap): PageDef[] => PAGES.filter(p => p.nav && canOpen(m, p.key))
+// Pages in the sidebar, grouped by section (sections with nothing to open are left out).
+export const navGroups = (m: AccessMap): { label: PageGroup; pages: PageDef[] }[] =>
+  NAV_GROUPS.map(label => ({ label, pages: PAGES.filter(p => p.nav && p.group === label && canOpen(m, p.key)) })).filter(g => g.pages.length > 0)
+export const navPages = (m: AccessMap): PageDef[] => navGroups(m).flatMap(g => g.pages)
 
 // ---------------------------------------------------------------- lockout guard
 export interface UserLike { id: string; role: string; accessProfile: string | null }

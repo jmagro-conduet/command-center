@@ -61,6 +61,17 @@ export function buildData(rows: Row[]): Data {
   return d
 }
 
+// One-off read for places that only need a summary (Home): same RLS-protected client, no polling.
+// Cached briefly so several cards on one page share a single request.
+let snap: { at: number; p: Promise<Data> } | null = null
+export function loadStrategyData(): Promise<Data> {
+  if (snap && Date.now() - snap.at < 30_000) return snap.p
+  const p = fetchDocs().then(rows => buildData(rows))
+  snap = { at: Date.now(), p }
+  p.catch(() => { if (snap && snap.p === p) snap = null })
+  return p
+}
+
 export function useStrategy(enabled: boolean, email: string | undefined) {
   const [rows, setRows] = useState<Map<string, Row>>(new Map())
   const [load, setLoad] = useState<StrategyLoad>('loading')

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import './index.css'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { OperatorProvider } from './context/OperatorContext'
@@ -20,14 +21,36 @@ import BugTracker from './pages/BugTracker'
 import EvalReport from './pages/EvalReport'
 import Roadmap from './pages/Roadmap'
 import Strategy from './pages/Strategy'
-import { canOpen, navPages } from './lib/access/core'
+import Home from './pages/Home'
+import Operators from './pages/Operators'
+import CommandPalette from './components/CommandPalette'
+import { canOpen } from './lib/access/core'
 
 const FOCUS_STALE_MS = 2 * 60 * 1000 // treat data as stale after 2 min away
 
+// ---- URLs. One page per path: / is Home, /strategy, /analytics, /settings, and so on.
+const ROUTABLE: Page[] = ['home', 'operators', 'log-ticket', 'bulletin', 'leaderboard', 'events', 'submissions', 'report', 'executive-summary', 'analytics', 'report-card', 'bug-tracker', 'users', 'learn', 'settings', 'eval-reports', 'roadmap', 'strategy']
+const pathFor = (p: Page) => (p === 'home' ? '/' : '/' + p)
+function pageFromPath(pathname: string): Page | null {
+  const seg = pathname.replace(/^\/+/, '').split('/')[0]
+  if (!seg) return 'home'
+  return (ROUTABLE as string[]).includes(seg) ? (seg as Page) : null
+}
+// What this person actually gets for a requested page: Home is everyone's default, Settings is
+// always available, and anything else needs access (customer logins only ever see Executive Summary).
+function resolvePage(user: ReturnType<typeof useAuth>['user'], requested: Page | null): Page {
+  if (!user) return 'home'
+  if (user.role === 'operator') return 'executive-summary'
+  if (requested === 'home' || requested === 'settings') return requested
+  if (requested && ((requested === 'events' || requested === 'report') ? user.role === 'admin' : canOpen(user.access, requested))) return requested
+  return 'home'
+}
+
 function AppShell() {
   const { user, loading, recoveryMode, updatePassword } = useAuth()
-  const [activePage, setActivePage] = useState<Page>('log-ticket')
-  const [pageKey, setPageKey] = useState(0)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [pageKey, setPageKey] = useState(0) // bumped when the tab comes back after a while
   const lastActiveRef = useRef(Date.now())
   const mainRef = useRef<HTMLElement>(null)
   // Scroll position to restore after an idle-remount (not a real navigation
@@ -65,10 +88,18 @@ function AppShell() {
     return () => timers.forEach(clearTimeout)
   }, [pageKey])
 
-  function handleNavigate(page: Page) {
-    setActivePage(page)
-    setPageKey(k => k + 1) // force remount = fresh fetch on every page switch
-  }
+  // The page is the URL. Every navigation remounts the page (fresh fetch), same as before.
+  function handleNavigate(page: Page) { navigate(pathFor(page)) }
+
+  const requested = pageFromPath(location.pathname)
+  const resolved = resolvePage(user, requested)
+
+  // A URL that is unknown, or a page this person cannot open, becomes Home (not an error screen).
+  useEffect(() => {
+    if (!user) return
+    const want = pathFor(resolved)
+    if (location.pathname !== want && !(resolved === 'home' && location.pathname === '/')) navigate(want, { replace: true })
+  }, [user, resolved, location.pathname, navigate])
 
   if (loading) {
     return (
@@ -86,36 +117,31 @@ function AppShell() {
   if (recoveryMode) return <ResetPasswordPage updatePassword={updatePassword} />
   if (!user) return <Login />
 
-  const isOperator   = user?.role === 'operator'
-  const isAdmin      = user?.role === 'admin'   // only for the two sunset/hidden routes below
-
-  // Which pages this person can open comes from their access profile + overrides
-  // (lib/access/core.ts), not from a fixed role list. Settings (their own account) is
-  // always available. A page they cannot open falls back to the first one they can.
-  const can = (k: string) => canOpen(user.access, k)
-  const legacyOk = (activePage === 'events' || activePage === 'report') && isAdmin
-  const landing = navPages(user.access)[0]?.key as Page | undefined
-  const page: Page = activePage === 'settings' || legacyOk || can(activePage) ? activePage : (landing ?? 'settings')
+  const isOperator = user?.role === 'operator'
+  const page: Page = resolved
+  const viewKey = location.key + ':' + pageKey
 
   function renderPage() {
-    if (isOperator) return <ExecutiveSummary key={pageKey} />
+    if (isOperator) return <ExecutiveSummary key={viewKey} />
     switch (page) {
-      case 'log-ticket':  return <LogTicket    key={pageKey} />
-      case 'bulletin':    return <Bulletin     key={pageKey} />
-      case 'leaderboard': return <Leaderboard  key={pageKey} />
-      case 'events':      return <Events       key={pageKey} />
-      case 'submissions': return <Submissions  key={pageKey} />
-      case 'report':      return <Report       key={pageKey} />
-      case 'executive-summary': return <ExecutiveSummary key={pageKey} />
-      case 'analytics':   return <Analytics    key={pageKey} />
-      case 'report-card': return <ReportCard   key={pageKey} />
-      case 'bug-tracker': return <BugTracker   key={pageKey} />
-      case 'eval-reports': return <EvalReport  key={pageKey} />
-      case 'roadmap':     return <Roadmap      key={pageKey} />
-      case 'strategy':    return <Strategy     key={pageKey} />
-      case 'users':       return <Settings     key={pageKey} initialTab="users" />
-      case 'learn':       return <Learn        key={pageKey} />
-      case 'settings':    return <Settings     key={pageKey} />
+      case 'home':        return <Home         key={viewKey} onNavigate={handleNavigate} />
+      case 'operators':   return <Operators    key={viewKey} onNavigate={handleNavigate} />
+      case 'log-ticket':  return <LogTicket    key={viewKey} />
+      case 'bulletin':    return <Bulletin     key={viewKey} />
+      case 'leaderboard': return <Leaderboard  key={viewKey} />
+      case 'events':      return <Events       key={viewKey} />
+      case 'submissions': return <Submissions  key={viewKey} />
+      case 'report':      return <Report       key={viewKey} />
+      case 'executive-summary': return <ExecutiveSummary key={viewKey} />
+      case 'analytics':   return <Analytics    key={viewKey} />
+      case 'report-card': return <ReportCard   key={viewKey} />
+      case 'bug-tracker': return <BugTracker   key={viewKey} />
+      case 'eval-reports': return <EvalReport  key={viewKey} />
+      case 'roadmap':     return <Roadmap      key={viewKey} />
+      case 'strategy':    return <Strategy     key={viewKey} />
+      case 'users':       return <Settings     key={viewKey} initialTab="users" />
+      case 'learn':       return <Learn        key={viewKey} />
+      case 'settings':    return <Settings     key={viewKey} />
     }
   }
 
@@ -125,6 +151,7 @@ function AppShell() {
       background: '#f0eeec', overflow: 'hidden', boxSizing: 'border-box',
     }}>
       <Sidebar activePage={page} onNavigate={handleNavigate} />
+      {!isOperator && <CommandPalette onNavigate={handleNavigate} />}
       <main ref={mainRef} className="app-main" style={{ flex: 1, overflowY: 'auto', minWidth: 0, paddingRight: 4 }}>
         {renderPage()}
       </main>

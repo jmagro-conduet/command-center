@@ -21,7 +21,7 @@ const btn = (primary = false): React.CSSProperties => ({
   fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: '8px 16px', borderRadius: 10, cursor: 'pointer',
   border: primary ? 'none' : '1.5px solid rgba(0,0,0,0.12)', background: primary ? '#000' : '#fff', color: primary ? '#fff' : '#323232', transition: 'all 0.15s',
 })
-const GROUPS = ['Support', 'Insights', 'Leadership', 'Admin'] as const
+const GROUPS = ['Company', 'Dashboards', 'Client operations', 'Admin'] as const
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x))
 
 export default function RolesAccess() {
@@ -156,7 +156,7 @@ export default function RolesAccess() {
                   {PAGES.filter(pg => pg.group === g).map(pg => (
                     <tr key={pg.key}>
                       <td style={{ padding: '10px 20px', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
-                        <div style={{ fontWeight: 500, color: '#000' }}>{pg.label}</div>
+                        <div style={{ fontWeight: 500, color: '#000' }}>{pg.label}{pg.superadminOnly && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 100, background: 'rgba(0,0,0,0.05)', color: '#323232' }}>SuperAdmin only</span>}</div>
                         <div style={{ fontSize: 12, color: '#323232' }}>{pg.description}</div>
                       </td>
                       {cols.map(p => {
@@ -164,7 +164,7 @@ export default function RolesAccess() {
                         const val: Level = pg.hasEdit ? raw : raw === 'none' ? 'none' : 'view'
                         return (
                           <td key={p.key} style={{ padding: '8px 12px', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
-                            <select aria-label={`${pg.label} for ${p.name}`} value={val} disabled={!ready || p.locked || saving}
+                            <select aria-label={`${pg.label} for ${p.name}`} value={pg.superadminOnly && ['agent', 'qa', 'admin'].includes(p.key) ? 'none' : val} disabled={!ready || p.locked || saving || (!!pg.superadminOnly && ['agent', 'qa', 'admin'].includes(p.key))}
                               onChange={e => setCell(p.key, pg.key, e.target.value as Level)}
                               style={{ ...field, width: '100%', background: val === 'none' ? '#fff' : 'rgba(0,168,176,0.08)', borderColor: val === 'none' ? 'rgba(0,0,0,0.12)' : 'rgba(0,168,176,0.3)' }}>
                               <option value="none">None</option>

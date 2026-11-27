@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
   Ticket, Megaphone, Trophy, Inbox, LayoutDashboard,
-  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch, Milestone, Target,
+  LineChart, ClipboardCheck, Bug, GraduationCap, Settings, LogOut, ChevronLeft, FileSearch, Milestone, Target, House, Building2,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useOperator } from '../../context/OperatorContext'
-import { canOpen, navPages } from '../../lib/access/core'
+import { canOpen, navGroups, navPages } from '../../lib/access/core'
 import { computeHealthIssues, fetchDismissals, filterActive } from '../../lib/dataHealth'
 import type { HealthSeverity } from '../../lib/dataHealth'
 
@@ -24,6 +24,8 @@ async function checkHealthSeverity(): Promise<HealthSeverity | null> {
 }
 
 export type Page =
+  | 'home'
+  | 'operators'
   | 'log-ticket'
   | 'bulletin'
   | 'leaderboard'
@@ -63,6 +65,8 @@ const BugTrackerIcon  = () => <Bug {...ICON} />
 const EvalReportsIcon = () => <FileSearch {...ICON} />
 const RoadmapIcon     = () => <Milestone {...ICON} />
 const StrategyIcon    = () => <Target {...ICON} />
+const HomeIcon        = () => <House {...ICON} />
+const OperatorsIcon   = () => <Building2 {...ICON} />
 const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.5} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
@@ -88,6 +92,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   'bug-tracker':       <BugTrackerIcon />,
   'roadmap':           <RoadmapIcon />,
   'strategy':          <StrategyIcon />,
+  'operators':         <OperatorsIcon />,
   'learn':             <LearnIcon />,
 }
 
@@ -118,7 +123,60 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
   // Anyone (admin, or a QA/agent granted extra operators) who has more than one
   // operator to choose from gets the switcher — not just admins.
   const canSwitchOperator = !isOperator && operators.length > 1
-  const navItems: NavItem[] = navPages(user?.access || {}).map(p => ({ id: p.key as Page, label: p.label, icon: NAV_ICONS[p.key] }))
+  // Home first (everyone except customer logins), then the pages this person can open,
+  // grouped into sections. A section with nothing to open is left out.
+  const toItem = (p: { key: string; label: string }): NavItem => ({ id: p.key as Page, label: p.label, icon: NAV_ICONS[p.key] })
+  const sections: { label: string; items: NavItem[] }[] = isOperator
+    ? [{ label: '', items: navPages(user?.access || {}).map(toItem) }]
+    : [{ label: '', items: [{ id: 'home', label: 'Home', icon: <HomeIcon /> }] },
+       ...navGroups(user?.access || {}).map(g => ({ label: g.label, items: g.pages.map(toItem) }))]
+
+  const renderNavItem = (item: NavItem) => {
+    const active = activePage === item.id
+      return (
+        <button
+          key={item.id}
+          onClick={() => onNavigate(item.id)}
+          title={collapsed ? item.label : undefined}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: collapsed ? '9px 0' : '9px 10px',
+            borderRadius: 10,
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            background: active ? '#cceef0' : 'transparent',
+            color: active ? '#000' : '#323232',
+            fontFamily: 'var(--font-body)',
+            fontSize: 14,
+            fontWeight: active ? 500 : 400,
+            transition: 'all 0.15s',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => {
+            if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.05)'
+          }}
+          onMouseLeave={e => {
+            if (!active) e.currentTarget.style.background = 'transparent'
+          }}
+        >
+          <span style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: active ? '#fff' : 'transparent',
+            flexShrink: 0,
+            transition: 'background 0.15s',
+          }}>
+            {item.icon}
+          </span>
+          {!collapsed && item.label}
+        </button>
+      )
+  }
 
   return (
     <div className="app-sidebar" style={{
@@ -217,52 +275,15 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
           when the list is taller than the viewport (short laptop windows,
           browser zoom, or roles with extra items like SuperAdmin's Eval Reports). */}
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {navItems.map(item => {
-          const active = activePage === item.id
-          return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              title={collapsed ? item.label : undefined}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: collapsed ? '9px 0' : '9px 10px',
-                borderRadius: 10,
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                background: active ? '#cceef0' : 'transparent',
-                color: active ? '#000' : '#323232',
-                fontFamily: 'var(--font-body)',
-                fontSize: 14,
-                fontWeight: active ? 500 : 400,
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => {
-                if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.05)'
-              }}
-              onMouseLeave={e => {
-                if (!active) e.currentTarget.style.background = 'transparent'
-              }}
-            >
-              <span style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                background: active ? '#fff' : 'transparent',
-                flexShrink: 0,
-                transition: 'background 0.15s',
-              }}>
-                {item.icon}
-              </span>
-              {!collapsed && item.label}
-            </button>
-          )
-        })}
+        {sections.map((sec, si) => (
+          <div key={si} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {sec.label && !collapsed && (
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#323232', padding: '12px 10px 4px' }}>{sec.label}</div>
+            )}
+            {sec.label && collapsed && <div style={{ height: 1, background: 'rgba(0,0,0,0.07)', margin: '8px 8px' }} />}
+            {sec.items.map(renderNavItem)}
+          </div>
+        ))}
       </nav>
 
       {/* Bottom: operator switcher + settings + sign out */}
