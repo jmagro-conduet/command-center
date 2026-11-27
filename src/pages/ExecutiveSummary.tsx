@@ -1143,7 +1143,7 @@ function FullAutoView({ snapshots, loading, isAdmin, operatorName }: {
       )}
 
       <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(0,0,0,0.35)', fontStyle: 'italic' }}>
-        Preview data — manually entered, not yet connected to live systems. Mirrors the planned production Full Auto dashboard until {operatorName ?? 'this operator'} moves off Command Center entirely.
+        Preview data — manually entered, not yet connected to live systems. Mirrors the planned production Full Auto dashboard until {operatorName ?? 'this operator'} moves off Raphie Hub entirely.
         {isAdmin && ' Manage snapshots in Admin Settings → Config → Edit operator.'}
       </p>
     </>

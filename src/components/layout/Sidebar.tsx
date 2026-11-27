@@ -150,7 +150,7 @@ export default function Sidebar({ activePage, onNavigate }: Props) {
             {/* Official brandmark (design system: never typeset the logo). 22px high, left-aligned. */}
             <img src="/brand/raphie-logo-black.png" alt="Raphie" style={{ height: 22, width: 'auto', display: 'block' }} />
             <div style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#323232', marginTop: 3 }}>
-              CS Command Center
+              Raphie Hub
             </div>
           </div>
         )}

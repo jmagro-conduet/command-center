@@ -1,4 +1,4 @@
-# Strategy (OKR tracker) in Command Center
+# Strategy (OKR tracker) in Raphie Hub
 
 An ELT-only page, next to the Roadmap, that replaces the standalone "Raphie OKR Tracker" artifact.
 
@@ -53,7 +53,7 @@ npx supabase db query --remote --file strategy-import.sql --project-ref <ref>
 ```
 
 The script only writes a SQL file for you to review. By default existing documents are left alone, so re-running never
-overwrites edits made in Command Center (`--overwrite` changes that). The export holds confidential business data:
+overwrites edits made in Raphie Hub (`--overwrite` changes that). The export holds confidential business data:
 keep it, and the generated SQL, out of git.
 
 ## Tests

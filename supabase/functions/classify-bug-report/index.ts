@@ -211,8 +211,8 @@ Deno.serve(async (req: Request) => {
       const result = {
         status: 'new' as const,
         reasoning: linearProjects.length > 0
-          ? 'No other open Command Center bugs or Linear issues found to compare against for this operator.'
-          : 'No other open Command Center bugs found to compare against, and this operator has no Linear project linked (Settings -> Linear projects) for cross-checking.',
+          ? 'No other open Raphie Hub bugs or Linear issues found to compare against for this operator.'
+          : 'No other open Raphie Hub bugs found to compare against, and this operator has no Linear project linked (Settings -> Linear projects) for cross-checking.',
         matches: [] as { source: 'command_center' | 'linear'; id: string; title: string; filed_ticket_id: string | null; filed_ticket_url: string | null }[],
       }
       const triaged_at = new Date().toISOString()

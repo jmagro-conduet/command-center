@@ -15,7 +15,7 @@
  *   --user <id>=<mail>  map an artifact user id (u_...) to an email; repeatable. Ids with
  *                       no mapping become null (the history simply omits "by <name>").
  *   --overwrite         update documents that already exist (default: leave them alone, so
- *                       re-running never clobbers edits made in Command Center)
+ *                       re-running never clobbers edits made in Raphie Hub)
  *
  * Needs supabase/migrations/20261124_strategy.sql applied first.
  */

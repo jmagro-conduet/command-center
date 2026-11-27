@@ -1043,7 +1043,7 @@ export default function Settings({ initialTab }: SettingsProps) {
             {isAdmin ? 'Admin settings' : 'Settings'}
           </h1>
           <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#323232', marginTop: 4 }}>
-            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? 'Manage operators — Zendesk tracking, issue categories, rename, delete' : 'Configure your Command Center preferences'}
+            {activeTab === 'users' ? 'Manage team members and their operator access' : activeTab === 'evals' ? 'Manage regression gold sets and run automated eval checks' : activeTab === 'config' ? 'Manage operators — Zendesk tracking, issue categories, rename, delete' : 'Configure your Raphie Hub preferences'}
           </p>
         </div>
 

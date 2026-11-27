@@ -79,7 +79,7 @@ export default function RolesAccess() {
           }
         }
       }
-      await load(); setMsg({ ok: true, text: 'Saved. People see the change the next time they load Command Center.' })
+      await load(); setMsg({ ok: true, text: 'Saved. People see the change the next time they load Raphie Hub.' })
     } catch (e) { setMsg({ ok: false, text: (e as { message?: string })?.message || 'Could not save.' }) }
     setSaving(false)
   }

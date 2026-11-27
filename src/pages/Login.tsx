@@ -29,7 +29,7 @@ export default function Login() {
         <div style={{ marginBottom: 28 }}>
           <img src="/brand/raphie-logo-black.png" alt="Raphie" style={{ height: 28, width: 'auto', display: 'block' }} />
           <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 4 }}>
-            CS Command Center
+            Raphie Hub
           </div>
         </div>
 
@@ -100,7 +100,7 @@ function SignInForm({ onForgot, onCreateAccount, signIn }: {
       </form>
 
       <div style={{ textAlign: 'center', marginTop: 20, fontFamily: 'var(--font-body)', fontSize: 13, color: '#323232' }}>
-        New to Command Center?{' '}
+        New to Raphie Hub?{' '}
         <button onClick={onCreateAccount} style={{
           color: '#00a8b0', background: 'none', border: 'none', cursor: 'pointer',
           fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, padding: 0,
@@ -360,7 +360,7 @@ export function ResetPasswordPage({ updatePassword }: {
         <div style={{ marginBottom: 28 }}>
           <img src="/brand/raphie-logo-black.png" alt="Raphie" style={{ height: 28, width: 'auto', display: 'block' }} />
           <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#323232', marginTop: 4 }}>
-            CS Command Center
+            Raphie Hub
           </div>
         </div>
 
