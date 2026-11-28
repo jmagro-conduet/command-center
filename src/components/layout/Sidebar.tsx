@@ -27,7 +27,7 @@ export type Page =
   | 'home'
   | 'operators'
   | 'customer-success'
-  | 'client-status'
+  | 'sales-funnel'
   | 'log-ticket'
   | 'bulletin'
   | 'leaderboard'
@@ -70,7 +70,7 @@ const StrategyIcon    = () => <Target {...ICON} />
 const HomeIcon        = () => <House {...ICON} />
 const OperatorsIcon   = () => <Building2 {...ICON} />
 const CustomerSuccessIcon = () => <Handshake {...ICON} />
-const ClientStatusIcon    = () => <Funnel {...ICON} />
+const SalesFunnelIcon     = () => <Funnel {...ICON} />
 const SignOutIcon     = () => <LogOut size={16} strokeWidth={1.5} />
 
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
@@ -98,7 +98,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   'strategy':          <StrategyIcon />,
   'operators':         <OperatorsIcon />,
   'customer-success':  <CustomerSuccessIcon />,
-  'client-status':     <ClientStatusIcon />,
+  'sales-funnel':      <SalesFunnelIcon />,
   'learn':             <LearnIcon />,
 }
 

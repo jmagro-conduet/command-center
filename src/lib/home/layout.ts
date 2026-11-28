@@ -35,16 +35,17 @@ export const WIDGETS: WidgetDef[] = [
   { id: 'kr-summary', title: 'Key results', requires: ['strategy'], span: 1 },
   { id: 'actions-next', title: 'Actions and next ELT', requires: ['strategy'], span: 1 },
   { id: 'roadmap-glance', title: 'Roadmap', requires: ['roadmap'], span: 1 },
+  { id: 'funnel-glance', title: 'Sales Funnel', requires: ['sales-funnel'], span: 1 },
 ]
 
 // Preferred order per data role. Custom profiles use GENERAL.
 const ROLE_ORDER: Record<string, string[]> = {
   agent: ['today', 'bulletin-unread', 'training', 'my-week'],
   qa: ['quality-week', 'accuracy-errors', 'needs-decision'],
-  admin: ['operators-glance', 'team-today', 'waiting-on-you'],
-  superadmin: ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'operators-glance'],
+  admin: ['operators-glance', 'team-today', 'waiting-on-you', 'funnel-glance'],
+  superadmin: ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'funnel-glance', 'operators-glance'],
 }
-const GENERAL = ['kr-summary', 'actions-next', 'roadmap-glance', 'operators-glance', 'platform-health', 'people-access',
+const GENERAL = ['kr-summary', 'actions-next', 'roadmap-glance', 'funnel-glance', 'operators-glance', 'platform-health', 'people-access',
   'quality-week', 'accuracy-errors', 'needs-decision', 'team-today', 'waiting-on-you', 'today', 'bulletin-unread', 'training', 'my-week']
 
 export interface QuickLink { page: string; label: string; primary: boolean }

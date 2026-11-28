@@ -49,7 +49,7 @@ export const PAGES: PageDef[] = [
   { key: 'report-card', label: 'Report Card', description: 'AI quality report card.', group: 'Dashboards', hasEdit: false, nav: true },
   { key: 'operators', label: 'Operators', description: 'Performance across every operator you can access, at a glance. Off by default.', group: 'Dashboards', hasEdit: false, nav: true },
   { key: 'customer-success', label: 'Customer Success', description: "Every client's stage, mode and next step in one view. Coming soon, off by default.", group: 'Dashboards', hasEdit: false, nav: true, soon: true, blurb: "Every client's stage, mode and next step in one view." },
-  { key: 'client-status', label: 'Client Status', description: 'Where each client is in its journey, and the sales funnel behind it. Coming soon, off by default.', group: 'Dashboards', hasEdit: false, nav: true, soon: true, blurb: 'Where each client is in its journey, and the sales funnel behind it.' },
+  { key: 'sales-funnel', label: 'Sales Funnel', description: 'Pipedrive deals by funnel step, with stage movement, win and lost rates and deal values. Off by default.', group: 'Dashboards', hasEdit: false, nav: true },
   { key: 'eval-reports', label: 'Eval Reports', description: 'Engineering triage report from eval findings.', group: 'Dashboards', hasEdit: false, nav: true },
   { key: 'log-ticket', label: 'Log ticket', description: 'Log a support ticket.', group: 'Client operations', hasEdit: false, nav: true },
   { key: 'submissions', label: 'Submissions', description: 'Review submitted tickets.', group: 'Client operations', hasEdit: false, nav: true },

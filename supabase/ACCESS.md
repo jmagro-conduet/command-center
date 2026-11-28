@@ -70,6 +70,9 @@ node --test src/lib/access/core.test.mjs
   to open is hidden. The operator switcher is unchanged.
 - **Operators** (new, off by default; SuperAdmin only until a profile turns it on) compares the operators a person can
   already access. It never widens operator access: an agent on one operator sees that operator only.
+- **Sales Funnel** (page key `sales-funnel`, formerly the planned "Client Status"; see `FUNNEL.md`) is **off by default**:
+  SuperAdmin only until a profile or override turns it on. Access to the page is access to deal values. Customer Success is
+  still a "Coming soon" page.
 - **Search:** Ctrl/Cmd+K jumps to pages and to operators the person can already access.
 - Numbers on Home use the same definitions as the existing pages (perfect rate as in Analytics, quality and accuracy as in
   Report Card). `operator_perf_summary()` (migration `20261126_hub_shell.sql`) supplies per-operator totals in one query.

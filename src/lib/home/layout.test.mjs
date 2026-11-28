@@ -36,7 +36,7 @@ test('Admin: operators at a glance (via Executive Summary), team today, waiting 
 
 test('SuperAdmin: platform health, people and access, company, operators; quick link is Admin settings', () => {
   const h = home('superadmin')
-  assert.deepEqual(ids(h), ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'operators-glance'])
+  assert.deepEqual(ids(h), ['platform-health', 'people-access', 'kr-summary', 'actions-next', 'funnel-glance', 'operators-glance'])
   assert.deepEqual(quick(h), ['settings', 'executive-summary', 'eval-reports']); assert.equal(h.quick[0].label, 'Admin settings')
 })
 
@@ -45,6 +45,13 @@ test('custom ELT profile on an agent: company cards only, never the agent or adm
   const h = home('agent', 'elt', { profiles: p })
   assert.deepEqual(ids(h), ['kr-summary', 'actions-next', 'roadmap-glance', 'operators-glance'])
   assert.deepEqual(quick(h), ['strategy', 'roadmap', 'operators'])
+})
+
+test('Sales Funnel card: only for people who can open the page (off by default), so an Admin sees it only when granted', () => {
+  assert.ok(!ids(home('admin')).includes('funnel-glance'))
+  assert.ok(ids(home('admin', null, { overrides: { 'sales-funnel': 'view' } })).includes('funnel-glance'))
+  const p = profiles(); p.elt = { strategy: 'view', 'sales-funnel': 'view' }
+  assert.deepEqual(ids(home('admin', 'elt', { profiles: p })), ['kr-summary', 'actions-next', 'funnel-glance'])
 })
 
 test('a card never appears for someone who cannot open its page', () => {

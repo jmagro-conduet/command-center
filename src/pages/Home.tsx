@@ -11,6 +11,8 @@ import { pct, plural } from '../lib/home/metrics'
 import { QUALITY_TARGET } from '../lib/home/metrics'
 import { getDailyTarget } from '../lib/settings'
 import { actionList, allSessions, isOverdue, pickPlan, statusCounts, allKrs, fmtDate } from '../lib/strategy/logic'
+import { loadFunnelData } from '../lib/funnel/useFunnel'
+import { summarize as summarizeFunnel } from '../lib/funnel/logic'
 import PageHeader from '../components/PageHeader'
 import { OPEN_SEARCH_EVENT } from '../components/CommandPalette'
 import type { Page } from '../components/layout/Sidebar'
@@ -235,6 +237,24 @@ function RoadmapCard({ c }: { c: Ctx }) {
   )
 }
 
+function FunnelCard({ c }: { c: Ctx }) {
+  const s = useLoad(() => loadFunnelData())
+  return (
+    <Card title="Sales Funnel" sub="Last 30 days" onOpen={() => c.go('sales-funnel')} openLabel="Sales Funnel">
+      <Body s={s}>{d => {
+        if (!d.deals.length) return <div className="hub-muted">No deals synced yet.</div>
+        const t = summarizeFunnel(d, 30)
+        return (<>
+          <div className="hub-big">{t.open}<small>open deals</small></div>
+          <div className="hub-row"><span>Added</span><b>{t.added}</b></div>
+          <div className="hub-row"><span>Went Live</span><b>{t.wentLive}</b></div>
+          <div className="hub-row"><span>Lost</span><b>{t.lost}</b></div>
+        </>)
+      }}</Body>
+    </Card>
+  )
+}
+
 function renderWidget(w: WidgetDef, c: Ctx): ReactNode {
   switch (w.id) {
     case 'today': return <TodayCard c={c} />
@@ -252,6 +272,7 @@ function renderWidget(w: WidgetDef, c: Ctx): ReactNode {
     case 'kr-summary': return <StrategyCards c={c} which="kr" />
     case 'actions-next': return <StrategyCards c={c} which="actions" />
     case 'roadmap-glance': return <RoadmapCard c={c} />
+    case 'funnel-glance': return <FunnelCard c={c} />
     default: return null
   }
 }

@@ -12,7 +12,7 @@ test('built-in profiles give each role exactly the pages it could always open, n
   assert.deepEqual(nav('qa'), ['report-card', 'log-ticket', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
   assert.deepEqual(nav('admin'), ['executive-summary', 'analytics', 'report-card', 'log-ticket', 'submissions', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
   assert.deepEqual(nav('operator'), ['executive-summary'])
-  assert.deepEqual(nav('superadmin'), ['strategy', 'roadmap', 'executive-summary', 'analytics', 'report-card', 'operators', 'customer-success', 'client-status', 'eval-reports', 'log-ticket', 'submissions', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
+  assert.deepEqual(nav('superadmin'), ['strategy', 'roadmap', 'executive-summary', 'analytics', 'report-card', 'operators', 'customer-success', 'sales-funnel', 'eval-reports', 'log-ticket', 'submissions', 'bug-tracker', 'bulletin', 'leaderboard', 'learn'])
   // the same page SETS as before the regrouping (nothing gained or lost)
   const OLD = { agent: ['log-ticket', 'bulletin', 'leaderboard', 'bug-tracker', 'learn'], qa: ['log-ticket', 'bulletin', 'leaderboard', 'report-card', 'bug-tracker', 'learn'], admin: ['log-ticket', 'bulletin', 'leaderboard', 'submissions', 'executive-summary', 'analytics', 'report-card', 'bug-tracker', 'learn'] }
   for (const [r, list] of Object.entries(OLD)) assert.deepEqual([...nav(r)].sort(), [...list].sort())
@@ -35,12 +35,22 @@ test('Operators is optional: off for everyone but SuperAdmin until a profile or 
 
 test('planned pages: off for everyone but SuperAdmin until a profile grants them, and flagged as soon', () => {
   const soon = A.PAGES.filter(p => p.soon).map(p => p.key)
-  assert.deepEqual(soon, ['customer-success', 'client-status'])
+  assert.deepEqual(soon, ['customer-success'])
   for (const r of ['agent', 'qa', 'admin']) for (const k of soon) assert.equal(nav(r).includes(k), false)
   for (const k of soon) assert.equal(nav('superadmin').includes(k), true)
-  const p = profiles(); p.elt = { strategy: 'view', roadmap: 'view', operators: 'view', 'customer-success': 'view', 'client-status': 'view' }
+  const p = profiles(); p.elt = { strategy: 'view', roadmap: 'view', operators: 'view', 'customer-success': 'view' }
   const m = A.computeAccess({ baseRole: 'agent', accessProfile: 'elt', profiles: p, overrides: {} })
-  assert.deepEqual(A.navPages(m).map(x => x.key), ['strategy', 'roadmap', 'operators', 'customer-success', 'client-status'])
+  assert.deepEqual(A.navPages(m).map(x => x.key), ['strategy', 'roadmap', 'operators', 'customer-success'])
+})
+
+test('Sales Funnel is off by default: SuperAdmin only until a profile or override grants it; view only', () => {
+  for (const r of ['agent', 'qa', 'admin']) assert.equal(nav(r).includes('sales-funnel'), false)
+  assert.equal(nav('superadmin').includes('sales-funnel'), true)
+  assert.equal(nav('admin', { overrides: { 'sales-funnel': 'view' } }).includes('sales-funnel'), true)
+  const p = profiles(); p.elt = { 'sales-funnel': 'edit', roadmap: 'view' }
+  const m = A.computeAccess({ baseRole: 'admin', accessProfile: 'elt', profiles: p, overrides: {} })
+  assert.equal(m['sales-funnel'], 'view')                 // there is no edit level on this page
+  assert.equal(A.computeAccess({ baseRole: 'operator', accessProfile: null, profiles: profiles(), overrides: { 'sales-funnel': 'view' } })['sales-funnel'], 'none')
 })
 
 test('Users and Admin settings are SuperAdmin-only: no profile or override can grant them to anyone else', () => {

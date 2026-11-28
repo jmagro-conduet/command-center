@@ -24,13 +24,14 @@ import Strategy from './pages/Strategy'
 import Home from './pages/Home'
 import Operators from './pages/Operators'
 import ComingSoon from './pages/ComingSoon'
+import SalesFunnel from './pages/SalesFunnel'
 import CommandPalette from './components/CommandPalette'
 import { canOpen } from './lib/access/core'
 
 const FOCUS_STALE_MS = 2 * 60 * 1000 // treat data as stale after 2 min away
 
 // ---- URLs. One page per path: / is Home, /strategy, /analytics, /settings, and so on.
-const ROUTABLE: Page[] = ['home', 'operators', 'customer-success', 'client-status', 'log-ticket', 'bulletin', 'leaderboard', 'events', 'submissions', 'report', 'executive-summary', 'analytics', 'report-card', 'bug-tracker', 'users', 'learn', 'settings', 'eval-reports', 'roadmap', 'strategy']
+const ROUTABLE: Page[] = ['home', 'operators', 'customer-success', 'sales-funnel', 'log-ticket', 'bulletin', 'leaderboard', 'events', 'submissions', 'report', 'executive-summary', 'analytics', 'report-card', 'bug-tracker', 'users', 'learn', 'settings', 'eval-reports', 'roadmap', 'strategy']
 const pathFor = (p: Page) => (p === 'home' ? '/' : '/' + p)
 function pageFromPath(pathname: string): Page | null {
   const seg = pathname.replace(/^\/+/, '').split('/')[0]
@@ -127,8 +128,8 @@ function AppShell() {
     switch (page) {
       case 'home':        return <Home         key={viewKey} onNavigate={handleNavigate} />
       case 'operators':   return <Operators    key={viewKey} onNavigate={handleNavigate} />
-      case 'customer-success':
-      case 'client-status': return <ComingSoon  key={viewKey} page={page} />
+      case 'customer-success': return <ComingSoon key={viewKey} page={page} />
+      case 'sales-funnel': return <SalesFunnel key={viewKey} onNavigate={handleNavigate} />
       case 'log-ticket':  return <LogTicket    key={viewKey} />
       case 'bulletin':    return <Bulletin     key={viewKey} />
       case 'leaderboard': return <Leaderboard  key={viewKey} />

@@ -1,0 +1,32 @@
+/* Sales Funnel -- builds on home.css (hub-*). Green = the operator's data; flat, no gradients. */
+.fn-banner { border-radius: 12px; padding: 10px 14px; font-size: 13px; line-height: 1.5; background: var(--primary-bg-soft, rgba(0,168,176,0.07)); color: #000; }
+.fn-banner--warn { background: rgba(229,62,62,0.08); }
+.fn-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.fn-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.fn-kpi { background: #fff; border-radius: 16px; box-shadow: var(--shadow-light); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fn-kpi .l { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #323232; }
+.fn-kpi .v { font-family: var(--font-display); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.fn-kpi .s { font-size: 12px; color: #323232; }
+.fn-steps { display: flex; flex-direction: column; gap: 4px; }
+.fn-step { display: grid; grid-template-columns: minmax(130px, 200px) minmax(0, 1fr) 64px 64px 64px 56px; gap: 12px; align-items: center; font-size: 13px; padding: 6px 0; border-top: 1px solid rgba(0,0,0,0.07); }
+.fn-step:first-child { border-top: 0; }
+.fn-step.head { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: #323232; border-top: 0; }
+.fn-step .n { text-align: right; font-variant-numeric: tabular-nums; }
+.fn-track { height: 14px; background: #f0eeec; border-radius: 100px; overflow: hidden; }
+.fn-track > span { display: block; height: 100%; background: var(--primary, #00a8b0); border-radius: 100px; transition: width 0.15s; }
+.fn-note { font-size: 12px; color: #323232; line-height: 1.5; }
+.fn-mv { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(0,0,0,0.07); font-size: 13px; }
+.fn-mv:first-child { border-top: 0; }
+.fn-mv .d { color: #323232; font-variant-numeric: tabular-nums; }
+.fn-tag { display: inline-flex; font-size: 12px; font-weight: 500; padding: 2px 10px; border-radius: 100px; white-space: nowrap; }
+.fn-tag--new { background: rgba(80,120,255,0.12); color: #3a56c8; }
+.fn-tag--moved { background: rgba(0,168,176,0.12); color: #00787e; }
+.fn-tag--lost { background: rgba(229,62,62,0.1); color: #b42323; }
+.fn-over { color: #b42323; font-weight: 500; }
+.fn-table td.num, .fn-table th.num { text-align: right; }
+.fn-table tbody tr { cursor: default; }
+.fn-table tbody tr:hover { background: transparent; }
+@media (max-width: 900px) {
+  .fn-step { grid-template-columns: minmax(100px, 1fr) minmax(0, 1fr) 48px 48px; }
+  .fn-step > :nth-child(5), .fn-step > :nth-child(6) { display: none; }
+}
