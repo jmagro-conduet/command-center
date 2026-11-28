@@ -50,7 +50,9 @@ function Kpis({ v, plabel }: { v: FunnelView; plabel: string }) {
       <Kpi label="Lost" value={k.lost} sub={plabel} />
       <Kpi label="Win rate" value={r ? pct(r.winRate) : '—'} sub={r ? small || `${r.won} Live, ${r.lost} lost` : 'no Live step'} />
       <Kpi label="Lost rate" value={r ? pct(r.lostRate) : '—'} sub={r ? small || `${r.lost} of ${r.closed} closed` : undefined} />
-      <Kpi label="Avg days to Live" value={k.avgDaysToLive === null ? '—' : k.avgDaysToLive} sub="from added to Live" />
+      <Kpi label="Avg days to Pilot" value={k.avgDaysToPilot === null ? '—' : k.avgDaysToPilot} sub="added to pilot signed" />
+      <Kpi label="Avg days to Paying" value={k.avgDaysToLive === null ? '—' : k.avgDaysToLive} sub="added to Live" />
+      <Kpi label="Avg days to Lost" value={k.avgDaysToLost === null ? '—' : k.avgDaysToLost} sub="added to lost" />
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 The Sales Funnel page (`src/pages/SalesFunnel.tsx`) shows Pipedrive deals by funnel step: reached, entered, in stage, onward
 conversion, stage movements, a deals table, and standard CRM KPIs (open deals and value, added, moved, went Live, lost, win
-rate, lost rate, average days to Live). It reads a copy of Pipedrive in `public.funnel_docs`; it never calls Pipedrive.
+rate, lost rate, average days to Pilot, to Paying and to Lost). It reads a copy of Pipedrive in `public.funnel_docs`; it never calls Pipedrive.
 
 | Piece | Where |
 |---|---|
@@ -84,6 +84,9 @@ other sync functions).
   date). A deal cancelled long ago drops out of the 30 day view and returns under All time.
 * **Win rate** = went Live ÷ (went Live + lost) in the period, **lost rate** = lost ÷ the same total. Both show a dash until at
   least 5 deals have closed in the period, with the count underneath.
+* **Avg days to Pilot / Paying / Lost**: average days from the deal being added to the day it reached the Pilot step (contract signed, the step
+  before Live), went Live (treated as paid conversion; Pipedrive has no paid flag), or became lost, for deals that did so in the period.
+  Read together they show whether deals that drag are more likely to be lost.
 * **Period**: the last 30 or 90 calendar days including today, or all time.
 
 ## Checks

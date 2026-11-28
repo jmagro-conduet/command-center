@@ -52,6 +52,12 @@ test('KPIs for the last 30 days: open, added, moved, went Live, lost, with the l
   assert.equal(k.open, 5); assert.equal(k.openValue, 5000 + 1000 * 4); assert.equal(k.noNext, 5)
   assert.equal(k.added, 2); assert.equal(k.moved, 3); assert.equal(k.wentLive, 1); assert.equal(k.lost, 1)
   assert.equal(k.avgDaysToLive, 106)
+  assert.equal(k.avgDaysToPilot, null)          // C reached Pilot on 10 Oct, outside the 30 days
+  assert.equal(k.avgDaysToLost, 34)             // D: added 15 Oct, lost 18 Nov
+  const all = F.buildView(base(), 'aj', 0, NOW).kpi
+  assert.equal(all.avgDaysToPilot, 70)          // C: 1 Aug to 10 Oct
+  assert.equal(all.avgDaysToLost, Math.round((34 + 30) / 2))   // D 34 days; E 1 Jun to 1 Jul = 30 days
+  assert.equal(F.buildView(data([deal({ pipeline: 'part', stage: 70 })]), 'part', 0, NOW).kpi.avgDaysToPilot, null)   // no Live step, no pilot milestone
   // all time brings the old cancellation back
   assert.equal(F.buildView(base(), 'aj', 0, NOW).kpi.lost, 2)
 })

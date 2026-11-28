@@ -82,6 +82,14 @@ const enteredStepDate = (p: PipelineCfg, d: Deal, step: number): string | null =
   for (const [stage, at] of trail(d)) if (stepOf(p, stage) === step) return at
   return null
 }
+/** First time a deal reached `step` or any later one (a deal that skips a step still counts as having passed it). */
+export function reachedDate(p: PipelineCfg, d: Deal, step: number): string | null {
+  let best: string | null = null
+  for (const [stage, at] of trail(d)) if (stepOf(p, stage) >= step && (best === null || at < best)) best = at
+  return best
+}
+/** The step before Live (Pilot): where the contract is signed. Null when the pipeline has no Live step. */
+export const pilotStepOf = (p: PipelineCfg): number | null => (p.wonStep !== null && p.wonStep > 0 ? p.wonStep - 1 : null)
 /** When a deal went Live: the first time it entered the won step, or its close date if Pipedrive marked it won. */
 export function liveDate(p: PipelineCfg, d: Deal): string | null {
   if (d.status === 'won') return d.closed || d.changed || d.added || null
@@ -118,7 +126,7 @@ export interface FunnelView {
   kpi: {
     open: number; openValue: number | null; noNext: number
     added: number; moved: number; wentLive: number | null; lost: number
-    rate: Rate | null; avgDaysToLive: number | null
+    rate: Rate | null; avgDaysToLive: number | null; avgDaysToPilot: number | null; avgDaysToLost: number | null
   }
   movements: Movement[]
   rows: Row[]
@@ -165,7 +173,12 @@ export function buildView(data: FunnelData, pipelineKey: string, period: Period,
     winRate: closed >= MIN_CLOSED_FOR_RATE ? Math.round(wonSet.length / closed * 100) : null,
     lostRate: closed >= MIN_CLOSED_FOR_RATE ? Math.round(lostSet.length / closed * 100) : null,
   } : null
-  const spans = wonSet.map(d => { const a = daysSince(d.added, now), l = daysSince(liveDate(p, d), now); return a !== null && l !== null ? a - l : null }).filter((x): x is number => x !== null && x >= 0)
+  const avgSpan = (set: Deal[], at: (d: Deal) => string | null): number | null => {
+    const s = set.map(d => { const a = daysSince(d.added, now), l = daysSince(at(d), now); return a !== null && l !== null ? a - l : null }).filter((x): x is number => x !== null && x >= 0)
+    return s.length ? Math.round(s.reduce((a, b) => a + b, 0) / s.length) : null
+  }
+  const ps = pilotStepOf(p)
+  const pilotSet = ps === null ? [] : ds.filter(d => inPeriod(reachedDate(p, d, ps), period, now))
   const value = open.reduce((a, d) => a + d.value, 0)
 
   const movements: Movement[] = []
@@ -196,7 +209,9 @@ export function buildView(data: FunnelData, pipelineKey: string, period: Period,
       open: open.length, openValue: value > 0 ? value : null, noNext: open.filter(d => !d.next).length,
       added: ds.filter(d => inPeriod(d.added, period, now)).length,
       moved: ds.filter(d => d.status === 'open' && inPeriod(lastMoveDate(d), period, now)).length,
-      wentLive: canWin ? wonSet.length : null, lost: lostSet.length, rate, avgDaysToLive: spans.length ? Math.round(spans.reduce((a, b) => a + b, 0) / spans.length) : null,
+      wentLive: canWin ? wonSet.length : null, lost: lostSet.length, rate, avgDaysToLive: avgSpan(wonSet, d => liveDate(p, d)),
+      avgDaysToPilot: ps === null ? null : avgSpan(pilotSet, d => reachedDate(p, d, ps)),
+      avgDaysToLost: avgSpan(lostSet, d => lostDate(p, d)),
     },
     movements, rows, hidden: all.length - ds.length, historyMissing: ds.filter(d => !d.historyOk).length,
   }
